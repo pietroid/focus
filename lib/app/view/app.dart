@@ -1,9 +1,14 @@
 import 'package:cron/routing/app_router.dart';
+import 'package:cron/shared/object_box.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class App extends StatelessWidget {
-  const App({super.key});
+  const App({
+    required this.objectBox,
+    super.key,
+  });
+  final ObjectBox objectBox;
 
   @override
   Widget build(BuildContext context) {
