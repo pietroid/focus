@@ -6,10 +6,10 @@ class NoteUseCases {
 
   final NoteRepository noteRepository;
 
-  void addNote({
+  void addOrEditNote({
     required Note note,
   }) {
-    noteRepository.addNote(
+    noteRepository.addOrEditNote(
       note: note,
     );
   }

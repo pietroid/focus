@@ -10,7 +10,7 @@ class NoteRepository {
   });
   final ObjectBox box;
 
-  void addNote({
+  void addOrEditNote({
     required Note note,
   }) {
     box.store.box<Note>().put(note);

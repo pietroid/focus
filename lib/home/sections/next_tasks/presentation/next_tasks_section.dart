@@ -13,13 +13,13 @@ class NextTasksSection extends StatelessWidget {
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BaseCard(
+          BaseCardContent(
             title: 'Definir gerenciamento de estados',
             subtitle: '09h00 - 09h30',
             color: Color.fromARGB(255, 0, 58, 72),
           ),
           SizedBox(height: 4),
-          BaseCard(
+          BaseCardContent(
             title: 'Criar estrutura de notas',
             subtitle: '09h30 - 10h00',
             color: Color.fromARGB(255, 18, 72, 0),

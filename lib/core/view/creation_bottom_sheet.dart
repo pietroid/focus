@@ -9,7 +9,10 @@ class CreationBottomSheet {
   });
   final NoteUseCases noteUseCases;
 
-  void show(BuildContext context) {
+  void show(
+    BuildContext context, {
+    Note? existingNote,
+  }) {
     showModalBottomSheet(
       useSafeArea: true,
       context: context,
@@ -23,13 +26,17 @@ class CreationBottomSheet {
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
             child: TextField(
+              controller: TextEditingController(text: existingNote?.content),
               textInputAction: TextInputAction.go,
               onSubmitted: (value) {
-                noteUseCases.addNote(
-                  note: Note(
-                    content: value,
-                    createdAt: DateTime.now(),
-                  ),
+                final noteToSubmit = existingNote ??
+                    Note(
+                      content: value,
+                      createdAt: DateTime.now(),
+                    );
+                noteToSubmit.content = value;
+                noteUseCases.addOrEditNote(
+                  note: noteToSubmit,
                 );
                 context.pop();
               },

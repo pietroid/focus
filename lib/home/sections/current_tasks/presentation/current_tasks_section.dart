@@ -10,7 +10,7 @@ class CurrentTasksSection extends StatelessWidget {
     return const HomeSection(
       mustRender: true,
       title: '⏳ Agora',
-      content: BaseCard(
+      content: BaseCardContent(
         title: 'Criar a tela de login',
         subtitle: '16h00 - 18h00',
         color: Color.fromARGB(255, 0, 72, 1),

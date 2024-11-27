@@ -38,7 +38,7 @@ class _TodoListSectionState extends State<TodoListSection> {
                   (note) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: BaseCard(
-                      title: note.content,
+                      note: note,
                     ),
                   ),
                 )
