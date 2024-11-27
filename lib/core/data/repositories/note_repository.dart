@@ -16,6 +16,20 @@ class NoteRepository {
     box.store.box<Note>().put(note);
   }
 
+  void setAsDone({
+    required Note note,
+  }) {
+    note.done = true;
+    box.store.box<Note>().put(note);
+  }
+
+  void setAsUndone({
+    required Note note,
+  }) {
+    note.done = false;
+    box.store.box<Note>().put(note);
+  }
+
   BehaviorSubject<List<Note>> watchNotes() {
     QueryBuilder<Note> query() => box.store.box<Note>().query();
     return SubjectQueryBuilder<Note>(

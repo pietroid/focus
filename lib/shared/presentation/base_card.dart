@@ -1,3 +1,4 @@
+import 'package:cron/core/data/repositories/note_repository.dart';
 import 'package:cron/core/domain/note.dart';
 import 'package:cron/core/view/creation_bottom_sheet.dart';
 import 'package:cron/shared/app_colors.dart';
@@ -23,6 +24,14 @@ class BaseCard extends StatelessWidget {
           existingNote: note,
         );
       },
+      hasBeenDismissed: note.done,
+      onChanged: () {
+        if (note.done) {
+          context.read<NoteRepository>().setAsUndone(note: note);
+          return;
+        }
+        context.read<NoteRepository>().setAsDone(note: note);
+      },
     );
   }
 }
@@ -32,23 +41,25 @@ class BaseCardContent extends StatelessWidget {
     required this.title,
     this.color,
     this.subtitle,
-    this.isDismissable = true,
     this.loadingProgress,
     this.onTap,
+    this.onChanged,
+    this.hasBeenDismissed = false,
     super.key,
   });
 
   final VoidCallback? onTap;
+  final VoidCallback? onChanged;
+  final bool hasBeenDismissed;
   final String title;
   final String? subtitle;
   final Color? color;
-  final bool isDismissable;
   final double? loadingProgress;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return InkWell(
+    return GestureDetector(
       onTap: onTap,
       child: Container(
         clipBehavior: Clip.antiAlias,
@@ -79,6 +90,11 @@ class BaseCardContent extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (onChanged != null)
+                    CheckBox(
+                      onChanged: () => onChanged!(),
+                      value: hasBeenDismissed,
+                    ),
                 ],
               ),
             ),
@@ -90,6 +106,37 @@ class BaseCardContent extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class CheckBox extends StatelessWidget {
+  const CheckBox({
+    required this.onChanged,
+    required this.value,
+    super.key,
+  });
+
+  final VoidCallback onChanged;
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onChanged,
+      child: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.fromBorderSide(
+            BorderSide(
+              color: Colors.white.withOpacity(0.3),
+            ),
+          ),
+        ),
+        child: value ? const Icon(Icons.check, size: 12) : null,
       ),
     );
   }

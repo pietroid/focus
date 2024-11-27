@@ -2,6 +2,7 @@ import 'package:cron/core/data/repositories/note_repository.dart';
 import 'package:cron/core/domain/use_cases/note_use_cases.dart';
 import 'package:cron/core/view/creation_bottom_sheet.dart';
 import 'package:cron/routing/app_router.dart';
+import 'package:cron/shared/app_colors.dart';
 import 'package:cron/shared/object_box.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -37,10 +38,10 @@ class App extends StatelessWidget {
         themeMode: ThemeMode.dark,
         darkTheme: ThemeData(
           brightness: Brightness.dark,
-          primaryColor: const Color(0xFF00ACBB),
-          scaffoldBackgroundColor: const Color(0xFF0C1116),
+          primaryColor: AppColors.primaryColor,
+          scaffoldBackgroundColor: AppColors.defaultBackgroundColor,
           bottomSheetTheme: const BottomSheetThemeData(
-            backgroundColor: Color(0xFF0C1116),
+            backgroundColor: AppColors.defaultBackgroundColor,
           ),
           useMaterial3: true,
           textTheme: GoogleFonts.onestTextTheme(ThemeData().textTheme).copyWith(

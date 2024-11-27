@@ -23,7 +23,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(1, 1631627817501562807),
       name: 'Note',
-      lastPropertyId: const obx_int.IdUid(4, 2568087456281045795),
+      lastPropertyId: const obx_int.IdUid(5, 2964913559125229487),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -40,6 +40,11 @@ final _entities = <obx_int.ModelEntity>[
             id: const obx_int.IdUid(4, 2568087456281045795),
             name: 'content',
             type: 9,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(5, 2964913559125229487),
+            name: 'done',
+            type: 1,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[],
@@ -128,10 +133,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
         },
         objectToFB: (Note object, fb.Builder fbb) {
           final contentOffset = fbb.writeString(object.content);
-          fbb.startTable(5);
+          fbb.startTable(6);
           fbb.addInt64(0, object.id);
           fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
           fbb.addOffset(3, contentOffset);
+          fbb.addBool(4, object.done);
           fbb.finish(fbb.endTable());
           return object.id;
         },
@@ -142,7 +148,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
               .vTableGet(buffer, rootOffset, 10, '');
           final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
-          final object = Note(content: contentParam, createdAt: createdAtParam)
+          final doneParam =
+              const fb.BoolReader().vTableGet(buffer, rootOffset, 12, false);
+          final object = Note(
+              content: contentParam, createdAt: createdAtParam, done: doneParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0);
 
           return object;
@@ -193,6 +202,10 @@ class Note_ {
   /// See [Note.content].
   static final content =
       obx.QueryStringProperty<Note>(_entities[0].properties[2]);
+
+  /// See [Note.done].
+  static final done =
+      obx.QueryBooleanProperty<Note>(_entities[0].properties[3]);
 }
 
 /// [Event] entity fields to define ObjectBox queries.

@@ -5,6 +5,7 @@ class Note {
   Note({
     required this.content,
     required this.createdAt,
+    required this.done,
   });
 
   @Id()
@@ -14,4 +15,7 @@ class Note {
 
   @Property(type: PropertyType.date)
   DateTime createdAt;
+
+  // TODO: maybe add this to a generic field
+  bool done;
 }

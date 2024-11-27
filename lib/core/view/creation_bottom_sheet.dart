@@ -33,6 +33,7 @@ class CreationBottomSheet {
                     Note(
                       content: value,
                       createdAt: DateTime.now(),
+                      done: false,
                     );
                 noteToSubmit.content = value;
                 noteUseCases.addOrEditNote(
