@@ -1,5 +1,5 @@
-import 'package:cron/cards/presentation/base_card.dart';
 import 'package:cron/home/sections/core/home_section.dart';
+import 'package:cron/shared/presentation/base_card.dart';
 import 'package:flutter/material.dart';
 
 class CurrentTasksSection extends StatelessWidget {

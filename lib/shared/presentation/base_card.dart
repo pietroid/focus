@@ -1,9 +1,10 @@
+import 'package:cron/shared/app_colors.dart';
 import 'package:flutter/material.dart';
 
 class BaseCard extends StatelessWidget {
   const BaseCard({
     required this.title,
-    required this.color,
+    this.color,
     this.subtitle,
     this.isDismissable = true,
     this.loadingProgress,
@@ -12,7 +13,7 @@ class BaseCard extends StatelessWidget {
 
   final String title;
   final String? subtitle;
-  final Color color;
+  final Color? color;
   final bool isDismissable;
   final double? loadingProgress;
 
@@ -22,7 +23,7 @@ class BaseCard extends StatelessWidget {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: color,
+        color: color ?? AppColors.defaultCardColor,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Stack(
