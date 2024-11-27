@@ -8,7 +8,7 @@ class CurrentTasksSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const HomeSection(
-      mustRender: false,
+      mustRender: true,
       title: '⏳ Agora',
       content: BaseCard(
         title: 'Criar a tela de login',
