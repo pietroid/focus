@@ -23,7 +23,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(1, 1631627817501562807),
       name: 'Note',
-      lastPropertyId: const obx_int.IdUid(3, 4544843419996755169),
+      lastPropertyId: const obx_int.IdUid(4, 2568087456281045795),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -32,14 +32,14 @@ final _entities = <obx_int.ModelEntity>[
             type: 6,
             flags: 1),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(2, 2840272927915169489),
-            name: 'description',
-            type: 9,
-            flags: 0),
-        obx_int.ModelProperty(
             id: const obx_int.IdUid(3, 4544843419996755169),
             name: 'createdAt',
             type: 10,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(4, 2568087456281045795),
+            name: 'content',
+            type: 9,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[],
@@ -111,7 +111,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
       lastSequenceId: const obx_int.IdUid(0, 0),
       retiredEntityUids: const [],
       retiredIndexUids: const [],
-      retiredPropertyUids: const [],
+      retiredPropertyUids: const [2840272927915169489],
       retiredRelationUids: const [],
       modelVersion: 5,
       modelVersionParserMinimum: 5,
@@ -127,24 +127,22 @@ obx_int.ModelDefinition getObjectBoxModel() {
           object.id = id;
         },
         objectToFB: (Note object, fb.Builder fbb) {
-          final descriptionOffset = fbb.writeString(object.description);
-          fbb.startTable(4);
+          final contentOffset = fbb.writeString(object.content);
+          fbb.startTable(5);
           fbb.addInt64(0, object.id);
-          fbb.addOffset(1, descriptionOffset);
           fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
+          fbb.addOffset(3, contentOffset);
           fbb.finish(fbb.endTable());
           return object.id;
         },
         objectFromFB: (obx.Store store, ByteData fbData) {
           final buffer = fb.BufferContext(fbData);
           final rootOffset = buffer.derefObject(0);
-          final descriptionParam =
-              const fb.StringReader(asciiOptimization: true)
-                  .vTableGet(buffer, rootOffset, 6, '');
+          final contentParam = const fb.StringReader(asciiOptimization: true)
+              .vTableGet(buffer, rootOffset, 10, '');
           final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
-          final object = Note(
-              description: descriptionParam, createdAt: createdAtParam)
+          final object = Note(content: contentParam, createdAt: createdAtParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0);
 
           return object;
@@ -188,13 +186,13 @@ class Note_ {
   /// See [Note.id].
   static final id = obx.QueryIntegerProperty<Note>(_entities[0].properties[0]);
 
-  /// See [Note.description].
-  static final description =
-      obx.QueryStringProperty<Note>(_entities[0].properties[1]);
-
   /// See [Note.createdAt].
   static final createdAt =
-      obx.QueryDateProperty<Note>(_entities[0].properties[2]);
+      obx.QueryDateProperty<Note>(_entities[0].properties[1]);
+
+  /// See [Note.content].
+  static final content =
+      obx.QueryStringProperty<Note>(_entities[0].properties[2]);
 }
 
 /// [Event] entity fields to define ObjectBox queries.
