@@ -1,7 +1,7 @@
 import 'package:cron/cards/presentation/base_card.dart';
 import 'package:cron/core/data/repositories/note_repository.dart';
 import 'package:cron/core/domain/note.dart';
-import 'package:cron/home/sections/home_section.dart';
+import 'package:cron/home/sections/core/home_section.dart';
 import 'package:cron/shared/stream_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
