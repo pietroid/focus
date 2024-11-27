@@ -1,7 +1,7 @@
 import 'package:cron/cards/presentation/base_card.dart';
 import 'package:cron/core/data/repositories/note_repository.dart';
 import 'package:cron/core/domain/note.dart';
-import 'package:cron/shared/query_cubit/query_cubit_cubit.dart';
+import 'package:cron/shared/stream_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -13,13 +13,13 @@ class TodoListSection extends StatefulWidget {
 }
 
 class _TodoListSectionState extends State<TodoListSection> {
-  late QueryCubit<Note> _queryCubit;
+  late StreamCubit<List<Note>> _streamCubit;
 
   @override
   initState() {
     super.initState();
-    _queryCubit = QueryCubit<Note>(
-      query: () => context.read<NoteRepository>().defaultNotesQuery(),
+    _streamCubit = StreamCubit<List<Note>>(
+      stream: context.read<NoteRepository>().watchNotes(),
     );
   }
 
@@ -27,8 +27,8 @@ class _TodoListSectionState extends State<TodoListSection> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return BlocBuilder<QueryCubit<Note>, List<Note>>(
-      bloc: _queryCubit,
+    return BlocBuilder<StreamCubit<List<Note>>, List<Note>>(
+      bloc: _streamCubit,
       builder: (context, state) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

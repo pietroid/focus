@@ -1,6 +1,8 @@
 import 'package:cron/core/domain/note.dart';
 import 'package:cron/objectbox.g.dart';
 import 'package:cron/shared/object_box.dart';
+import 'package:cron/shared/streamed_data_source.dart';
+import 'package:rxdart/subjects.dart';
 
 class NoteRepository {
   NoteRepository({
@@ -13,7 +15,10 @@ class NoteRepository {
     box.store.box<Note>().put(note);
   }
 
-  QueryBuilder<Note> defaultNotesQuery() {
-    return box.store.box<Note>().query();
+  BehaviorSubject<List<Note>> watchNotes() {
+    QueryBuilder<Note> query() => box.store.box<Note>().query();
+    return SubjectQueryBuilder<Note>(
+      query: query,
+    ).behaviorSubject;
   }
 }
