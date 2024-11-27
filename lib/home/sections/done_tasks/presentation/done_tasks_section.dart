@@ -6,21 +6,21 @@ import 'package:cron/shared/stream_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class TodoListSection extends StatefulWidget {
-  const TodoListSection({super.key});
+class DoneTasksSection extends StatefulWidget {
+  const DoneTasksSection({super.key});
 
   @override
-  State<TodoListSection> createState() => _TodoListSectionState();
+  State<DoneTasksSection> createState() => _DoneTasksSectionState();
 }
 
-class _TodoListSectionState extends State<TodoListSection> {
+class _DoneTasksSectionState extends State<DoneTasksSection> {
   late StreamCubit<List<Note>> _streamCubit;
 
   @override
   void initState() {
     super.initState();
     _streamCubit = StreamCubit<List<Note>>(
-      stream: context.read<NoteRepository>().watchTodoNotes(),
+      stream: context.read<NoteRepository>().watchDoneNotes(),
     );
   }
 
@@ -31,7 +31,7 @@ class _TodoListSectionState extends State<TodoListSection> {
       builder: (context, state) {
         return HomeSection(
           mustRender: state.isNotEmpty,
-          title: '📃 Listinha',
+          title: '🎉 Concluídas',
           content: Column(
             children: state
                 .map(

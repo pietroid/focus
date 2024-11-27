@@ -19,7 +19,7 @@ class _EmptyStateSectionState extends State<EmptyStateSection> {
   void initState() {
     //TODO change this query on the future because of performance (limit it or return just bool)
     _hasNotesCubit = StreamCubit<List<Note>>(
-      stream: context.read<NoteRepository>().watchNotes(),
+      stream: context.read<NoteRepository>().watchTodoNotes(),
     );
     super.initState();
   }

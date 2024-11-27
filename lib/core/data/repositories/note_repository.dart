@@ -30,8 +30,17 @@ class NoteRepository {
     box.store.box<Note>().put(note);
   }
 
-  BehaviorSubject<List<Note>> watchNotes() {
-    QueryBuilder<Note> query() => box.store.box<Note>().query();
+  BehaviorSubject<List<Note>> watchTodoNotes() {
+    QueryBuilder<Note> query() =>
+        box.store.box<Note>().query(Note_.done.equals(false));
+    return SubjectQueryBuilder<Note>(
+      query: query,
+    ).behaviorSubject;
+  }
+
+  BehaviorSubject<List<Note>> watchDoneNotes() {
+    QueryBuilder<Note> query() =>
+        box.store.box<Note>().query(Note_.done.equals(true));
     return SubjectQueryBuilder<Note>(
       query: query,
     ).behaviorSubject;
