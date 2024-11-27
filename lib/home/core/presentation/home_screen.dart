@@ -18,9 +18,7 @@ class HomeScreen extends StatelessWidget {
           child: ListView(
             children: const [
               CurrentTasksSection(),
-              SizedBox(height: 32),
               NextTasksSection(),
-              SizedBox(height: 32),
               TodoListSection(),
             ],
           ),

@@ -9,6 +9,7 @@ class NoteRepository {
     required this.box,
   });
   final ObjectBox box;
+
   void addNote({
     required Note note,
   }) {
