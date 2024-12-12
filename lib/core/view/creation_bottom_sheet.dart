@@ -1,17 +1,17 @@
-import 'package:cron/core/domain/note.dart';
-import 'package:cron/core/domain/use_cases/note_use_cases.dart';
+import 'package:cron/core/domain/thing.dart';
+import 'package:cron/core/domain/use_cases/thing_use_cases.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class CreationBottomSheet {
   CreationBottomSheet({
-    required this.noteUseCases,
+    required this.thingUseCases,
   });
-  final NoteUseCases noteUseCases;
+  final ThingUseCases thingUseCases;
 
   void show(
     BuildContext context, {
-    Note? existingNote,
+    Thing? existingThing,
   }) {
     showModalBottomSheet(
       useSafeArea: true,
@@ -26,18 +26,18 @@ class CreationBottomSheet {
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
             child: TextField(
-              controller: TextEditingController(text: existingNote?.content),
+              controller: TextEditingController(text: existingThing?.content),
               textInputAction: TextInputAction.go,
               onSubmitted: (value) {
-                final noteToSubmit = existingNote ??
-                    Note(
+                final thingToSubmit = existingThing ??
+                    Thing(
                       content: value,
                       createdAt: DateTime.now(),
                       done: false,
                     );
-                noteToSubmit.content = value;
-                noteUseCases.addOrEditNote(
-                  note: noteToSubmit,
+                thingToSubmit.content = value;
+                thingUseCases.addOrEditThing(
+                  thing: thingToSubmit,
                 );
                 context.pop();
               },

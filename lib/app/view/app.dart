@@ -1,5 +1,5 @@
-import 'package:cron/core/data/repositories/note_repository.dart';
-import 'package:cron/core/domain/use_cases/note_use_cases.dart';
+import 'package:cron/core/data/repositories/thing_repository.dart';
+import 'package:cron/core/domain/use_cases/thing_use_cases.dart';
 import 'package:cron/core/view/creation_bottom_sheet.dart';
 import 'package:cron/routing/app_router.dart';
 import 'package:cron/shared/app_colors.dart';
@@ -20,16 +20,16 @@ class App extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider(
-          create: (context) => NoteRepository(box: objectBox),
+          create: (context) => ThingRepository(box: objectBox),
         ),
         Provider(
-          create: (context) => NoteUseCases(
-            noteRepository: context.read<NoteRepository>(),
+          create: (context) => ThingUseCases(
+            thingRepository: context.read<ThingRepository>(),
           ),
         ),
         Provider(
           create: (context) => CreationBottomSheet(
-            noteUseCases: context.read<NoteUseCases>(),
+            thingUseCases: context.read<ThingUseCases>(),
           ),
         ),
       ],

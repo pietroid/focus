@@ -1,5 +1,5 @@
-import 'package:cron/core/data/repositories/note_repository.dart';
-import 'package:cron/core/domain/note.dart';
+import 'package:cron/core/data/repositories/thing_repository.dart';
+import 'package:cron/core/domain/thing.dart';
 import 'package:cron/core/view/creation_bottom_sheet.dart';
 import 'package:cron/shared/app_colors.dart';
 import 'package:flutter/material.dart';
@@ -7,30 +7,30 @@ import 'package:provider/provider.dart';
 
 class BaseCard extends StatelessWidget {
   const BaseCard({
-    required this.note,
+    required this.thing,
     super.key,
   });
-  final Note note;
+  final Thing thing;
 
   @override
   Widget build(BuildContext context) {
     final creationBottomSheet = context.read<CreationBottomSheet>();
 
     return BaseCardContent(
-      title: note.content,
+      title: thing.content,
       onTap: () {
         creationBottomSheet.show(
           context,
-          existingNote: note,
+          existingThing: thing,
         );
       },
-      hasBeenDismissed: note.done,
+      hasBeenDismissed: thing.done,
       onChanged: () {
-        if (note.done) {
-          context.read<NoteRepository>().setAsUndone(note: note);
+        if (thing.done) {
+          context.read<ThingRepository>().setAsUndone(thing: thing);
           return;
         }
-        context.read<NoteRepository>().setAsDone(note: note);
+        context.read<ThingRepository>().setAsDone(thing: thing);
       },
     );
   }

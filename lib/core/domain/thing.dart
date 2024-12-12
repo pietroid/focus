@@ -1,8 +1,8 @@
 import 'package:objectbox/objectbox.dart';
 
 @Entity()
-class Note {
-  Note({
+class Thing {
+  Thing({
     required this.content,
     required this.createdAt,
     required this.done,
