@@ -1,6 +1,6 @@
+import 'package:cron/app/core/app/app.dart';
+import 'package:cron/app/data/object_box.dart';
 import 'package:cron/bootstrap.dart';
-import 'package:cron/core/core/app/app.dart';
-import 'package:cron/core/data/object_box.dart';
 import 'package:flutter/material.dart';
 
 void main() {
