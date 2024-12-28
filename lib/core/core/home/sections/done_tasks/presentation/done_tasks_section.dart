@@ -1,26 +1,26 @@
+import 'package:cron/core/core/home/sections/core/home_section.dart';
 import 'package:cron/core/core/thing.dart';
 import 'package:cron/core/data/repositories/thing_repository.dart';
 import 'package:cron/core/data/stream_cubit.dart';
 import 'package:cron/core/ui/base_card.dart';
-import 'package:cron/home/sections/core/home_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class TodoListSection extends StatefulWidget {
-  const TodoListSection({super.key});
+class DoneTasksSection extends StatefulWidget {
+  const DoneTasksSection({super.key});
 
   @override
-  State<TodoListSection> createState() => _TodoListSectionState();
+  State<DoneTasksSection> createState() => _DoneTasksSectionState();
 }
 
-class _TodoListSectionState extends State<TodoListSection> {
+class _DoneTasksSectionState extends State<DoneTasksSection> {
   late StreamCubit<List<Thing>> _streamCubit;
 
   @override
   void initState() {
     super.initState();
     _streamCubit = StreamCubit<List<Thing>>(
-      stream: context.read<ThingRepository>().watchTodoThings(),
+      stream: context.read<ThingRepository>().watchDoneThings(),
     );
   }
 
@@ -31,7 +31,7 @@ class _TodoListSectionState extends State<TodoListSection> {
       builder: (context, state) {
         return HomeSection(
           mustRender: state.isNotEmpty,
-          title: '📃 Listinha',
+          title: '🎉 Concluídas',
           content: Column(
             children: state
                 .map(

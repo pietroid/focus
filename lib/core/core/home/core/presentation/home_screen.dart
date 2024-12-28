@@ -1,7 +1,7 @@
+import 'package:cron/core/core/home/sections/done_tasks/presentation/done_tasks_section.dart';
+import 'package:cron/core/core/home/sections/empty_state/presentation/empty_state_section.dart';
+import 'package:cron/core/core/home/sections/todo_list/presentation/todo_list_section.dart';
 import 'package:cron/core/ui/creation_bottom_sheet.dart';
-import 'package:cron/home/sections/done_tasks/presentation/done_tasks_section.dart';
-import 'package:cron/home/sections/empty_state/presentation/empty_state_section.dart';
-import 'package:cron/home/sections/todo_list/presentation/todo_list_section.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
