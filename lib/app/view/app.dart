@@ -1,9 +1,9 @@
 import 'package:cron/core/core/use_cases/thing_use_cases.dart';
 import 'package:cron/core/data/object_box.dart';
 import 'package:cron/core/data/repositories/thing_repository.dart';
+import 'package:cron/core/ui/app_colors.dart';
 import 'package:cron/core/ui/creation_bottom_sheet.dart';
 import 'package:cron/routing/app_router.dart';
-import 'package:cron/shared/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';

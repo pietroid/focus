@@ -1,5 +1,5 @@
+import 'package:cron/core/ui/base_card.dart';
 import 'package:cron/home/sections/core/home_section.dart';
-import 'package:cron/shared/presentation/base_card.dart';
 import 'package:flutter/material.dart';
 
 class NextTasksSection extends StatelessWidget {

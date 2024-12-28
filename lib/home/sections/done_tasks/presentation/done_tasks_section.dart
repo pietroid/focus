@@ -1,8 +1,8 @@
 import 'package:cron/core/core/thing.dart';
 import 'package:cron/core/data/repositories/thing_repository.dart';
 import 'package:cron/core/data/stream_cubit.dart';
+import 'package:cron/core/ui/base_card.dart';
 import 'package:cron/home/sections/core/home_section.dart';
-import 'package:cron/shared/presentation/base_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
