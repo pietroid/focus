@@ -1,5 +1,5 @@
-import 'package:cron/core/domain/thing.dart';
-import 'package:cron/core/domain/use_cases/thing_use_cases.dart';
+import 'package:cron/core/core/thing.dart';
+import 'package:cron/core/core/use_cases/thing_use_cases.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

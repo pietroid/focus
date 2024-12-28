@@ -1,6 +1,6 @@
+import 'package:cron/core/core/thing.dart';
 import 'package:cron/core/data/repositories/thing_repository.dart';
-import 'package:cron/core/domain/thing.dart';
-import 'package:cron/core/view/creation_bottom_sheet.dart';
+import 'package:cron/core/ui/creation_bottom_sheet.dart';
 import 'package:cron/shared/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

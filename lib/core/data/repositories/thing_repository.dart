@@ -1,4 +1,4 @@
-import 'package:cron/core/domain/thing.dart';
+import 'package:cron/core/core/thing.dart';
 import 'package:cron/objectbox.g.dart';
 import 'package:cron/shared/object_box.dart';
 import 'package:cron/shared/streamed_data_source.dart';
