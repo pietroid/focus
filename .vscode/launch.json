@@ -5,14 +5,14 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Cron",
+      "name": "Launch Focus",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
       "args": ["--flavor", "production", "--target", "lib/main.dart"]
     },
     {
-      "name": "Launch Cron Profile",
+      "name": "Launch Focus Profile",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",

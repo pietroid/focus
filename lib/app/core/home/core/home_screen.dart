@@ -1,9 +1,9 @@
-import 'package:cron/app/core/home/sections/done_tasks/presentation/done_tasks_section.dart';
-import 'package:cron/app/core/home/sections/empty_state/presentation/empty_state_section.dart';
-import 'package:cron/app/core/home/sections/todo_list/presentation/todo_list_section.dart';
-import 'package:cron/app/ui/creation_bottom_sheet.dart';
-import 'package:cron/app/ui/elements/global_scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/home/sections/done_tasks/presentation/done_tasks_section.dart';
+import 'package:focus/app/core/home/sections/empty_state/presentation/empty_state_section.dart';
+import 'package:focus/app/core/home/sections/todo_list/presentation/todo_list_section.dart';
+import 'package:focus/app/ui/creation_bottom_sheet.dart';
+import 'package:focus/app/ui/elements/global_scaffold.dart';
 import 'package:provider/provider.dart';
 
 class HomeScreen extends StatelessWidget {

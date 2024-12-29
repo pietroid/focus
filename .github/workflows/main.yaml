@@ -1,4 +1,4 @@
-# name: cron
+# name: focus
 
 # concurrency:
 #   group: $-$

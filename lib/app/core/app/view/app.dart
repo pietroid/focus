@@ -1,10 +1,10 @@
-import 'package:cron/app/core/use_cases/thing_use_cases.dart';
-import 'package:cron/app/data/object_box.dart';
-import 'package:cron/app/data/repositories/thing_repository.dart';
-import 'package:cron/app/ui/app_colors.dart';
-import 'package:cron/app/ui/creation_bottom_sheet.dart';
-import 'package:cron/app/ui/routing/app_router.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/use_cases/thing_use_cases.dart';
+import 'package:focus/app/data/object_box.dart';
+import 'package:focus/app/data/repositories/thing_repository.dart';
+import 'package:focus/app/ui/app_colors.dart';
+import 'package:focus/app/ui/creation_bottom_sheet.dart';
+import 'package:focus/app/ui/routing/app_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 

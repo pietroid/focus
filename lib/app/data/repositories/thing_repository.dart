@@ -1,7 +1,7 @@
-import 'package:cron/app/core/thing.dart';
-import 'package:cron/app/data/object_box.dart';
-import 'package:cron/app/data/streamed_data_source.dart';
-import 'package:cron/objectbox.g.dart';
+import 'package:focus/app/core/thing.dart';
+import 'package:focus/app/data/object_box.dart';
+import 'package:focus/app/data/streamed_data_source.dart';
+import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
 
 class ThingRepository {

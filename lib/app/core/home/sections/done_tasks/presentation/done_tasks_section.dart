@@ -1,10 +1,10 @@
-import 'package:cron/app/core/home/sections/core/home_section.dart';
-import 'package:cron/app/core/thing.dart';
-import 'package:cron/app/data/repositories/thing_repository.dart';
-import 'package:cron/app/data/stream_cubit.dart';
-import 'package:cron/app/ui/base_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/app/core/home/sections/core/home_section.dart';
+import 'package:focus/app/core/thing.dart';
+import 'package:focus/app/data/repositories/thing_repository.dart';
+import 'package:focus/app/data/stream_cubit.dart';
+import 'package:focus/app/ui/base_card.dart';
 
 class DoneTasksSection extends StatefulWidget {
   const DoneTasksSection({super.key});

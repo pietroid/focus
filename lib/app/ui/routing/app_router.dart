@@ -1,4 +1,4 @@
-import 'package:cron/app/core/home/core/home_screen.dart';
+import 'package:focus/app/core/home/core/home_screen.dart';
 import 'package:go_router/go_router.dart';
 
 class AppRouter {

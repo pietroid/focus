@@ -1,4 +1,4 @@
-package com.example.verygoodcore.cron
+package com.example.verygoodcore.focus
 
 import io.flutter.embedding.android.FlutterActivity
 

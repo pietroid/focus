@@ -1,4 +1,4 @@
-import 'package:cron/objectbox.g.dart';
+import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
 
 class SubjectQueryBuilder<T> {

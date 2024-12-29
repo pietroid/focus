@@ -1,6 +1,6 @@
-import 'package:cron/app/core/home/sections/core/home_section.dart';
-import 'package:cron/app/ui/base_card.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/home/sections/core/home_section.dart';
+import 'package:focus/app/ui/base_card.dart';
 
 class NextTasksSection extends StatelessWidget {
   const NextTasksSection({super.key});

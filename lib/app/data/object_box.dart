@@ -1,4 +1,4 @@
-import 'package:cron/objectbox.g.dart'; // created by `flutter pub run build_runner build`
+import 'package:focus/objectbox.g.dart'; // created by `flutter pub run build_runner build`
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 

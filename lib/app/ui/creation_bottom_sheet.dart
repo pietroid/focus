@@ -1,6 +1,6 @@
-import 'package:cron/app/core/thing.dart';
-import 'package:cron/app/core/use_cases/thing_use_cases.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/thing.dart';
+import 'package:focus/app/core/use_cases/thing_use_cases.dart';
 import 'package:go_router/go_router.dart';
 
 class CreationBottomSheet {

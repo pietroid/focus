@@ -1,7 +1,7 @@
-import 'package:cron/app/core/app/app.dart';
-import 'package:cron/app/data/object_box.dart';
-import 'package:cron/bootstrap.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/app/app.dart';
+import 'package:focus/app/data/object_box.dart';
+import 'package:focus/bootstrap.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
