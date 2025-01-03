@@ -1,3 +1,4 @@
+import 'package:focus/app/core/rank.dart';
 import 'package:objectbox/objectbox.dart';
 
 @Entity()
@@ -18,4 +19,11 @@ class Thing {
 
   // TODO: maybe add this to a generic field
   bool done;
+
+  final children = ToMany<Thing>();
+
+  final rankedChildren = ToMany<RankedThing>();
+
+  @Backlink('children')
+  final parents = ToMany<Thing>();
 }

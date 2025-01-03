@@ -54,12 +54,50 @@
           "type": 1
         }
       ],
+      "relations": [
+        {
+          "id": "1:6222793265198116006",
+          "name": "children",
+          "targetId": "3:5074736434067970976"
+        },
+        {
+          "id": "2:7142782651244064316",
+          "name": "rankedChildren",
+          "targetId": "4:3624636574726604689"
+        }
+      ]
+    },
+    {
+      "id": "4:3624636574726604689",
+      "lastPropertyId": "3:5705228549106420783",
+      "name": "RankedThing",
+      "properties": [
+        {
+          "id": "1:4261564895852394679",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:2739063483213758185",
+          "name": "order",
+          "type": 6
+        },
+        {
+          "id": "3:5705228549106420783",
+          "name": "thingId",
+          "type": 11,
+          "flags": 520,
+          "indexId": "1:7303701840037303071",
+          "relationTarget": "Thing"
+        }
+      ],
       "relations": []
     }
   ],
-  "lastEntityId": "3:5074736434067970976",
-  "lastIndexId": "0:0",
-  "lastRelationId": "0:0",
+  "lastEntityId": "4:3624636574726604689",
+  "lastIndexId": "1:7303701840037303071",
+  "lastRelationId": "2:7142782651244064316",
   "lastSequenceId": "0:0",
   "modelVersion": 5,
   "modelVersionParserMinimum": 5,

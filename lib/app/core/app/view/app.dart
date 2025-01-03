@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/home/core/sections/today.dart';
 import 'package:focus/app/core/use_cases/thing_use_cases.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
@@ -30,6 +31,11 @@ class App extends StatelessWidget {
         Provider(
           create: (context) => CreationBottomSheet(
             thingUseCases: context.read<ThingUseCases>(),
+          ),
+        ),
+        Provider(
+          create: (context) => TodaySectionDelegate(
+            box: objectBox,
           ),
         ),
       ],

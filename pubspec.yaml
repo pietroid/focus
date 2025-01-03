@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   bloc: ^8.1.4
+  drag_and_drop_lists: ^0.4.2
   flutter:
     sdk: flutter
   flutter_bloc: ^8.1.6

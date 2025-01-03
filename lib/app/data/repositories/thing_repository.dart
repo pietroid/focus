@@ -13,7 +13,15 @@ class ThingRepository {
   void addOrEditThing({
     required Thing thing,
   }) {
-    box.store.box<Thing>().put(thing);
+    final existingParent = box.store
+        .box<Thing>()
+        .query(Thing_.content.equals('nota 1'))
+        .build()
+        .findFirst();
+    if (existingParent != null) {
+      existingParent.children.add(thing);
+      existingParent.children.applyToDb();
+    }
   }
 
   void setAsDone({
