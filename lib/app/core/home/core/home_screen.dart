@@ -29,10 +29,12 @@ class HomeScreen extends StatelessWidget {
           children: state
               .map(
                 (data) => DragAndDropList(
+                  key: ValueKey(data.id),
                   contentsWhenEmpty: Container(),
                   children: data.children
                       .map(
                         (child) => DragAndDropItem(
+                          key: ValueKey(child.id),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 2),
                             child: BaseCard(
@@ -53,7 +55,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               )
               .toList(),
-          onItemReorder: (_, __, ___, ____) {},
+          onItemReorder: (
+            int oldItemIndex,
+            int oldListIndex,
+            int newItemIndex,
+            int newListIndex,
+          ) {
+            context.read<TodaySectionDelegate>().editThing(
+                  thing: state[oldListIndex].children[oldItemIndex],
+                  newParent: state[newListIndex],
+                );
+          },
           onListReorder: (_, __) {},
         ),
       ),

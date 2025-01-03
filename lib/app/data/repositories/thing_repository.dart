@@ -15,7 +15,7 @@ class ThingRepository {
   }) {
     final existingParent = box.store
         .box<Thing>()
-        .query(Thing_.content.equals('nota 1'))
+        .query(Thing_.content.equals('agora'))
         .build()
         .findFirst();
     if (existingParent != null) {

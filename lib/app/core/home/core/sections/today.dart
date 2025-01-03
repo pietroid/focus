@@ -54,6 +54,22 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
       query: query,
     ).behaviorSubject;
   }
+
+  void editThing({
+    required Thing thing,
+    required Thing newParent,
+  }) {
+    final existingParent = box.store
+        .box<Thing>()
+        .query(Thing_.id.equals(newParent.id))
+        .build()
+        .findFirst();
+    if (existingParent != null) {
+      existingParent.children.add(thing);
+      box.store.box<Thing>().put(thing);
+      existingParent.children.applyToDb();
+    }
+  }
 }
 
 class DataObserver<T> extends StatefulWidget {
