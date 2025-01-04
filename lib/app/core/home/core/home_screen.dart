@@ -61,6 +61,7 @@ class HomeScreen extends StatelessWidget {
             int newItemIndex,
             int newListIndex,
           ) {
+            //TODO: find a better way to sort relations
             final oldList = state[oldListIndex];
             final oldSortedList = oldList.children
               ..sort((a, b) => a.rank.compareTo(b.rank));
