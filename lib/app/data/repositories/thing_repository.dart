@@ -13,12 +13,15 @@ class ThingRepository {
   void addOrEditThing({
     required Thing thing,
   }) {
+    //box.store.box<Thing>().put(thing);
     final existingParent = box.store
         .box<Thing>()
         .query(Thing_.content.equals('agora'))
         .build()
         .findFirst();
     if (existingParent != null) {
+      thing.rank = existingParent.children.length;
+      box.store.box<Thing>().put(thing);
       existingParent.children.add(thing);
       existingParent.children.applyToDb();
     }

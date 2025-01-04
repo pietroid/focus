@@ -1,4 +1,3 @@
-import 'package:focus/app/core/rank.dart';
 import 'package:objectbox/objectbox.dart';
 
 @Entity()
@@ -12,6 +11,8 @@ class Thing {
   @Id()
   int id = 0;
 
+  int rank = 0;
+
   String content;
 
   @Property(type: PropertyType.date)
@@ -21,8 +22,6 @@ class Thing {
   bool done;
 
   final children = ToMany<Thing>();
-
-  final rankedChildren = ToMany<RankedThing>();
 
   @Backlink('children')
   final parents = ToMany<Thing>();

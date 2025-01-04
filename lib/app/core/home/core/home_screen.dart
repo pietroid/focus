@@ -26,44 +26,49 @@ class HomeScreen extends StatelessWidget {
         delegate: context.read<TodaySectionDelegate>(),
         builder: (context, state) => DragAndDropLists(
           contentsWhenEmpty: Container(),
-          children: state
-              .map(
-                (data) => DragAndDropList(
-                  key: ValueKey(data.id),
-                  contentsWhenEmpty: Container(),
-                  children: data.children
-                      .map(
-                        (child) => DragAndDropItem(
-                          key: ValueKey(child.id),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: BaseCard(
-                              thing: Thing(
-                                content: child.content,
-                                createdAt: child.createdAt,
-                                done: child.done,
-                              ),
-                            ),
+          children: state.map((data) {
+            final sortedChildren = data.children
+              ..sort((a, b) => a.rank.compareTo(b.rank));
+            return DragAndDropList(
+              key: ValueKey(data.id),
+              contentsWhenEmpty: Container(),
+              children: sortedChildren
+                  .map(
+                    (child) => DragAndDropItem(
+                      key: ValueKey(child.id),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: BaseCard(
+                          thing: Thing(
+                            content: child.content,
+                            createdAt: child.createdAt,
+                            done: child.done,
                           ),
                         ),
-                      )
-                      .toList(),
-                  header: Text(
-                    data.content,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                ),
-              )
-              .toList(),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              header: Text(
+                data.content,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+            );
+          }).toList(),
           onItemReorder: (
             int oldItemIndex,
             int oldListIndex,
             int newItemIndex,
             int newListIndex,
           ) {
+            final oldList = state[oldListIndex];
+            final oldSortedList = oldList.children
+              ..sort((a, b) => a.rank.compareTo(b.rank));
+            final oldItem = oldSortedList[oldItemIndex];
             context.read<TodaySectionDelegate>().editThing(
-                  thing: state[oldListIndex].children[oldItemIndex],
+                  thing: oldItem,
                   newParent: state[newListIndex],
+                  newIndex: newItemIndex,
                 );
           },
           onListReorder: (_, __) {},

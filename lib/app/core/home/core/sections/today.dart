@@ -58,17 +58,36 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
   void editThing({
     required Thing thing,
     required Thing newParent,
+    required int newIndex,
   }) {
-    final existingParent = box.store
-        .box<Thing>()
-        .query(Thing_.id.equals(newParent.id))
-        .build()
-        .findFirst();
-    if (existingParent != null) {
-      existingParent.children.add(thing);
-      box.store.box<Thing>().put(thing);
+    // final existingParent = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.id.equals(newParent.id))
+    //     .build()
+    //     .findFirst();
+    // if (existingParent != null) {
+    thing.rank = newIndex;
+    box.store.box<Thing>().put(thing);
+    newParent.children.applyToDb();
+
+    final existingParent = thing.parents.first;
+    if (newParent.id != existingParent.id) {
+      existingParent.children.removeWhere((child) => child.id == thing.id);
       existingParent.children.applyToDb();
+
+      newParent.children.add(thing);
+      newParent.children.applyToDb();
     }
+
+    // re-rank
+    for (final child in newParent.children) {
+      if (child.id != thing.id && child.rank >= newIndex) {
+        child.rank++;
+        box.store.box<Thing>().put(child);
+      }
+    }
+
+    newParent.children.applyToDb();
   }
 }
 
