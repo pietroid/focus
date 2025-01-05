@@ -73,6 +73,7 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
     //     .build()
     //     .findFirst();
     // if (existingParent != null) {
+    final oldRank = thing.rank;
     thing.rank = newIndex;
     box.store.box<Thing>().put(thing);
     newParent.children.applyToDb();
@@ -86,15 +87,24 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
       newParent.children.applyToDb();
     }
 
+    for (final child in existingParent.children) {
+      if (child.id != thing.id && child.rank > oldRank) {
+        child.rank--;
+        box.store.box<Thing>().put(child);
+      }
+    }
+    existingParent.children.applyToDb();
+
+    final newOrExistingParent =
+        newParent.id == existingParent.id ? existingParent : newParent;
     // re-rank
-    for (final child in newParent.children) {
+    for (final child in newOrExistingParent.children) {
       if (child.id != thing.id && child.rank >= newIndex) {
         child.rank++;
         box.store.box<Thing>().put(child);
       }
     }
-
-    newParent.children.applyToDb();
+    newOrExistingParent.children.applyToDb();
   }
 }
 
