@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/core/use_cases/thing_use_cases.dart';
+import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:go_router/go_router.dart';
 
 class CreationBottomSheet {
   CreationBottomSheet({
-    required this.thingUseCases,
+    required this.thingRepository,
   });
-  final ThingUseCases thingUseCases;
+  final ThingRepository thingRepository;
 
   void show(
     BuildContext context, {
@@ -33,12 +33,18 @@ class CreationBottomSheet {
                     Thing(
                       content: value,
                       createdAt: DateTime.now(),
-                      done: false,
                     );
                 thingToSubmit.content = value;
-                thingUseCases.addOrEditThing(
-                  thing: thingToSubmit,
-                );
+
+                if (existingThing != null) {
+                  thingRepository.editThing(
+                    thing: thingToSubmit,
+                  );
+                } else {
+                  thingRepository.addThing(
+                    thing: thingToSubmit,
+                  );
+                }
                 context.pop();
               },
               maxLines: null,

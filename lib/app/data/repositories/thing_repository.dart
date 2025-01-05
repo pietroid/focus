@@ -10,10 +10,9 @@ class ThingRepository {
   });
   final ObjectBox box;
 
-  void addOrEditThing({
+  void addThing({
     required Thing thing,
   }) {
-    //box.store.box<Thing>().put(thing);
     final existingParent = box.store
         .box<Thing>()
         .query(Thing_.content.equals('⏰ Agora'))
@@ -25,6 +24,12 @@ class ThingRepository {
       existingParent.children.add(thing);
       existingParent.children.applyToDb();
     }
+  }
+
+  void editThing({
+    required Thing thing,
+  }) {
+    box.store.box<Thing>().put(thing);
   }
 
   void setAsDone({

@@ -1,7 +1,6 @@
 import 'package:drag_and_drop_lists/drag_and_drop_lists.dart';
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/home/core/sections/today.dart';
-import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/ui/base_card.dart';
 import 'package:focus/app/ui/creation_bottom_sheet.dart';
 import 'package:focus/app/ui/elements/global_scaffold.dart';
@@ -37,11 +36,7 @@ class HomeScreen extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: BaseCard(
-                          thing: Thing(
-                            content: child.content,
-                            createdAt: child.createdAt,
-                            done: child.done,
-                          ),
+                          thing: child,
                         ),
                       ),
                     ),
