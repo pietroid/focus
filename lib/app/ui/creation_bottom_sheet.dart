@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
+import 'package:focus/app/ui/string_formatter.dart';
 import 'package:go_router/go_router.dart';
 
 class CreationBottomSheet {
@@ -31,10 +32,10 @@ class CreationBottomSheet {
               onSubmitted: (value) {
                 final thingToSubmit = existingThing ??
                     Thing(
-                      content: value,
+                      content: value.capitalize(),
                       createdAt: DateTime.now(),
                     );
-                thingToSubmit.content = value;
+                thingToSubmit.content = value.capitalize();
 
                 if (existingThing != null) {
                   thingRepository.editThing(

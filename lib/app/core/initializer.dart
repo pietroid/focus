@@ -24,10 +24,16 @@ class DataInitializer {
         createdAt: DateTime.now(),
         category: timelyCategory,
       );
+      final doneSection = Thing(
+        content: '✅ Feito',
+        createdAt: DateTime.now(),
+        category: timelyCategory,
+      );
 
       box.store.box<Thing>().put(nowSection);
       box.store.box<Thing>().put(tomorrowSection);
       box.store.box<Thing>().put(laterSection);
+      box.store.box<Thing>().put(doneSection);
     }
   }
 }

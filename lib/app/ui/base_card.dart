@@ -80,6 +80,13 @@ class BaseCardContent extends StatelessWidget {
                       children: [
                         Text(
                           title,
+                          style: textTheme.bodyMedium?.copyWith(
+                            decoration: hasBeenDismissed
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: Colors.white
+                                .withOpacity(hasBeenDismissed ? 0.5 : 1),
+                          ),
                         ),
                         if (subtitle != null) ...[
                           Text(
