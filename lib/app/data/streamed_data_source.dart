@@ -8,7 +8,9 @@ class SubjectQueryBuilder<T> {
   }) {
     final initialValue = query().build().find();
 
-    behaviorSubject = BehaviorSubject<List<T>>.seeded(initialValue);
+    behaviorSubject = BehaviorSubject<List<T>>.seeded(
+      initialValue.map(forEachMap ?? (e) => e).toList(),
+    );
     query()
         .watch()
         .map(
