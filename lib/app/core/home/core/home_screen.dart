@@ -27,12 +27,10 @@ class HomeScreen extends StatelessWidget {
         builder: (context, state) => DragAndDropLists(
           contentsWhenEmpty: Container(),
           children: state.map((data) {
-            final sortedChildren = data.children
-              ..sort((a, b) => a.rank.compareTo(b.rank));
             return DragAndDropList(
               key: ValueKey(data.id),
               contentsWhenEmpty: Container(),
-              children: sortedChildren
+              children: data.children
                   .map(
                     (child) => DragAndDropItem(
                       key: ValueKey(child.id),
@@ -49,9 +47,12 @@ class HomeScreen extends StatelessWidget {
                     ),
                   )
                   .toList(),
-              header: Text(
-                data.content,
-                style: Theme.of(context).textTheme.headlineMedium,
+              header: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  data.content,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
               ),
             );
           }).toList(),
@@ -61,11 +62,8 @@ class HomeScreen extends StatelessWidget {
             int newItemIndex,
             int newListIndex,
           ) {
-            //TODO: find a better way to sort relations
             final oldList = state[oldListIndex];
-            final oldSortedList = oldList.children
-              ..sort((a, b) => a.rank.compareTo(b.rank));
-            final oldItem = oldSortedList[oldItemIndex];
+            final oldItem = oldList.children[oldItemIndex];
             context.read<TodaySectionDelegate>().editThing(
                   thing: oldItem,
                   newParent: state[newListIndex],

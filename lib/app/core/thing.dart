@@ -5,7 +5,8 @@ class Thing {
   Thing({
     required this.content,
     required this.createdAt,
-    required this.done,
+    this.done = false,
+    this.category,
   });
 
   @Id()
@@ -25,4 +26,6 @@ class Thing {
 
   @Backlink('children')
   final parents = ToMany<Thing>();
+
+  String? category;
 }

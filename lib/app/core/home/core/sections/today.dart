@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/core/home/sections/core/home_section.dart';
+import 'package:focus/app/core/initializer.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/stream_cubit.dart';
@@ -49,9 +50,15 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
   @override
   BehaviorSubject<List<Thing>> get dataStream {
     QueryBuilder<Thing> query() =>
-        box.store.box<Thing>().query(Thing_.done.equals(false));
+        box.store.box<Thing>().query(Thing_.category.equals(timelyCategory));
     return SubjectQueryBuilder<Thing>(
       query: query,
+      forEachMap: (thing) {
+        //haven't found a better way to sort the children via query
+        thing.children.sort((a, b) => a.rank.compareTo(b.rank));
+        thing.children.applyToDb();
+        return thing;
+      },
     ).behaviorSubject;
   }
 

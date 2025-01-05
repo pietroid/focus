@@ -16,7 +16,7 @@ class ThingRepository {
     //box.store.box<Thing>().put(thing);
     final existingParent = box.store
         .box<Thing>()
-        .query(Thing_.content.equals('agora'))
+        .query(Thing_.content.equals('⏰ Agora'))
         .build()
         .findFirst();
     if (existingParent != null) {
