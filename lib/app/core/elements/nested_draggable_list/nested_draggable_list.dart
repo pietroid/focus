@@ -1,6 +1,6 @@
 import 'package:drag_and_drop_lists/drag_and_drop_lists.dart';
 import 'package:flutter/widgets.dart';
-import 'package:focus/app/core/home/core/sections/today.dart';
+import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
 
 class NestedDraggableList<L, I> extends StatelessWidget {
   const NestedDraggableList({

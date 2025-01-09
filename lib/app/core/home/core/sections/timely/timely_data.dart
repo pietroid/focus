@@ -1,44 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/core/home/sections/core/home_section.dart';
 import 'package:focus/app/core/initializer.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/stream_cubit.dart';
 import 'package:focus/app/data/streamed_data_source.dart';
-import 'package:focus/app/ui/base_card.dart';
 import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
-
-class TodaySection extends StatelessWidget {
-  const TodaySection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final todaySectionDelegate = context.read<TodaySectionDelegate>();
-    return HomeSection(
-      title: 'Hoje',
-      mustRender: true,
-      content: DataObserver(
-        delegate: todaySectionDelegate,
-        builder: (context, state) => ListView(
-          children: state
-              .map(
-                (thing) => Padding(
-                  key: ValueKey(thing.id),
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: BaseCard(
-                    thing: thing,
-                  ),
-                ),
-              )
-              .toList(),
-          //onReorder: (int oldIndex, int newIndex) {},
-        ),
-      ),
-    );
-  }
-}
 
 class TodaySectionDelegate implements DataObserverDelegate<Thing> {
   TodaySectionDelegate({

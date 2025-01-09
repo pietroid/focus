@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/home/core/sections/today.dart';
+import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/app_colors.dart';
