@@ -15,7 +15,6 @@ import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'app/core/event.dart';
-import 'app/core/rank.dart';
 import 'app/core/thing.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -42,32 +41,6 @@ final _entities = <obx_int.ModelEntity>[
             name: 'finalTime',
             type: 10,
             flags: 0)
-      ],
-      relations: <obx_int.ModelRelation>[],
-      backlinks: <obx_int.ModelBacklink>[]),
-  obx_int.ModelEntity(
-      id: const obx_int.IdUid(4, 3624636574726604689),
-      name: 'RankedThing',
-      lastPropertyId: const obx_int.IdUid(3, 5705228549106420783),
-      flags: 0,
-      properties: <obx_int.ModelProperty>[
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(1, 4261564895852394679),
-            name: 'id',
-            type: 6,
-            flags: 1),
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(2, 2739063483213758185),
-            name: 'order',
-            type: 6,
-            flags: 0),
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(3, 5705228549106420783),
-            name: 'thingId',
-            type: 11,
-            flags: 520,
-            indexId: const obx_int.IdUid(1, 7303701840037303071),
-            relationTarget: 'Thing')
       ],
       relations: <obx_int.ModelRelation>[],
       backlinks: <obx_int.ModelBacklink>[]),
@@ -159,7 +132,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
       lastIndexId: const obx_int.IdUid(2, 5876970679639637568),
       lastRelationId: const obx_int.IdUid(3, 5431818547799211746),
       lastSequenceId: const obx_int.IdUid(0, 0),
-      retiredEntityUids: const [1631627817501562807, 5074736434067970976],
+      retiredEntityUids: const [
+        1631627817501562807,
+        5074736434067970976,
+        3624636574726604689
+      ],
       retiredIndexUids: const [5876970679639637568],
       retiredPropertyUids: const [
         2840272927915169489,
@@ -171,7 +148,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
         6682837070591412613,
         9035978168206840996,
         2750005277514529752,
-        2546292154991111937
+        2546292154991111937,
+        4261564895852394679,
+        2739063483213758185,
+        5705228549106420783
       ],
       retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
@@ -208,36 +188,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
 
           return object;
         }),
-    RankedThing: obx_int.EntityDefinition<RankedThing>(
-        model: _entities[1],
-        toOneRelations: (RankedThing object) => [object.thing],
-        toManyRelations: (RankedThing object) => {},
-        getId: (RankedThing object) => object.id,
-        setId: (RankedThing object, int id) {
-          object.id = id;
-        },
-        objectToFB: (RankedThing object, fb.Builder fbb) {
-          fbb.startTable(4);
-          fbb.addInt64(0, object.id);
-          fbb.addInt64(1, object.order);
-          fbb.addInt64(2, object.thing.targetId);
-          fbb.finish(fbb.endTable());
-          return object.id;
-        },
-        objectFromFB: (obx.Store store, ByteData fbData) {
-          final buffer = fb.BufferContext(fbData);
-          final rootOffset = buffer.derefObject(0);
-          final orderParam =
-              const fb.Int64Reader().vTableGet(buffer, rootOffset, 6, 0);
-          final object = RankedThing(order: orderParam)
-            ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0);
-          object.thing.targetId =
-              const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0);
-          object.thing.attach(store);
-          return object;
-        }),
     Thing: obx_int.EntityDefinition<Thing>(
-        model: _entities[2],
+        model: _entities[1],
         toOneRelations: (Thing object) => [],
         toManyRelations: (Thing object) => {
               obx_int.RelInfo<Thing>.toMany(3, object.id): object.children,
@@ -307,47 +259,32 @@ class Event_ {
       obx.QueryDateProperty<Event>(_entities[0].properties[2]);
 }
 
-/// [RankedThing] entity fields to define ObjectBox queries.
-class RankedThing_ {
-  /// See [RankedThing.id].
-  static final id =
-      obx.QueryIntegerProperty<RankedThing>(_entities[1].properties[0]);
-
-  /// See [RankedThing.order].
-  static final order =
-      obx.QueryIntegerProperty<RankedThing>(_entities[1].properties[1]);
-
-  /// See [RankedThing.thing].
-  static final thing =
-      obx.QueryRelationToOne<RankedThing, Thing>(_entities[1].properties[2]);
-}
-
 /// [Thing] entity fields to define ObjectBox queries.
 class Thing_ {
   /// See [Thing.id].
-  static final id = obx.QueryIntegerProperty<Thing>(_entities[2].properties[0]);
+  static final id = obx.QueryIntegerProperty<Thing>(_entities[1].properties[0]);
 
   /// See [Thing.content].
   static final content =
-      obx.QueryStringProperty<Thing>(_entities[2].properties[1]);
+      obx.QueryStringProperty<Thing>(_entities[1].properties[1]);
 
   /// See [Thing.createdAt].
   static final createdAt =
-      obx.QueryDateProperty<Thing>(_entities[2].properties[2]);
+      obx.QueryDateProperty<Thing>(_entities[1].properties[2]);
 
   /// See [Thing.done].
   static final done =
-      obx.QueryBooleanProperty<Thing>(_entities[2].properties[3]);
+      obx.QueryBooleanProperty<Thing>(_entities[1].properties[3]);
 
   /// See [Thing.rank].
   static final rank =
-      obx.QueryIntegerProperty<Thing>(_entities[2].properties[4]);
+      obx.QueryIntegerProperty<Thing>(_entities[1].properties[4]);
 
   /// See [Thing.category].
   static final category =
-      obx.QueryStringProperty<Thing>(_entities[2].properties[5]);
+      obx.QueryStringProperty<Thing>(_entities[1].properties[5]);
 
   /// see [Thing.children]
   static final children =
-      obx.QueryRelationToMany<Thing, Thing>(_entities[2].relations[0]);
+      obx.QueryRelationToMany<Thing, Thing>(_entities[1].relations[0]);
 }
