@@ -28,7 +28,7 @@ class App extends StatelessWidget {
           ),
         ),
         Provider(
-          create: (context) => TodaySectionDelegate(
+          create: (context) => TimelyData(
             box: objectBox,
           ),
         ),

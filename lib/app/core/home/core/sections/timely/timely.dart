@@ -11,7 +11,7 @@ class Timely extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return NestedDraggableList<Thing, Thing>(
-      delegate: context.read<TodaySectionDelegate>(),
+      data: context.read<TimelyData>(),
       keyForList: (thing) => ValueKey(thing.id),
       itemsForList: (list) => list.children,
       listHeader: (list) => Padding(
@@ -30,7 +30,7 @@ class Timely extends StatelessWidget {
       ),
       onItemReorder:
           (Thing oldList, Thing oldItem, Thing newList, int newItemIndex) {
-        context.read<TodaySectionDelegate>().editThing(
+        context.read<TimelyData>().editThing(
               thing: oldItem,
               newParent: newList,
               newIndex: newItemIndex,

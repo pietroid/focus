@@ -1,11 +1,11 @@
 import 'package:drag_and_drop_lists/drag_and_drop_lists.dart';
 import 'package:flutter/widgets.dart';
-import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
 import 'package:focus/app/data/data_observer.dart';
+import 'package:focus/app/data/domain_data.dart';
 
 class NestedDraggableList<L, I> extends StatelessWidget {
   const NestedDraggableList({
-    required this.delegate,
+    required this.data,
     required this.keyForList,
     required this.itemsForList,
     required this.listHeader,
@@ -14,7 +14,7 @@ class NestedDraggableList<L, I> extends StatelessWidget {
     required this.onItemReorder,
     super.key,
   });
-  final DataObserverDelegate<L> delegate;
+  final DomainData<L> data;
   final Key Function(L) keyForList;
   final List<I> Function(L) itemsForList;
   final Widget Function(L) listHeader;
@@ -26,7 +26,7 @@ class NestedDraggableList<L, I> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DataObserver<L>(
-      delegate: delegate,
+      data: data,
       builder: (context, state) => DragAndDropLists(
         contentsWhenEmpty: Container(),
         children: state.map((list) {

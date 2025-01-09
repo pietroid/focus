@@ -1,19 +1,17 @@
 import 'package:focus/app/core/initializer.dart';
 import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/data/object_box.dart';
+import 'package:focus/app/data/domain_data.dart';
 import 'package:focus/app/data/streamed_data_source.dart';
 import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
 
-class TodaySectionDelegate implements DataObserverDelegate<Thing> {
-  TodaySectionDelegate({
-    required this.box,
+class TimelyData extends DomainData<Thing> {
+  TimelyData({
+    required super.box,
   });
 
-  final ObjectBox box;
-
   @override
-  BehaviorSubject<List<Thing>> get dataStream {
+  BehaviorSubject<List<Thing>> get stream {
     QueryBuilder<Thing> query() =>
         box.store.box<Thing>().query(Thing_.category.equals(timelyCategory));
     return SubjectQueryBuilder<Thing>(
@@ -71,8 +69,4 @@ class TodaySectionDelegate implements DataObserverDelegate<Thing> {
     }
     newOrExistingParent.children.applyToDb();
   }
-}
-
-abstract class DataObserverDelegate<T> {
-  BehaviorSubject<List<T>> get dataStream;
 }

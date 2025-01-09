@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
+import 'package:focus/app/data/domain_data.dart';
 import 'package:focus/app/data/stream_cubit.dart';
 
 class DataObserver<T> extends StatefulWidget {
   const DataObserver({
-    required this.delegate,
+    required this.data,
     required this.builder,
     super.key,
   });
-  final DataObserverDelegate<T> delegate;
+  final DomainData<T> data;
   final Widget Function(BuildContext context, List<T> data) builder;
 
   @override
@@ -23,7 +23,7 @@ class _DataObserverState<T> extends State<DataObserver<T>> {
   void initState() {
     super.initState();
     streamCubit = StreamCubit<List<T>>(
-      stream: widget.delegate.dataStream,
+      stream: widget.data.stream,
     );
   }
 
