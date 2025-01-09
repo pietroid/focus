@@ -64,16 +64,33 @@ class BaseCardContent extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: color ?? AppColors.defaultCardColor,
-          borderRadius: BorderRadius.circular(8),
+          //color: color ?? AppColors.defaultCardColor,
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            colors: [
+              color ?? AppColors.defaultCardColor,
+              color ?? AppColors.defaultCardSecondaryColor,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomRight,
+          ),
         ),
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
               child: Row(
                 children: [
+                  // if (onChanged != null)
+                  //   CheckBox(
+                  //     onChanged: () => onChanged!(),
+                  //     value: hasBeenDismissed,
+                  //   ),
+                  // const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -97,11 +114,6 @@ class BaseCardContent extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onChanged != null)
-                    CheckBox(
-                      onChanged: () => onChanged!(),
-                      value: hasBeenDismissed,
-                    ),
                 ],
               ),
             ),
@@ -133,13 +145,13 @@ class CheckBox extends StatelessWidget {
     return GestureDetector(
       onTap: onChanged,
       child: Container(
-        width: 20,
-        height: 20,
+        width: 17,
+        height: 17,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.fromBorderSide(
             BorderSide(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withOpacity(0.2),
             ),
           ),
         ),

@@ -3,6 +3,7 @@ import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/string_formatter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CreationBottomSheet {
   CreationBottomSheet({
@@ -14,6 +15,7 @@ class CreationBottomSheet {
     BuildContext context, {
     Thing? existingThing,
   }) {
+    final controller = TextEditingController(text: existingThing?.content);
     showModalBottomSheet(
       useSafeArea: true,
       context: context,
@@ -27,7 +29,8 @@ class CreationBottomSheet {
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
             child: TextField(
-              controller: TextEditingController(text: existingThing?.content),
+              autofocus: true,
+              controller: controller,
               textInputAction: TextInputAction.go,
               onSubmitted: (value) {
                 final thingToSubmit = existingThing ??
@@ -49,21 +52,14 @@ class CreationBottomSheet {
                 context.pop();
               },
               maxLines: null,
-              autofocus: true,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w400,
+              style: GoogleFonts.onest(
                 fontSize: 14,
+                color: Colors.white.withOpacity(0.5),
               ),
               decoration: const InputDecoration(
                 // TODO: we could have some nice random phrases here every time the user opens the bottom sheet
                 hintText: 'Quer anotar algo?',
                 border: InputBorder.none,
-                hintStyle: TextStyle(
-                  color: Color(0xFFB2B2B2),
-                  fontWeight: FontWeight.w400,
-                  fontSize: 14,
-                ),
               ),
             ),
           ),

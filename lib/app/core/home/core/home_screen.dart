@@ -10,16 +10,16 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final creationBottomSheet = context.read<CreationBottomSheet>();
-    return GlobalScaffold(
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF00ACBB),
-        onPressed: () {
-          creationBottomSheet.show(context);
-        },
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, color: Colors.black),
-      ),
-      child: const Timely(),
+    return const GlobalScaffold(
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: const Color(0xFF00ACBB),
+      //   onPressed: () {
+      //     creationBottomSheet.show(context);
+      //   },
+      //   shape: const CircleBorder(),
+      //   child: const Icon(Icons.add, color: Colors.black),
+      // ),
+      child: Timely(),
     );
   }
 }
