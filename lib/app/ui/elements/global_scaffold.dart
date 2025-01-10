@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/elements/mandala.dart';
+import 'package:focus/app/ui/creation_bottom_sheet.dart';
+import 'package:provider/provider.dart';
 
 class GlobalScaffold extends StatelessWidget {
   const GlobalScaffold({
     required this.child,
-    this.floatingActionButton,
     super.key,
   });
 
   final Widget child;
-  final Widget? floatingActionButton;
 
   @override
   Widget build(BuildContext context) {
+    final creationBottomSheet = context.read<CreationBottomSheet>();
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -19,7 +21,12 @@ class GlobalScaffold extends StatelessWidget {
           child: child,
         ),
       ),
-      floatingActionButton: floatingActionButton,
+      floatingActionButton: GestureDetector(
+        onTap: () {
+          creationBottomSheet.show(context);
+        },
+        child: const Mandala(),
+      ),
     );
   }
 }
