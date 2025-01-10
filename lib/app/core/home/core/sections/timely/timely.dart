@@ -23,7 +23,7 @@ class Timely extends StatelessWidget {
       ),
       keyForItem: (item) => ValueKey(item.id),
       itemBuilder: (item) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 1.5),
+        padding: const EdgeInsets.symmetric(vertical: 1),
         child: BaseCard(
           thing: item,
         ),

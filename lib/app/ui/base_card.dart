@@ -64,16 +64,8 @@ class BaseCardContent extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          //color: color ?? AppColors.defaultCardColor,
+          color: color ?? AppColors.defaultCardColor,
           borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            colors: [
-              color ?? AppColors.defaultCardColor,
-              color ?? AppColors.defaultCardSecondaryColor,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomRight,
-          ),
         ),
         child: Stack(
           alignment: Alignment.bottomCenter,
@@ -85,12 +77,12 @@ class BaseCardContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  if (onChanged != null)
-                    CheckBox(
-                      onChanged: () => onChanged!(),
-                      value: hasBeenDismissed,
-                    ),
-                  const SizedBox(width: 10),
+                  // if (onChanged != null)
+                  //   CheckBox(
+                  //     onChanged: () => onChanged!(),
+                  //     value: hasBeenDismissed,
+                  //   ),
+                  // const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
