@@ -77,12 +77,12 @@ class BaseCardContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // if (onChanged != null)
-                  //   CheckBox(
-                  //     onChanged: () => onChanged!(),
-                  //     value: hasBeenDismissed,
-                  //   ),
-                  // const SizedBox(width: 10),
+                  if (onChanged != null)
+                    CheckBox(
+                      onChanged: () => onChanged!(),
+                      value: hasBeenDismissed,
+                    ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,34 +137,23 @@ class CheckBox extends StatelessWidget {
     return GestureDetector(
       onTap: onChanged,
       child: Container(
-        width: 16,
-        height: 16,
+        width: 18,
+        height: 18,
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [
-              Color.fromARGB(255, 0, 15, 41),
-              Color.fromARGB(255, 0, 17, 47),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          border: Border.fromBorderSide(
+            BorderSide(
+              width: 0.5,
+              color: AppColors.primaryColor,
+            ),
           ),
-          // border: Border.fromBorderSide(
-          // BorderSide(
-          //   width: 0.5,
-          //   color: Color.fromARGB(255, 0, 15, 44),
-          // ),
-          // ),
         ),
         child: value
-            ? Center(
-                child: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color.fromARGB(255, 29, 64, 130),
-                  ),
+            ? const Center(
+                child: Icon(
+                  Icons.check,
+                  size: 12,
+                  color: AppColors.primaryColor,
                 ),
               )
             : null,
