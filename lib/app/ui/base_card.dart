@@ -1,3 +1,4 @@
+import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
@@ -63,9 +64,15 @@ class BaseCardContent extends StatelessWidget {
       onTap: onTap,
       child: Container(
         clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
+        decoration: ShapeDecoration(
           color: color ?? AppColors.defaultCardColor,
-          borderRadius: BorderRadius.circular(14),
+          shape: SmoothRectangleBorder(
+            borderRadius: SmoothBorderRadius(
+              cornerRadius: 10,
+              cornerSmoothing: 1,
+            ),
+          ),
+          //borderRadius: BorderRadius.circular(14),
         ),
         child: Stack(
           alignment: Alignment.bottomCenter,
