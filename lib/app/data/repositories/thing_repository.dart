@@ -1,3 +1,4 @@
+import 'package:focus/app/core/initializer.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/streamed_data_source.dart';
@@ -13,16 +14,16 @@ class ThingRepository {
   void addThing({
     required Thing thing,
   }) {
-    final existingParent = box.store
+    final todaySection = box.store
         .box<Thing>()
-        .query(Thing_.content.equals('⏰ Agora'))
+        .query(Thing_.tags.containsElement(todaySectionTag))
         .build()
         .findFirst();
-    if (existingParent != null) {
-      thing.rank = existingParent.children.length;
+    if (todaySection != null) {
+      thing.rank = todaySection.children.length;
       box.store.box<Thing>().put(thing);
-      existingParent.children.add(thing);
-      existingParent.children.applyToDb();
+      todaySection.children.add(thing);
+      todaySection.children.applyToDb();
     }
   }
 

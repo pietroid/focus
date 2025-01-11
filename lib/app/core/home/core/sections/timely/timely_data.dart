@@ -12,8 +12,10 @@ class TimelyData extends DomainData<Thing> {
 
   @override
   BehaviorSubject<List<Thing>> get stream {
-    QueryBuilder<Thing> query() =>
-        box.store.box<Thing>().query(Thing_.category.equals(timelyCategory));
+    QueryBuilder<Thing> query() => box.store.box<Thing>().query(
+          Thing_.tags.containsElement(timelyTag),
+        );
+
     return SubjectQueryBuilder<Thing>(
       query: query,
       forEachMap: (thing) {
@@ -30,12 +32,6 @@ class TimelyData extends DomainData<Thing> {
     required Thing newParent,
     required int newIndex,
   }) {
-    // final existingParent = box.store
-    //     .box<Thing>()
-    //     .query(Thing_.id.equals(newParent.id))
-    //     .build()
-    //     .findFirst();
-    // if (existingParent != null) {
     final oldRank = thing.rank;
     thing.rank = newIndex;
     box.store.box<Thing>().put(thing);

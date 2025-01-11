@@ -6,7 +6,7 @@ class Thing {
     required this.content,
     required this.createdAt,
     this.done = false,
-    this.category,
+    this.tags = const [],
   });
 
   @Id()
@@ -27,5 +27,5 @@ class Thing {
   @Backlink('children')
   final parents = ToMany<Thing>();
 
-  String? category;
+  List<String> tags = [];
 }

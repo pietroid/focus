@@ -47,7 +47,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(5, 3534494805469766675),
       name: 'Thing',
-      lastPropertyId: const obx_int.IdUid(7, 5163927671201236105),
+      lastPropertyId: const obx_int.IdUid(8, 2486335390945327863),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -76,9 +76,9 @@ final _entities = <obx_int.ModelEntity>[
             type: 6,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(7, 5163927671201236105),
-            name: 'category',
-            type: 9,
+            id: const obx_int.IdUid(8, 2486335390945327863),
+            name: 'tags',
+            type: 30,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[
@@ -151,7 +151,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         2546292154991111937,
         4261564895852394679,
         2739063483213758185,
-        5705228549106420783
+        5705228549106420783,
+        5163927671201236105
       ],
       retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
@@ -202,16 +203,15 @@ obx_int.ModelDefinition getObjectBoxModel() {
         },
         objectToFB: (Thing object, fb.Builder fbb) {
           final contentOffset = fbb.writeString(object.content);
-          final categoryOffset = object.category == null
-              ? null
-              : fbb.writeString(object.category!);
-          fbb.startTable(8);
+          final tagsOffset = fbb.writeList(
+              object.tags.map(fbb.writeString).toList(growable: false));
+          fbb.startTable(9);
           fbb.addInt64(0, object.id);
           fbb.addOffset(1, contentOffset);
           fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
           fbb.addBool(3, object.done);
           fbb.addInt64(4, object.rank);
-          fbb.addOffset(6, categoryOffset);
+          fbb.addOffset(7, tagsOffset);
           fbb.finish(fbb.endTable());
           return object.id;
         },
@@ -224,13 +224,15 @@ obx_int.ModelDefinition getObjectBoxModel() {
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
           final doneParam =
               const fb.BoolReader().vTableGet(buffer, rootOffset, 10, false);
-          final categoryParam = const fb.StringReader(asciiOptimization: true)
-              .vTableGetNullable(buffer, rootOffset, 16);
+          final tagsParam = const fb.ListReader<String>(
+                  fb.StringReader(asciiOptimization: true),
+                  lazy: false)
+              .vTableGet(buffer, rootOffset, 18, []);
           final object = Thing(
               content: contentParam,
               createdAt: createdAtParam,
               done: doneParam,
-              category: categoryParam)
+              tags: tagsParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0)
             ..rank =
                 const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0);
@@ -280,9 +282,9 @@ class Thing_ {
   static final rank =
       obx.QueryIntegerProperty<Thing>(_entities[1].properties[4]);
 
-  /// See [Thing.category].
-  static final category =
-      obx.QueryStringProperty<Thing>(_entities[1].properties[5]);
+  /// See [Thing.tags].
+  static final tags =
+      obx.QueryStringVectorProperty<Thing>(_entities[1].properties[5]);
 
   /// see [Thing.children]
   static final children =
