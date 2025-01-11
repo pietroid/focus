@@ -1,5 +1,6 @@
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/home/core/sections/timely/timely_thing_extension.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/app_colors.dart';
@@ -26,6 +27,7 @@ class BaseCard extends StatelessWidget {
         );
       },
       hasBeenDismissed: thing.done,
+      isInProgress: thing.inProgress,
       onChanged: () {
         if (thing.done) {
           context.read<ThingRepository>().setAsUndone(thing: thing);
@@ -42,7 +44,7 @@ class BaseCardContent extends StatelessWidget {
     required this.title,
     this.color,
     this.subtitle,
-    this.loadingProgress,
+    this.isInProgress,
     this.onTap,
     this.onChanged,
     this.hasBeenDismissed = false,
@@ -55,13 +57,21 @@ class BaseCardContent extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Color? color;
-  final double? loadingProgress;
+  final bool? isInProgress;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
       onTap: onTap,
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity! > 0) {
+          onChanged?.call();
+        }
+        if (details.primaryVelocity! < 0) {
+          onChanged?.call();
+        }
+      },
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: ShapeDecoration(
@@ -84,12 +94,17 @@ class BaseCardContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  if (onChanged != null)
-                    CheckBox(
-                      onChanged: () => onChanged!(),
-                      value: hasBeenDismissed,
+                  if (isInProgress == true) ...[
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
                     ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -116,12 +131,6 @@ class BaseCardContent extends StatelessWidget {
                 ],
               ),
             ),
-            if (loadingProgress != null)
-              LinearProgressIndicator(
-                value: loadingProgress,
-                backgroundColor: const Color(0x55000000),
-                valueColor: const AlwaysStoppedAnimation(Color(0x99FFFFFF)),
-              ),
           ],
         ),
       ),

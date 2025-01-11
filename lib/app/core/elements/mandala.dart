@@ -16,6 +16,12 @@ class _MandalaState extends State<Mandala> with TickerProviderStateMixin {
   )..repeat();
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _controller,

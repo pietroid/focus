@@ -62,7 +62,7 @@ class ThingRepository {
     thing.parents.first.children.applyToDb();
     final doneThing = box.store
         .box<Thing>()
-        .query(Thing_.content.equals('⏰ Agora'))
+        .query(Thing_.tags.containsElement(nowSectionTag))
         .build()
         .findFirst();
 

@@ -8,12 +8,14 @@ class DataInitializer {
 
   final ObjectBox box;
   void initialize() {
+    //box.store.box<Thing>().removeAll();
     if (box.store.box<Thing>().isEmpty()) {
       final nowSection = Thing(
         content: '⏱️ Agora',
         createdAt: DateTime.now(),
         tags: [
           timelyTag,
+          nowSectionTag,
           versionTag,
         ],
       );
@@ -62,4 +64,5 @@ class DataInitializer {
 
 const timelyTag = 'TIMELY';
 const todaySectionTag = 'TODAY_SECTION';
+const nowSectionTag = 'NOW_SECTION';
 const versionTag = 'VERSION_v0.2';
