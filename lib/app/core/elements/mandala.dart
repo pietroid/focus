@@ -24,8 +24,8 @@ class _MandalaState extends State<Mandala> with TickerProviderStateMixin {
         height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle, // Makes the container a circle
-          gradient: RadialGradient(
-            colors: const [
+          gradient: const RadialGradient(
+            colors: [
               Color(0xFFEEFFBB),
               Color(0xFF00B481),
               Color(0xFF1B318F),
@@ -35,7 +35,7 @@ class _MandalaState extends State<Mandala> with TickerProviderStateMixin {
             stops: [
               0,
               0.28,
-              0.62 - 0.05 + 0.05 * sin(_controller.value * pi * 2),
+              0.62,
               0.7,
               1,
             ],
@@ -44,7 +44,7 @@ class _MandalaState extends State<Mandala> with TickerProviderStateMixin {
           boxShadow: [
             BoxShadow(
               color: const Color.fromARGB(153, 255, 165, 63),
-              blurRadius: sin(_controller.value * pi * 2) * 10 + 15,
+              blurRadius: sin(_controller.value * pi * 2) * 5 + 8,
             ),
           ],
         ),
