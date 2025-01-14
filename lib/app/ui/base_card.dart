@@ -5,6 +5,7 @@ import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/app_colors.dart';
 import 'package:focus/app/ui/creation_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class BaseCard extends StatelessWidget {
@@ -35,6 +36,9 @@ class BaseCard extends StatelessWidget {
         }
         context.read<ThingRepository>().setAsDone(thing: thing);
       },
+      openOptions: () {
+        context.push('/thing/${thing.id}');
+      },
     );
   }
 }
@@ -46,6 +50,7 @@ class BaseCardContent extends StatelessWidget {
     this.subtitle,
     this.isInProgress,
     this.onTap,
+    this.openOptions,
     this.onChanged,
     this.hasBeenDismissed = false,
     super.key,
@@ -53,6 +58,7 @@ class BaseCardContent extends StatelessWidget {
 
   final VoidCallback? onTap;
   final VoidCallback? onChanged;
+  final VoidCallback? openOptions;
   final bool hasBeenDismissed;
   final String title;
   final String? subtitle;
@@ -63,6 +69,7 @@ class BaseCardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
+      behavior: HitTestBehavior.translucent,
       onTap: onTap,
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
@@ -128,11 +135,34 @@ class BaseCardContent extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  if (onChanged != null) ...[
+                    RightIconButton(
+                      onTap: openOptions,
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class RightIconButton extends StatelessWidget {
+  const RightIconButton({super.key, this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: onTap,
+      child: const Icon(
+        Icons.arrow_right,
+        color: AppColors.primaryColor,
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/elements/mandala.dart';
 import 'package:focus/app/ui/creation_bottom_sheet.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class GlobalScaffold extends StatelessWidget {
@@ -23,6 +24,14 @@ class GlobalScaffold extends StatelessWidget {
       ),
       floatingActionButton: GestureDetector(
         onTap: () {
+          final currentRoute = GoRouterState.of(context).uri.toString();
+          if (currentRoute.contains('thing')) {
+            creationBottomSheet.show(
+              context,
+              parentId: int.parse(currentRoute.split('/').last),
+            );
+            return;
+          }
           creationBottomSheet.show(context);
         },
         child: const Mandala(),

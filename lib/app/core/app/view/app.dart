@@ -20,6 +20,9 @@ class App extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider(
+          create: (context) => objectBox,
+        ),
+        Provider(
           create: (context) => ThingRepository(box: objectBox),
         ),
         Provider(

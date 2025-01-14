@@ -14,6 +14,7 @@ class CreationBottomSheet {
   void show(
     BuildContext context, {
     Thing? existingThing,
+    int? parentId,
   }) {
     final controller = TextEditingController(text: existingThing?.content);
     showModalBottomSheet(
@@ -47,6 +48,7 @@ class CreationBottomSheet {
                 } else {
                   thingRepository.addThing(
                     thing: thingToSubmit,
+                    parentId: parentId,
                   );
                 }
                 context.pop();

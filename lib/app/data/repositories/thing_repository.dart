@@ -13,18 +13,30 @@ class ThingRepository {
 
   void addThing({
     required Thing thing,
+    int? parentId,
   }) {
-    final todaySection = box.store
-        .box<Thing>()
-        .query(Thing_.tags.containsElement(todaySectionTag))
-        .build()
-        .findFirst();
-    if (todaySection != null) {
-      thing.rank = todaySection.children.length;
-      box.store.box<Thing>().put(thing);
-      todaySection.children.add(thing);
-      todaySection.children.applyToDb();
+    if (parentId != null) {
+      final parent = box.store.box<Thing>().get(parentId);
+      if (parent == null) {
+        return;
+      }
+      thing.parents.add(parent);
+      parent.children.add(thing);
+      parent.children.applyToDb();
+    } else {
+      final todaySection = box.store
+          .box<Thing>()
+          .query(Thing_.tags.containsElement(todaySectionTag))
+          .build()
+          .findFirst();
+      if (todaySection != null) {
+        thing.rank = todaySection.children.length;
+        box.store.box<Thing>().put(thing);
+        todaySection.children.add(thing);
+        todaySection.children.applyToDb();
+      }
     }
+    box.store.box<Thing>().put(thing);
   }
 
   void editThing({
