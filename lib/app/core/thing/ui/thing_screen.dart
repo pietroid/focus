@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/core/elements/nested_draggable_list/nested_draggable_list.dart';
 import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
+import 'package:focus/app/core/home/core/sections/timely/timely_thing_extension.dart';
 import 'package:focus/app/core/thing.dart';
 import 'package:focus/app/core/thing/data/generic_thing_data.dart';
 import 'package:focus/app/data/object_box.dart';
@@ -36,7 +37,7 @@ class ThingScreen extends StatelessWidget {
         itemBuilder: (item) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 1),
           child: BaseCard(
-            thing: item,
+            item.toBaseCardParams(context),
           ),
         ),
         onItemReorder:

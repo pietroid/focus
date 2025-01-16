@@ -4,16 +4,18 @@ import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/app_colors.dart';
 import 'package:focus/app/ui/creation_bottom_sheet.dart';
-import 'package:focus/app/ui/routing/app_router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 class App extends StatelessWidget {
   const App({
+    required this.router,
     required this.objectBox,
     super.key,
   });
   final ObjectBox objectBox;
+  final GoRouter router;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,7 @@ class App extends StatelessWidget {
         ),
       ],
       child: MaterialApp.router(
-        routerConfig: AppRouter().router,
+        routerConfig: router,
         themeMode: ThemeMode.dark,
         darkTheme: ThemeData(
           brightness: Brightness.dark,

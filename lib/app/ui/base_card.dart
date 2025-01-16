@@ -1,88 +1,32 @@
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/home/core/sections/timely/timely_thing_extension.dart';
-import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/app_colors.dart';
-import 'package:focus/app/ui/creation_bottom_sheet.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 class BaseCard extends StatelessWidget {
-  const BaseCard({
-    required this.thing,
+  const BaseCard(
+    this.params, {
     super.key,
   });
-  final Thing thing;
-
-  @override
-  Widget build(BuildContext context) {
-    final creationBottomSheet = context.read<CreationBottomSheet>();
-
-    return BaseCardContent(
-      title: thing.content,
-      onTap: () {
-        creationBottomSheet.show(
-          context,
-          existingThing: thing,
-        );
-      },
-      hasBeenDismissed: thing.done,
-      isInProgress: thing.inProgress,
-      onChanged: () {
-        if (thing.done) {
-          context.read<ThingRepository>().setAsUndone(thing: thing);
-          return;
-        }
-        context.read<ThingRepository>().setAsDone(thing: thing);
-      },
-      openOptions: () {
-        context.push('/thing/${thing.id}');
-      },
-    );
-  }
-}
-
-class BaseCardContent extends StatelessWidget {
-  const BaseCardContent({
-    required this.title,
-    this.color,
-    this.subtitle,
-    this.isInProgress,
-    this.onTap,
-    this.openOptions,
-    this.onChanged,
-    this.hasBeenDismissed = false,
-    super.key,
-  });
-
-  final VoidCallback? onTap;
-  final VoidCallback? onChanged;
-  final VoidCallback? openOptions;
-  final bool hasBeenDismissed;
-  final String title;
-  final String? subtitle;
-  final Color? color;
-  final bool? isInProgress;
+  final BaseCardParams params;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onTap: onTap,
+      onTap: params.onTap,
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
-          onChanged?.call();
+          params.onChanged?.call();
         }
         if (details.primaryVelocity! < 0) {
-          onChanged?.call();
+          params.onChanged?.call();
         }
       },
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: ShapeDecoration(
-          color: color ?? AppColors.defaultCardColor,
+          color: params.color ?? AppColors.defaultCardColor,
           shape: SmoothRectangleBorder(
             borderRadius: SmoothBorderRadius(
               cornerRadius: 10,
@@ -101,7 +45,7 @@ class BaseCardContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  if (isInProgress == true) ...[
+                  if (params.isInProgress == true) ...[
                     const SizedBox(
                       width: 18,
                       height: 18,
@@ -117,18 +61,18 @@ class BaseCardContent extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          title,
+                          params.title,
                           style: textTheme.bodyMedium?.copyWith(
-                            decoration: hasBeenDismissed
+                            decoration: params.hasBeenDismissed
                                 ? TextDecoration.lineThrough
                                 : null,
                             color: Colors.white
-                                .withOpacity(hasBeenDismissed ? 0.5 : 1),
+                                .withOpacity(params.hasBeenDismissed ? 0.5 : 1),
                           ),
                         ),
-                        if (subtitle != null) ...[
+                        if (params.subtitle != null) ...[
                           Text(
-                            subtitle!,
+                            params.subtitle!,
                             style: textTheme.bodySmall,
                           ),
                         ],
@@ -136,9 +80,9 @@ class BaseCardContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  if (onChanged != null) ...[
+                  if (params.onChanged != null) ...[
                     RightIconButton(
-                      onTap: openOptions,
+                      onTap: params.openOptions,
                     ),
                   ],
                 ],
@@ -206,4 +150,26 @@ class CheckBox extends StatelessWidget {
       ),
     );
   }
+}
+
+class BaseCardParams {
+  BaseCardParams({
+    required this.title,
+    this.subtitle,
+    this.color,
+    this.isInProgress,
+    this.onTap,
+    this.openOptions,
+    this.onChanged,
+    this.hasBeenDismissed = false,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Color? color;
+  final bool? isInProgress;
+  final VoidCallback? onTap;
+  final VoidCallback? openOptions;
+  final VoidCallback? onChanged;
+  final bool hasBeenDismissed;
 }

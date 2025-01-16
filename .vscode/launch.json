@@ -24,6 +24,13 @@
       "type": "dart",
       "program": "lib/storybook/storybook_main.dart",
       "args": ["--flavor", "production", "--target", "lib/storybook/storybook_main.dart", "--profile"]
+    },
+    {
+      "name": "Launch Mocked Design",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/mocked_design/mocked_design_main.dart",
+      "args": ["--flavor", "production", "--target", "lib/mocked_design/mocked_design_main.dart"]
     }
   ]
 }
