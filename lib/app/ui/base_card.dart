@@ -33,11 +33,29 @@ class BaseCard extends StatelessWidget {
               cornerSmoothing: 1,
             ),
           ),
+
           //borderRadius: BorderRadius.circular(14),
         ),
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
+            if (params.isInProgress == true) ...[
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 2.5,
+                  child: LinearProgressIndicator(
+                    backgroundColor:
+                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.3),
+                    valueColor: AlwaysStoppedAnimation(
+                      const Color.fromARGB(255, 255, 255, 255).withOpacity(0.3),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 12,
@@ -45,17 +63,17 @@ class BaseCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  if (params.isInProgress == true) ...[
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
+                  // if (params.isInProgress == true) ...[
+                  //   const SizedBox(
+                  //     width: 18,
+                  //     height: 18,
+                  //     child: CircularProgressIndicator(
+                  //       strokeWidth: 1,
+                  //       valueColor: AlwaysStoppedAnimation(Colors.white),
+                  //     ),
+                  //   ),
+                  //   const SizedBox(width: 10),
+                  // ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -66,8 +84,11 @@ class BaseCard extends StatelessWidget {
                             decoration: params.hasBeenDismissed
                                 ? TextDecoration.lineThrough
                                 : null,
-                            color: Colors.white
-                                .withOpacity(params.hasBeenDismissed ? 0.5 : 1),
+                            color: params.isInProgress == true
+                                ? const Color.fromARGB(255, 255, 255, 255)
+                                : Colors.white.withOpacity(
+                                    params.hasBeenDismissed ? 0.5 : 1,
+                                  ),
                           ),
                         ),
                         if (params.subtitle != null) ...[
@@ -85,6 +106,11 @@ class BaseCard extends StatelessWidget {
                       onTap: params.openOptions,
                     ),
                   ],
+                  const Icon(
+                    size: 15,
+                    Icons.menu,
+                    color: AppColors.primaryColor,
+                  ),
                 ],
               ),
             ),
