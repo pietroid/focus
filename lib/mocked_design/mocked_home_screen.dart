@@ -1,4 +1,6 @@
+import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/ui/app_colors.dart';
 import 'package:focus/app/ui/base_card.dart';
 import 'package:focus/app/ui/elements/global_scaffold.dart';
 
@@ -17,12 +19,12 @@ class MockedHomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '13:37',
+                '21:06',
                 textAlign: TextAlign.start,
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
               const Text(
-                '🌙 Quarta-feira, 15 de janeiro',
+                '🌙 Domingo, 19 de janeiro',
                 textAlign: TextAlign.start,
               ),
             ],
@@ -35,21 +37,37 @@ class MockedHomeScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(
-            height: 10,
+            height: 12,
           ),
           BaseCard(
             BaseCardParams(
-              title: 'Resolver plano de saúde',
+              title: '😴 Falta 30min para dormir',
+              subtitle: 'Que tal começar a se preparar?',
               onTap: () {},
               openOptions: () {},
-              isInProgress: true,
+              isOutlined: true,
             ),
           ),
+          // Text(
+          //   '⏱️ Agora',
+          //   style: Theme.of(context).textTheme.headlineMedium,
+          // ),
+          // const SizedBox(
+          //   height: 10,
+          // ),
+          // BaseCard(
+          //   BaseCardParams(
+          //     title: 'Resolver plano de saúde',
+          //     onTap: () {},
+          //     openOptions: () {},
+          //     isInProgress: true,
+          //   ),
+          // ),
           const SizedBox(
             height: 25,
           ),
           Text(
-            '⏳ Ainda hoje',
+            '⏳ Para amanhã',
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(
@@ -57,10 +75,11 @@ class MockedHomeScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
-              title: 'Terminar focus',
-              subtitle: '23:00',
+              title: 'Colocar ripados',
+              subtitle: '🏠 Casinha',
               onTap: () {},
               openOptions: () {},
+              isDraggable: true,
             ),
           ),
           const SizedBox(
@@ -68,23 +87,57 @@ class MockedHomeScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
-              title: 'Preparar para dormir',
+              title: 'Fazer código hackathon',
               onTap: () {},
               openOptions: () {},
+              isDraggable: true,
             ),
           ),
           const SizedBox(
             height: 30,
           ),
-          const Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          Text(
+            'Você',
+            style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(
-            height: 30,
+            height: 12,
+          ),
+          const CardShape(
+            child: SizedBox(
+              width: 20,
+              height: 200,
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class CardShape extends StatelessWidget {
+  const CardShape({
+    required this.child,
+    super.key,
+  });
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: ShapeDecoration(
+        color: AppColors.defaultCardColor,
+        shape: SmoothRectangleBorder(
+          borderRadius: SmoothBorderRadius(
+            cornerRadius: 10,
+            cornerSmoothing: 1,
+          ),
+        ),
+
+        //borderRadius: BorderRadius.circular(14),
+      ),
+      child: child,
     );
   }
 }

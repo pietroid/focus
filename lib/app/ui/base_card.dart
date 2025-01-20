@@ -26,12 +26,20 @@ class BaseCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: ShapeDecoration(
-          color: params.color ?? AppColors.defaultCardColor,
+          color: params.color ??
+              (params.isOutlined == true
+                  ? const Color.fromARGB(255, 0, 25, 49)
+                  : AppColors.defaultCardColor),
           shape: SmoothRectangleBorder(
             borderRadius: SmoothBorderRadius(
               cornerRadius: 10,
               cornerSmoothing: 1,
             ),
+            side: params.isOutlined == true
+                ? const BorderSide(
+                    color: Color.fromARGB(255, 140, 173, 255),
+                  )
+                : BorderSide.none,
           ),
 
           //borderRadius: BorderRadius.circular(14),
@@ -106,11 +114,12 @@ class BaseCard extends StatelessWidget {
                       onTap: params.openOptions,
                     ),
                   ],
-                  const Icon(
-                    size: 15,
-                    Icons.menu,
-                    color: AppColors.primaryColor,
-                  ),
+                  if (params.isDraggable == true)
+                    const Icon(
+                      size: 15,
+                      Icons.menu,
+                      color: AppColors.primaryColor,
+                    ),
                 ],
               ),
             ),
@@ -188,6 +197,8 @@ class BaseCardParams {
     this.openOptions,
     this.onChanged,
     this.hasBeenDismissed = false,
+    this.isOutlined,
+    this.isDraggable,
   });
 
   final String title;
@@ -198,4 +209,6 @@ class BaseCardParams {
   final VoidCallback? openOptions;
   final VoidCallback? onChanged;
   final bool hasBeenDismissed;
+  final bool? isOutlined;
+  final bool? isDraggable;
 }

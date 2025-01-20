@@ -50,8 +50,12 @@ class App extends StatelessWidget {
           ),
           useMaterial3: true,
           textTheme: GoogleFonts.onestTextTheme(ThemeData().textTheme).copyWith(
-            headlineLarge: const TextStyle(
+            displayMedium: const TextStyle(
               fontSize: 40,
+              color: Colors.white,
+            ),
+            headlineLarge: const TextStyle(
+              fontSize: 30,
               color: Colors.white,
             ),
             headlineMedium: const TextStyle(
