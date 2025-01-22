@@ -13,27 +13,7 @@ class MockedContentTravelScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Viagem Paraty',
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          const SizedBox(
-            height: 4,
-          ),
-          Text(
-            'Viagens',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          Text(
-            'Sexta-feira',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(
-            height: 4,
-          ),
+          const ThingContentHeader(),
           BaseCard(
             BaseCardParams(
               title: 'Viagem ônibus',
@@ -47,46 +27,47 @@ class MockedContentTravelScreen extends StatelessWidget {
             BaseCardParams(
               title: 'Check-in hotel',
               subtitle: '15:00',
+              rightText: 'R\$ 4,00',
             ),
           ),
           const SizedBox(
             height: 3,
           ),
-          CardShape(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Passeio barco'),
-                      Text(
-                        '16:00 - 18:00',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Text(
-                      //   '16:00 - 18:00',
-                      //   style: Theme.of(context).textTheme.bodySmall,
-                      // ),
-                      Text(
-                        r'R$ 240,00',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
+    );
+  }
+}
+
+class ThingContentHeader extends StatelessWidget {
+  const ThingContentHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Viagem Paraty',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+        SizedBox(
+          height: 10,
+        ),
+        Row(
+          children: [
+            Text('Viagens'),
+            Expanded(
+              child: Container(),
+            ),
+            Text('Total: R\$ 2450,00')
+          ],
+        ),
+        const SizedBox(
+          height: 20,
+        ),
+      ],
     );
   }
 }

@@ -71,17 +71,17 @@ class BaseCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // if (params.isInProgress == true) ...[
-                  //   const SizedBox(
-                  //     width: 18,
-                  //     height: 18,
-                  //     child: CircularProgressIndicator(
-                  //       strokeWidth: 1,
-                  //       valueColor: AlwaysStoppedAnimation(Colors.white),
-                  //     ),
-                  //   ),
-                  //   const SizedBox(width: 10),
-                  // ],
+                  if (params.isInProgress == true) ...[
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -108,12 +108,12 @@ class BaseCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  if (params.onChanged != null) ...[
-                    RightIconButton(
-                      onTap: params.openOptions,
+                  if (params.rightText != null)
+                    Text(
+                      params.rightText!,
+                      style: textTheme.bodySmall,
                     ),
-                  ],
+                  const SizedBox(width: 10),
                   if (params.isDraggable == true)
                     const Icon(
                       size: 15,
@@ -190,6 +190,7 @@ class CheckBox extends StatelessWidget {
 class BaseCardParams {
   BaseCardParams({
     required this.title,
+    this.rightText,
     this.subtitle,
     this.color,
     this.isInProgress,
@@ -203,6 +204,7 @@ class BaseCardParams {
 
   final String title;
   final String? subtitle;
+  final String? rightText;
   final Color? color;
   final bool? isInProgress;
   final VoidCallback? onTap;
