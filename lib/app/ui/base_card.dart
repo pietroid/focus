@@ -26,18 +26,44 @@ class BaseCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: ShapeDecoration(
-          color: params.color ?? AppColors.defaultCardColor,
+          color: params.color ??
+              (params.isOutlined == true
+                  ? const Color.fromARGB(255, 0, 25, 49)
+                  : AppColors.defaultCardColor),
           shape: SmoothRectangleBorder(
             borderRadius: SmoothBorderRadius(
               cornerRadius: 10,
               cornerSmoothing: 1,
             ),
+            side: params.isOutlined == true
+                ? const BorderSide(
+                    color: Color.fromARGB(255, 140, 173, 255),
+                  )
+                : BorderSide.none,
           ),
+
           //borderRadius: BorderRadius.circular(14),
         ),
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
+            if (params.isInProgress == true) ...[
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 2.5,
+                  child: LinearProgressIndicator(
+                    backgroundColor:
+                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.3),
+                    valueColor: AlwaysStoppedAnimation(
+                      const Color.fromARGB(255, 255, 255, 255).withOpacity(0.3),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 12,
@@ -66,8 +92,11 @@ class BaseCard extends StatelessWidget {
                             decoration: params.hasBeenDismissed
                                 ? TextDecoration.lineThrough
                                 : null,
-                            color: Colors.white
-                                .withOpacity(params.hasBeenDismissed ? 0.5 : 1),
+                            color: params.isInProgress == true
+                                ? const Color.fromARGB(255, 255, 255, 255)
+                                : Colors.white.withOpacity(
+                                    params.hasBeenDismissed ? 0.5 : 1,
+                                  ),
                           ),
                         ),
                         if (params.subtitle != null) ...[
@@ -79,12 +108,18 @@ class BaseCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  if (params.onChanged != null) ...[
-                    RightIconButton(
-                      onTap: params.openOptions,
+                  if (params.rightText != null)
+                    Text(
+                      params.rightText!,
+                      style: textTheme.bodySmall,
                     ),
-                  ],
+                  const SizedBox(width: 10),
+                  if (params.isDraggable == true)
+                    const Icon(
+                      size: 15,
+                      Icons.menu,
+                      color: AppColors.primaryColor,
+                    ),
                 ],
               ),
             ),
@@ -155,6 +190,7 @@ class CheckBox extends StatelessWidget {
 class BaseCardParams {
   BaseCardParams({
     required this.title,
+    this.rightText,
     this.subtitle,
     this.color,
     this.isInProgress,
@@ -162,14 +198,19 @@ class BaseCardParams {
     this.openOptions,
     this.onChanged,
     this.hasBeenDismissed = false,
+    this.isOutlined,
+    this.isDraggable,
   });
 
   final String title;
   final String? subtitle;
+  final String? rightText;
   final Color? color;
   final bool? isInProgress;
   final VoidCallback? onTap;
   final VoidCallback? openOptions;
   final VoidCallback? onChanged;
   final bool hasBeenDismissed;
+  final bool? isOutlined;
+  final bool? isDraggable;
 }
