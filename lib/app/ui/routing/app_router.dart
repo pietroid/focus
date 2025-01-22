@@ -1,5 +1,5 @@
+import 'package:focus/app/core/content/core/content_screen.dart';
 import 'package:focus/app/core/home/core/home_screen.dart';
-import 'package:focus/app/core/thing/ui/thing_screen.dart';
 import 'package:go_router/go_router.dart';
 
 class AppRouter {
@@ -11,7 +11,7 @@ class AppRouter {
           ),
           GoRoute(
             path: '/thing/:thingId',
-            builder: (context, state) => ThingScreen(
+            builder: (context, state) => ContentScreen(
               thingId: int.parse(state.pathParameters['thingId']!),
             ),
           ),

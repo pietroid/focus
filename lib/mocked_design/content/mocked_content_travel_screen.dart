@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:focus/app/core/content/ui/content_header.dart';
 import 'package:focus/app/ui/base_card.dart';
 import 'package:focus/app/ui/elements/global_scaffold.dart';
-import 'package:focus/mocked_design/mocked_home_screen.dart';
 
 class MockedContentTravelScreen extends StatelessWidget {
   const MockedContentTravelScreen({super.key});
@@ -13,7 +13,13 @@ class MockedContentTravelScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ThingContentHeader(),
+          const ContentHeader(
+            ContentHeaderParams(
+              title: 'Viagem Paraty',
+              subtitle: 'viagens',
+              rightText: r'Total: R$ 200,00',
+            ),
+          ),
           BaseCard(
             BaseCardParams(
               title: 'Viagem ônibus',
@@ -27,7 +33,7 @@ class MockedContentTravelScreen extends StatelessWidget {
             BaseCardParams(
               title: 'Check-in hotel',
               subtitle: '15:00',
-              rightText: 'R\$ 4,00',
+              rightText: r'R$ 4,00',
             ),
           ),
           const SizedBox(
@@ -35,39 +41,6 @@ class MockedContentTravelScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class ThingContentHeader extends StatelessWidget {
-  const ThingContentHeader({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Viagem Paraty',
-          style: Theme.of(context).textTheme.headlineLarge,
-        ),
-        SizedBox(
-          height: 10,
-        ),
-        Row(
-          children: [
-            Text('Viagens'),
-            Expanded(
-              child: Container(),
-            ),
-            Text('Total: R\$ 2450,00')
-          ],
-        ),
-        const SizedBox(
-          height: 20,
-        ),
-      ],
     );
   }
 }

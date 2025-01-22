@@ -4,8 +4,8 @@ import 'package:focus/app/data/streamed_data_source.dart';
 import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
 
-class GenericThingData extends DomainData<Thing> {
-  GenericThingData({
+class ContentData extends DomainData<Thing> {
+  ContentData({
     required this.thingId,
     required super.box,
   });

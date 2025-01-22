@@ -14,10 +14,11 @@ extension TimelyBaseCardMapper on Thing {
     return BaseCardParams(
       title: content,
       onTap: () {
-        creationBottomSheet.show(
-          context,
-          existingThing: this,
-        );
+        context.push('/thing/$id');
+        // creationBottomSheet.show(
+        //   context,
+        //   existingThing: this,
+        // );
       },
       hasBeenDismissed: done,
       isInProgress: inProgress,
@@ -29,7 +30,7 @@ extension TimelyBaseCardMapper on Thing {
         context.read<ThingRepository>().setAsDone(thing: this);
       },
       openOptions: () {
-        context.push('/thing/$id');
+        // context.push('/thing/$id');
       },
     );
   }
