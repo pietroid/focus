@@ -29,6 +29,7 @@ class ContentScreen extends StatelessWidget {
         keyForList: (thing) => ValueKey(thing.id),
         itemsForList: (list) => list.children,
         listHeader: (list) => ContentHeader(
+          //TODO: add mapper
           ContentHeaderParams(title: list.content),
         ),
         keyForItem: (item) => ValueKey(item.id),
