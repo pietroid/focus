@@ -48,6 +48,11 @@ class App extends StatelessWidget {
           bottomSheetTheme: const BottomSheetThemeData(
             backgroundColor: AppColors.defaultBackgroundColor,
           ),
+          textSelectionTheme: const TextSelectionThemeData(
+            cursorColor: Colors.white,
+            selectionColor: Colors.white,
+            selectionHandleColor: Colors.white,
+          ),
           useMaterial3: true,
           textTheme: GoogleFonts.onestTextTheme(ThemeData().textTheme).copyWith(
             displayMedium: const TextStyle(

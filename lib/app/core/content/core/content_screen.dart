@@ -30,7 +30,10 @@ class ContentScreen extends StatelessWidget {
         itemsForList: (list) => list.children,
         listHeader: (list) => ContentHeader(
           //TODO: add mapper to this
-          ContentHeaderParams(title: list.content),
+          ContentHeaderParams(
+            title: list.content,
+            subtitle: list.value?.formatAsMoney().format(),
+          ),
         ),
         keyForItem: (item) => ValueKey(item.id),
         itemBuilder: (item) => Padding(
@@ -49,5 +52,11 @@ class ContentScreen extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+extension TotalFormatter on String {
+  String format() {
+    return 'Total: $this';
   }
 }

@@ -47,7 +47,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(5, 3534494805469766675),
       name: 'Thing',
-      lastPropertyId: const obx_int.IdUid(8, 2486335390945327863),
+      lastPropertyId: const obx_int.IdUid(10, 1472944842726310423),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -71,14 +71,19 @@ final _entities = <obx_int.ModelEntity>[
             type: 1,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(5, 3696488773815310160),
-            name: 'rank',
-            type: 6,
-            flags: 0),
-        obx_int.ModelProperty(
             id: const obx_int.IdUid(8, 2486335390945327863),
             name: 'tags',
             type: 30,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(9, 7667379632905956439),
+            name: 'value',
+            type: 8,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(10, 1472944842726310423),
+            name: 'rank',
+            type: 6,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[
@@ -152,7 +157,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         4261564895852394679,
         2739063483213758185,
         5705228549106420783,
-        5163927671201236105
+        5163927671201236105,
+        3696488773815310160
       ],
       retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
@@ -205,13 +211,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final contentOffset = fbb.writeString(object.content);
           final tagsOffset = fbb.writeList(
               object.tags.map(fbb.writeString).toList(growable: false));
-          fbb.startTable(9);
+          fbb.startTable(11);
           fbb.addInt64(0, object.id);
           fbb.addOffset(1, contentOffset);
           fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
           fbb.addBool(3, object.done);
-          fbb.addInt64(4, object.rank);
           fbb.addOffset(7, tagsOffset);
+          fbb.addFloat64(8, object.value);
+          fbb.addInt64(9, object.rank);
           fbb.finish(fbb.endTable());
           return object.id;
         },
@@ -224,6 +231,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
           final doneParam =
               const fb.BoolReader().vTableGet(buffer, rootOffset, 10, false);
+          final valueParam = const fb.Float64Reader()
+              .vTableGetNullable(buffer, rootOffset, 20);
           final tagsParam = const fb.ListReader<String>(
                   fb.StringReader(asciiOptimization: true),
                   lazy: false)
@@ -232,10 +241,11 @@ obx_int.ModelDefinition getObjectBoxModel() {
               content: contentParam,
               createdAt: createdAtParam,
               done: doneParam,
+              value: valueParam,
               tags: tagsParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0)
             ..rank =
-                const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0);
+                const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0);
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.children, store,
               obx_int.RelInfo<Thing>.toMany(3, object.id));
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.parents, store,
@@ -278,13 +288,17 @@ class Thing_ {
   static final done =
       obx.QueryBooleanProperty<Thing>(_entities[1].properties[3]);
 
-  /// See [Thing.rank].
-  static final rank =
-      obx.QueryIntegerProperty<Thing>(_entities[1].properties[4]);
-
   /// See [Thing.tags].
   static final tags =
-      obx.QueryStringVectorProperty<Thing>(_entities[1].properties[5]);
+      obx.QueryStringVectorProperty<Thing>(_entities[1].properties[4]);
+
+  /// See [Thing.value].
+  static final value =
+      obx.QueryDoubleProperty<Thing>(_entities[1].properties[5]);
+
+  /// See [Thing.rank].
+  static final rank =
+      obx.QueryIntegerProperty<Thing>(_entities[1].properties[6]);
 
   /// see [Thing.children]
   static final children =

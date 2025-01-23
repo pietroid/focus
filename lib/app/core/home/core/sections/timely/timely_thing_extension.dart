@@ -5,6 +5,7 @@ import 'package:focus/app/data/repositories/thing_repository.dart';
 import 'package:focus/app/ui/base_card.dart';
 import 'package:focus/app/ui/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 extension TimelyBaseCardMapper on Thing {
@@ -32,6 +33,17 @@ extension TimelyBaseCardMapper on Thing {
       openOptions: () {
         // context.push('/thing/$id');
       },
+      rightText: value?.formatAsMoney(),
     );
+  }
+}
+
+extension MoneyFormatter on double {
+  String formatAsMoney() {
+    final formatter = NumberFormat.decimalPatternDigits(
+      decimalDigits: 2,
+    );
+    final formattedNumber = formatter.parse(toString());
+    return '\$ $formattedNumber';
   }
 }
