@@ -49,18 +49,21 @@ class ThingRepository {
     required Thing thing,
   }) {
     thing.done = true;
-    thing.parents.first.children.removeWhere((child) => child.id == thing.id);
-    thing.parents.first.children.applyToDb();
-    final doneThing = box.store
-        .box<Thing>()
-        .query(Thing_.content.equals('✅ Feito'))
-        .build()
-        .findFirst();
 
-    if (doneThing != null) {
-      thing.rank = doneThing.children.length;
-      doneThing.children.add(thing);
-      doneThing.children.applyToDb();
+    if (thing.parents.first.tags.contains(timelyTag)) {
+      thing.parents.first.children.removeWhere((child) => child.id == thing.id);
+      thing.parents.first.children.applyToDb();
+      final doneThing = box.store
+          .box<Thing>()
+          .query(Thing_.content.equals('✅ Feito'))
+          .build()
+          .findFirst();
+
+      if (doneThing != null) {
+        thing.rank = doneThing.children.length;
+        doneThing.children.add(thing);
+        doneThing.children.applyToDb();
+      }
     }
 
     box.store.box<Thing>().put(thing);
@@ -70,20 +73,22 @@ class ThingRepository {
     required Thing thing,
   }) {
     thing.done = false;
-    thing.parents.first.children.removeWhere((child) => child.id == thing.id);
-    thing.parents.first.children.applyToDb();
-    final doneThing = box.store
-        .box<Thing>()
-        .query(Thing_.tags.containsElement(nowSectionTag))
-        .build()
-        .findFirst();
 
-    if (doneThing != null) {
-      thing.rank = doneThing.children.length;
-      doneThing.children.add(thing);
-      doneThing.children.applyToDb();
+    if (thing.parents.first.tags.contains(timelyTag)) {
+      thing.parents.first.children.removeWhere((child) => child.id == thing.id);
+      thing.parents.first.children.applyToDb();
+      final doneThing = box.store
+          .box<Thing>()
+          .query(Thing_.tags.containsElement(nowSectionTag))
+          .build()
+          .findFirst();
+
+      if (doneThing != null) {
+        thing.rank = doneThing.children.length;
+        doneThing.children.add(thing);
+        doneThing.children.applyToDb();
+      }
     }
-
     box.store.box<Thing>().put(thing);
   }
 

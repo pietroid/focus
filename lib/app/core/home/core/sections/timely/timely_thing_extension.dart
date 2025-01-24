@@ -21,6 +21,12 @@ extension TimelyBaseCardMapper on Thing {
         //   existingThing: this,
         // );
       },
+      onDoubleTap: () {
+        creationBottomSheet.show(
+          context,
+          existingThing: this,
+        );
+      },
       hasBeenDismissed: done,
       isInProgress: inProgress,
       onChanged: () {

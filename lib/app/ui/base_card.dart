@@ -15,6 +15,7 @@ class BaseCard extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: params.onTap,
+      onDoubleTap: params.onDoubleTap,
       onHorizontalDragEnd: (details) {
         if (details.primaryVelocity! > 0) {
           params.onChanged?.call();
@@ -195,6 +196,7 @@ class BaseCardParams {
     this.color,
     this.isInProgress,
     this.onTap,
+    this.onDoubleTap,
     this.openOptions,
     this.onChanged,
     this.hasBeenDismissed = false,
@@ -208,6 +210,7 @@ class BaseCardParams {
   final Color? color;
   final bool? isInProgress;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
   final VoidCallback? openOptions;
   final VoidCallback? onChanged;
   final bool hasBeenDismissed;

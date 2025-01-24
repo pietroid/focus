@@ -17,6 +17,12 @@ class ContentData extends DomainData<Thing> {
       query: () => box.store.box<Thing>().query(
             Thing_.id.equals(thingId),
           ),
+      forEachMap: (thing) {
+        //haven't found a better way to sort the children via query
+        thing.children.sort((a, b) => a.rank.compareTo(b.rank));
+        thing.children.applyToDb();
+        return thing;
+      },
     ).behaviorSubject;
   }
 }
