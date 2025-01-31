@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/app/view/app.dart';
-import 'package:focus/app/data/object_box.dart';
+import 'package:focus/app/app/app.dart';
+import 'package:focus/app/common/data/object_box.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:focus/mocked_design/content/mocked_content_read_screen.dart';
 import 'package:focus/mocked_design/content/mocked_content_travel_screen.dart';

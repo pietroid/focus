@@ -1,0 +1,28 @@
+import 'package:focus/app/core/thing.dart';
+import 'package:focus/app/common/data/domain_data.dart';
+import 'package:focus/app/common/data/streamed_data_source.dart';
+import 'package:focus/objectbox.g.dart';
+import 'package:rxdart/subjects.dart';
+
+class ContentData extends DomainData<Thing> {
+  ContentData({
+    required this.thingId,
+    required super.box,
+  });
+  final int thingId;
+
+  @override
+  BehaviorSubject<List<Thing>> get stream {
+    return SubjectQueryBuilder<Thing>(
+      query: () => box.store.box<Thing>().query(
+            Thing_.id.equals(thingId),
+          ),
+      forEachMap: (thing) {
+        //haven't found a better way to sort the children via query
+        thing.children.sort((a, b) => a.rank.compareTo(b.rank));
+        thing.children.applyToDb();
+        return thing;
+      },
+    ).behaviorSubject;
+  }
+}

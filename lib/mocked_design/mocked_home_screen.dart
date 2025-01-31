@@ -1,8 +1,8 @@
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/ui/app_colors.dart';
-import 'package:focus/app/ui/base_card.dart';
-import 'package:focus/app/ui/elements/global_scaffold.dart';
+import 'package:focus/app/common/ui/app_colors.dart';
+import 'package:focus/app/common/ui/base_card.dart';
+import 'package:focus/app/common/ui/elements/global_scaffold.dart';
 
 class MockedHomeScreen extends StatelessWidget {
   const MockedHomeScreen({super.key});

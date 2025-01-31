@@ -1,5 +1,5 @@
 import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/data/object_box.dart';
+import 'package:focus/app/common/data/object_box.dart';
 
 class DataInitializer {
   DataInitializer({

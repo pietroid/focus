@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/content/ui/content_header.dart';
-import 'package:focus/app/ui/base_card.dart';
-import 'package:focus/app/ui/elements/global_scaffold.dart';
+import 'package:focus/app/content/ui/content_header.dart';
+import 'package:focus/app/common/ui/base_card.dart';
+import 'package:focus/app/common/ui/elements/global_scaffold.dart';
 
 class MockedContentTravelScreen extends StatelessWidget {
   const MockedContentTravelScreen({super.key});
