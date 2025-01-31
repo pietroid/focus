@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/home/sections/header/core/home_header.dart';
-import 'package:focus/app/home/sections/timely/timely.dart';
-import 'package:focus/app/common/ui/elements/global_scaffold.dart';
+import 'package:focus/app/home/sections/timely/core/timely.dart';
+import 'package:focus/app/common_infrastructure/ui/global_scaffold.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

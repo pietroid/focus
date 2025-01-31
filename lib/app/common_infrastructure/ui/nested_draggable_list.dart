@@ -1,7 +1,7 @@
 import 'package:drag_and_drop_lists/drag_and_drop_lists.dart';
 import 'package:flutter/widgets.dart';
-import 'package:focus/app/common/data/data_observer.dart';
-import 'package:focus/app/common/data/domain_data.dart';
+import 'package:focus/app/common_infrastructure/data/data_observer.dart';
+import 'package:focus/app/common_infrastructure/data/domain_data.dart';
 
 class NestedDraggableList<L, I> extends StatelessWidget {
   const NestedDraggableList({

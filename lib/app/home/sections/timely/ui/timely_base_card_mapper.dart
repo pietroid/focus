@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/initializer.dart';
-import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/common/data/repositories/thing_repository.dart';
-import 'package:focus/app/common/ui/base_card.dart';
-import 'package:focus/app/common/ui/creation_bottom_sheet.dart';
+import 'package:focus/app/thing/data/initializer.dart';
+import 'package:focus/app/thing/data/thing.dart';
+import 'package:focus/app/thing/data/thing_repository.dart';
+import 'package:focus/app/thing/ui/thing_base_card.dart';
+import 'package:focus/app/focus/core/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';

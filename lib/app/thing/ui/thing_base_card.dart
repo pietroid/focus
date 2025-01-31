@@ -1,6 +1,6 @@
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/common/ui/app_colors.dart';
+import 'package:focus/app/app/ui/app_colors.dart';
 
 class BaseCard extends StatelessWidget {
   const BaseCard(

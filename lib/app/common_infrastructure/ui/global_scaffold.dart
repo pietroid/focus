@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/common/ui/elements/mandala.dart';
-import 'package:focus/app/common/ui/creation_bottom_sheet.dart';
+import 'package:focus/app/focus/ui/mandala.dart';
+import 'package:focus/app/focus/core/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 

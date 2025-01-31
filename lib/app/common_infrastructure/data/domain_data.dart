@@ -1,4 +1,4 @@
-import 'package:focus/app/common/data/object_box.dart';
+import 'package:focus/app/common_infrastructure/data/object_box.dart';
 import 'package:rxdart/subjects.dart';
 
 abstract class DomainData<T> {

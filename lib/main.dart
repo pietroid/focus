@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/app/app.dart';
-import 'package:focus/app/core/initializer.dart';
-import 'package:focus/app/common/data/object_box.dart';
-import 'package:focus/app/common/ui/routing/app_router.dart';
+import 'package:focus/app/thing/data/initializer.dart';
+import 'package:focus/app/common_infrastructure/data/object_box.dart';
+import 'package:focus/app/app/ui/app_router.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';

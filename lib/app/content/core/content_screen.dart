@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:focus/app/content/data/content_data.dart';
 import 'package:focus/app/content/ui/content_header.dart';
-import 'package:focus/app/common/ui/elements/nested_draggable_list.dart';
-import 'package:focus/app/home/sections/timely/timely_data.dart';
-import 'package:focus/app/home/sections/timely/timely_thing_extension.dart';
-import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/common/data/object_box.dart';
-import 'package:focus/app/common/ui/base_card.dart';
-import 'package:focus/app/common/ui/elements/global_scaffold.dart';
+import 'package:focus/app/common_infrastructure/ui/nested_draggable_list.dart';
+import 'package:focus/app/home/sections/timely/data/timely_data.dart';
+import 'package:focus/app/home/sections/timely/ui/timely_base_card_mapper.dart';
+import 'package:focus/app/thing/data/thing.dart';
+import 'package:focus/app/common_infrastructure/data/object_box.dart';
+import 'package:focus/app/thing/ui/thing_base_card.dart';
+import 'package:focus/app/common_infrastructure/ui/global_scaffold.dart';
 import 'package:provider/provider.dart';
 
 class ContentScreen extends StatelessWidget {

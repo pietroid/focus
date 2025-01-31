@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/common/data/domain_data.dart';
-import 'package:focus/app/common/data/stream_cubit.dart';
+import 'package:focus/app/common_infrastructure/data/domain_data.dart';
+import 'package:focus/app/common_infrastructure/data/stream_cubit.dart';
 
 class DataObserver<T> extends StatefulWidget {
   const DataObserver({

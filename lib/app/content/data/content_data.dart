@@ -1,6 +1,6 @@
-import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/common/data/domain_data.dart';
-import 'package:focus/app/common/data/streamed_data_source.dart';
+import 'package:focus/app/thing/data/thing.dart';
+import 'package:focus/app/common_infrastructure/data/domain_data.dart';
+import 'package:focus/app/common_infrastructure/data/streamed_data_source.dart';
 import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
 

@@ -14,36 +14,11 @@ import 'package:objectbox/internal.dart'
 import 'package:objectbox/objectbox.dart' as obx;
 import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
-import 'app/core/event.dart';
-import 'app/core/thing.dart';
+import 'app/thing/data/thing.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
 final _entities = <obx_int.ModelEntity>[
-  obx_int.ModelEntity(
-      id: const obx_int.IdUid(2, 7002050964441799220),
-      name: 'Event',
-      lastPropertyId: const obx_int.IdUid(3, 8344290899505051100),
-      flags: 0,
-      properties: <obx_int.ModelProperty>[
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(1, 4307723726814652867),
-            name: 'id',
-            type: 6,
-            flags: 1),
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(2, 421814647252034290),
-            name: 'initialTime',
-            type: 10,
-            flags: 0),
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(3, 8344290899505051100),
-            name: 'finalTime',
-            type: 10,
-            flags: 0)
-      ],
-      relations: <obx_int.ModelRelation>[],
-      backlinks: <obx_int.ModelBacklink>[]),
   obx_int.ModelEntity(
       id: const obx_int.IdUid(5, 3534494805469766675),
       name: 'Thing',
@@ -140,7 +115,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
       retiredEntityUids: const [
         1631627817501562807,
         5074736434067970976,
-        3624636574726604689
+        3624636574726604689,
+        7002050964441799220
       ],
       retiredIndexUids: const [5876970679639637568],
       retiredPropertyUids: const [
@@ -158,7 +134,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
         2739063483213758185,
         5705228549106420783,
         5163927671201236105,
-        3696488773815310160
+        3696488773815310160,
+        4307723726814652867,
+        421814647252034290,
+        8344290899505051100
       ],
       retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
@@ -166,37 +145,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
       version: 1);
 
   final bindings = <Type, obx_int.EntityDefinition>{
-    Event: obx_int.EntityDefinition<Event>(
-        model: _entities[0],
-        toOneRelations: (Event object) => [],
-        toManyRelations: (Event object) => {},
-        getId: (Event object) => object.id,
-        setId: (Event object, int id) {
-          object.id = id;
-        },
-        objectToFB: (Event object, fb.Builder fbb) {
-          fbb.startTable(4);
-          fbb.addInt64(0, object.id);
-          fbb.addInt64(1, object.initialTime.millisecondsSinceEpoch);
-          fbb.addInt64(2, object.finalTime.millisecondsSinceEpoch);
-          fbb.finish(fbb.endTable());
-          return object.id;
-        },
-        objectFromFB: (obx.Store store, ByteData fbData) {
-          final buffer = fb.BufferContext(fbData);
-          final rootOffset = buffer.derefObject(0);
-          final initialTimeParam = DateTime.fromMillisecondsSinceEpoch(
-              const fb.Int64Reader().vTableGet(buffer, rootOffset, 6, 0));
-          final finalTimeParam = DateTime.fromMillisecondsSinceEpoch(
-              const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
-          final object = Event(
-              initialTime: initialTimeParam, finalTime: finalTimeParam)
-            ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0);
-
-          return object;
-        }),
     Thing: obx_int.EntityDefinition<Thing>(
-        model: _entities[1],
+        model: _entities[0],
         toOneRelations: (Thing object) => [],
         toManyRelations: (Thing object) => {
               obx_int.RelInfo<Thing>.toMany(3, object.id): object.children,
@@ -257,50 +207,36 @@ obx_int.ModelDefinition getObjectBoxModel() {
   return obx_int.ModelDefinition(model, bindings);
 }
 
-/// [Event] entity fields to define ObjectBox queries.
-class Event_ {
-  /// See [Event.id].
-  static final id = obx.QueryIntegerProperty<Event>(_entities[0].properties[0]);
-
-  /// See [Event.initialTime].
-  static final initialTime =
-      obx.QueryDateProperty<Event>(_entities[0].properties[1]);
-
-  /// See [Event.finalTime].
-  static final finalTime =
-      obx.QueryDateProperty<Event>(_entities[0].properties[2]);
-}
-
 /// [Thing] entity fields to define ObjectBox queries.
 class Thing_ {
   /// See [Thing.id].
-  static final id = obx.QueryIntegerProperty<Thing>(_entities[1].properties[0]);
+  static final id = obx.QueryIntegerProperty<Thing>(_entities[0].properties[0]);
 
   /// See [Thing.content].
   static final content =
-      obx.QueryStringProperty<Thing>(_entities[1].properties[1]);
+      obx.QueryStringProperty<Thing>(_entities[0].properties[1]);
 
   /// See [Thing.createdAt].
   static final createdAt =
-      obx.QueryDateProperty<Thing>(_entities[1].properties[2]);
+      obx.QueryDateProperty<Thing>(_entities[0].properties[2]);
 
   /// See [Thing.done].
   static final done =
-      obx.QueryBooleanProperty<Thing>(_entities[1].properties[3]);
+      obx.QueryBooleanProperty<Thing>(_entities[0].properties[3]);
 
   /// See [Thing.tags].
   static final tags =
-      obx.QueryStringVectorProperty<Thing>(_entities[1].properties[4]);
+      obx.QueryStringVectorProperty<Thing>(_entities[0].properties[4]);
 
   /// See [Thing.value].
   static final value =
-      obx.QueryDoubleProperty<Thing>(_entities[1].properties[5]);
+      obx.QueryDoubleProperty<Thing>(_entities[0].properties[5]);
 
   /// See [Thing.rank].
   static final rank =
-      obx.QueryIntegerProperty<Thing>(_entities[1].properties[6]);
+      obx.QueryIntegerProperty<Thing>(_entities[0].properties[6]);
 
   /// see [Thing.children]
   static final children =
-      obx.QueryRelationToMany<Thing, Thing>(_entities[1].relations[0]);
+      obx.QueryRelationToMany<Thing, Thing>(_entities[0].relations[0]);
 }

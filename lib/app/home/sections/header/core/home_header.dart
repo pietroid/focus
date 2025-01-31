@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/home/sections/header/data/timer/timer_cubit.dart';
 import 'package:focus/app/home/sections/header/ui/clock.dart';
-import 'package:focus/app/common/ui/string_formatter.dart';
+import 'package:focus/app/common_infrastructure/ui/string_formatter.dart';
 import 'package:intl/intl.dart';
 
 class HomeHeader extends StatelessWidget {

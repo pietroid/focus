@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/home/sections/header/data/timer/timer_cubit.dart';
-import 'package:focus/app/home/sections/timely/timely_data.dart';
-import 'package:focus/app/common/data/object_box.dart';
-import 'package:focus/app/common/data/repositories/thing_repository.dart';
-import 'package:focus/app/common/ui/app_colors.dart';
-import 'package:focus/app/common/ui/creation_bottom_sheet.dart';
+import 'package:focus/app/home/sections/timely/data/timely_data.dart';
+import 'package:focus/app/common_infrastructure/data/object_box.dart';
+import 'package:focus/app/thing/data/thing_repository.dart';
+import 'package:focus/app/app/ui/app_colors.dart';
+import 'package:focus/app/focus/core/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';

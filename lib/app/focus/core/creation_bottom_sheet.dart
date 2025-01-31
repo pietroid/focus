@@ -1,9 +1,9 @@
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/core/thing.dart';
-import 'package:focus/app/common/data/repositories/thing_repository.dart';
-import 'package:focus/app/common/ui/app_colors.dart';
-import 'package:focus/app/common/ui/string_formatter.dart';
+import 'package:focus/app/thing/data/thing.dart';
+import 'package:focus/app/thing/data/thing_repository.dart';
+import 'package:focus/app/app/ui/app_colors.dart';
+import 'package:focus/app/common_infrastructure/ui/string_formatter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
