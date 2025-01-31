@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/app/core/home/core/sections/header/data/timer/timer_cubit.dart';
 import 'package:focus/app/core/home/core/sections/timely/timely_data.dart';
 import 'package:focus/app/data/object_box.dart';
 import 'package:focus/app/data/repositories/thing_repository.dart';
@@ -37,8 +39,17 @@ class App extends StatelessWidget {
             box: objectBox,
           ),
         ),
+        BlocProvider(
+          create: (context) => TimerCubit(
+            startTime: DateTime.now(),
+          ),
+        ),
       ],
       child: MaterialApp.router(
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: const [
+          Locale('pt', 'BR'),
+        ],
         routerConfig: router,
         themeMode: ThemeMode.dark,
         darkTheme: ThemeData(
