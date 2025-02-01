@@ -46,10 +46,6 @@ class App extends StatelessWidget {
         ),
       ],
       child: MaterialApp.router(
-        locale: const Locale('pt', 'BR'),
-        supportedLocales: const [
-          Locale('pt', 'BR'),
-        ],
         routerConfig: router,
         themeMode: ThemeMode.dark,
         darkTheme: ThemeData(
