@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/app/home/sections/body/for_you/core/for_you_cubit.dart';
+import 'package:focus/app/home/sections/body/for_you/data/for_you_repository.dart';
+import 'package:focus/app/home/sections/body/timely/core/timely_cubit.dart';
 import 'package:focus/app/home/sections/header/data/timer/timer_cubit.dart';
-import 'package:focus/app/home/sections/timely/data/timely_data.dart';
+import 'package:focus/app/home/sections/body/timely/data/timely_repository.dart';
 import 'package:focus/app/common_infrastructure/data/object_box.dart';
 import 'package:focus/app/thing/data/thing_repository.dart';
 import 'package:focus/app/app/ui/app_colors.dart';
@@ -35,9 +38,12 @@ class App extends StatelessWidget {
           ),
         ),
         Provider(
-          create: (context) => TimelyData(
-            box: objectBox,
-          ),
+          create: (context) =>
+              TimelyCubit(timelyRepository: TimelyRepository(box: objectBox)),
+        ),
+        Provider(
+          create: (context) =>
+              ForYouCubit(forYouRepository: ForYouRepository(box: objectBox)),
         ),
         BlocProvider(
           create: (context) => TimerCubit(

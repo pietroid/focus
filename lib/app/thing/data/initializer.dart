@@ -66,3 +66,4 @@ const timelyTag = 'TIMELY';
 const todaySectionTag = 'TODAY_SECTION';
 const nowSectionTag = 'NOW_SECTION';
 const versionTag = 'VERSION_v0.2';
+const forYouTag = 'FOR_YOU';

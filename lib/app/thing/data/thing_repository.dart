@@ -92,6 +92,45 @@ class ThingRepository {
     box.store.box<Thing>().put(thing);
   }
 
+  void changeThingPriority({
+    required Thing thing,
+    required Thing newParent,
+    required int newIndex,
+  }) {
+    final oldRank = thing.rank;
+    thing.rank = newIndex;
+    box.store.box<Thing>().put(thing);
+    newParent.children.applyToDb();
+
+    final existingParent = thing.parents.first;
+    if (newParent.id != existingParent.id) {
+      existingParent.children.removeWhere((child) => child.id == thing.id);
+      existingParent.children.applyToDb();
+
+      newParent.children.add(thing);
+      newParent.children.applyToDb();
+    }
+
+    for (final child in existingParent.children) {
+      if (child.id != thing.id && child.rank > oldRank) {
+        child.rank--;
+        box.store.box<Thing>().put(child);
+      }
+    }
+    existingParent.children.applyToDb();
+
+    final newOrExistingParent =
+        newParent.id == existingParent.id ? existingParent : newParent;
+    // re-rank
+    for (final child in newOrExistingParent.children) {
+      if (child.id != thing.id && child.rank >= newIndex) {
+        child.rank++;
+        box.store.box<Thing>().put(child);
+      }
+    }
+    newOrExistingParent.children.applyToDb();
+  }
+
   BehaviorSubject<List<Thing>> watchTodoThings() {
     QueryBuilder<Thing> query() =>
         box.store.box<Thing>().query(Thing_.done.equals(false));

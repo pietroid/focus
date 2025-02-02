@@ -14,7 +14,7 @@ class NestedDraggableList<L, I> extends StatelessWidget {
     required this.onItemReorder,
     super.key,
   });
-  final DomainData<L> data;
+  final List<L> data;
   final Key Function(L) keyForList;
   final List<I> Function(L) itemsForList;
   final Widget Function(L) listHeader;
@@ -25,39 +25,36 @@ class NestedDraggableList<L, I> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DataObserver<L>(
-      data: data,
-      builder: (context, state) => DragAndDropLists(
-        contentsWhenEmpty: Container(),
-        children: state.map((list) {
-          return DragAndDropList(
-            key: keyForList(list),
-            contentsWhenEmpty: Container(),
-            children: itemsForList(list)
-                .map(
-                  (child) => DragAndDropItem(
-                    key: keyForItem(child),
-                    child: itemBuilder(child),
-                  ),
-                )
-                .toList(),
-            header: listHeader(list),
-          );
-        }).toList(),
-        onItemReorder: (
-          int oldItemIndex,
-          int oldListIndex,
-          int newItemIndex,
-          int newListIndex,
-        ) =>
-            onItemReorder(
-          state[oldListIndex],
-          itemsForList(state[oldListIndex])[oldItemIndex],
-          state[newListIndex],
-          newItemIndex,
-        ),
-        onListReorder: (_, __) {},
+    return DragAndDropLists(
+      contentsWhenEmpty: Container(),
+      children: data.map((list) {
+        return DragAndDropList(
+          key: keyForList(list),
+          contentsWhenEmpty: Container(),
+          children: itemsForList(list)
+              .map(
+                (child) => DragAndDropItem(
+                  key: keyForItem(child),
+                  child: itemBuilder(child),
+                ),
+              )
+              .toList(),
+          header: listHeader(list),
+        );
+      }).toList(),
+      onItemReorder: (
+        int oldItemIndex,
+        int oldListIndex,
+        int newItemIndex,
+        int newListIndex,
+      ) =>
+          onItemReorder(
+        data[oldListIndex],
+        itemsForList(data[oldListIndex])[oldItemIndex],
+        data[newListIndex],
+        newItemIndex,
       ),
+      onListReorder: (_, __) {},
     );
   }
 }

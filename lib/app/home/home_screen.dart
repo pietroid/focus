@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/home/sections/header/core/home_header.dart';
-import 'package:focus/app/home/sections/timely/core/timely.dart';
+import 'package:focus/app/home/sections/body/body/core/body.dart';
 import 'package:focus/app/common_infrastructure/ui/global_scaffold.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -13,7 +13,7 @@ class HomeScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           HomeHeader(),
-          Expanded(child: Timely()),
+          Expanded(child: HomeBody()),
         ],
       ),
     );
