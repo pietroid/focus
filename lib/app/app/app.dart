@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/home/sections/body/for_you/core/for_you_cubit.dart';
+import 'package:focus/app/home/sections/body/for_you/core/for_you_tab_cubit.dart';
 import 'package:focus/app/home/sections/body/for_you/data/for_you_repository.dart';
 import 'package:focus/app/home/sections/body/timely/core/timely_cubit.dart';
 import 'package:focus/app/home/sections/header/data/timer/timer_cubit.dart';
@@ -44,6 +45,16 @@ class App extends StatelessWidget {
         Provider(
           create: (context) =>
               ForYouCubit(forYouRepository: ForYouRepository(box: objectBox)),
+        ),
+        BlocProvider(
+          create: (context) => ForYouTabCubit(
+            initialTab: ForYouRepository(box: objectBox)
+                .stream
+                .value
+                .first
+                .children
+                .first,
+          ),
         ),
         BlocProvider(
           create: (context) => TimerCubit(

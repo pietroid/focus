@@ -15,7 +15,9 @@ class TimelyRepository {
 
   BehaviorSubject<List<Thing>> get stream {
     QueryBuilder<Thing> query() => box.store.box<Thing>().query(
-          Thing_.tags.containsElement(timelyTag),
+          Thing_.tags
+              .containsElement(todaySectionTag)
+              .or(Thing_.tags.containsElement(nowSectionTag)),
         );
 
     return SubjectQueryBuilder<Thing>(

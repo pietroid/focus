@@ -1,5 +1,6 @@
 import 'package:focus/app/thing/data/thing.dart';
 import 'package:focus/app/common_infrastructure/data/object_box.dart';
+import 'package:focus/objectbox.g.dart';
 
 class DataInitializer {
   DataInitializer({
@@ -8,7 +9,7 @@ class DataInitializer {
 
   final ObjectBox box;
   void initialize() {
-    //box.store.box<Thing>().removeAll();
+    // Create from scratch
     if (box.store.box<Thing>().isEmpty()) {
       final nowSection = Thing(
         content: '⏱️ Agora',
@@ -33,6 +34,7 @@ class DataInitializer {
         createdAt: DateTime.now(),
         tags: [
           timelyTag,
+          tomorrowSectionTag,
           versionTag,
         ],
       );
@@ -41,6 +43,7 @@ class DataInitializer {
         createdAt: DateTime.now(),
         tags: [
           timelyTag,
+          laterSectionTag,
           versionTag,
         ],
       );
@@ -49,6 +52,15 @@ class DataInitializer {
         createdAt: DateTime.now(),
         tags: [
           timelyTag,
+          doneSectionTag,
+          versionTag,
+        ],
+      );
+      final forYouSection = Thing(
+        content: '❤️ Você',
+        createdAt: DateTime.now(),
+        tags: [
+          forYouTag,
           versionTag,
         ],
       );
@@ -58,12 +70,79 @@ class DataInitializer {
       box.store.box<Thing>().put(tomorrowSection);
       box.store.box<Thing>().put(laterSection);
       box.store.box<Thing>().put(doneSection);
+      box.store.box<Thing>().put(forYouSection);
     }
+    // final doneThing = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.content.equals('✅ Feito'))
+    //     .build()
+    //     .findFirst()!;
+    // doneThing.tags.add(doneSectionTag);
+    // box.store.box<Thing>().put(doneThing);
+
+    // final laterSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.content.equals('📅 Depois'))
+    //     .build()
+    //     .findFirst()!;
+    // laterSection.tags.add(laterSectionTag);
+    // box.store.box<Thing>().put(laterSection);
+
+    // final tomorrowSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.content.equals('🌞 Amanhã'))
+    //     .build()
+    //     .findFirst()!;
+    // tomorrowSection.tags.add(tomorrowSectionTag);
+    // box.store.box<Thing>().put(tomorrowSection);
+
+    // final forYouSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.tags.containsElement(forYouTag))
+    //     .build()
+    //     .findFirst()!;
+    // print(forYouSection.content);
+
+    // final tomorrowSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.tags.containsElement(tomorrowSectionTag))
+    //     .build()
+    //     .findFirst()!;
+
+    // print(tomorrowSection.content);
+
+    // final laterSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.tags.containsElement(laterSectionTag))
+    //     .build()
+    //     .findFirst()!;
+
+    // final doneSection = box.store
+    //     .box<Thing>()
+    //     .query(Thing_.tags.containsElement(doneSectionTag))
+    //     .build()
+    //     .findFirst()!;
+
+    // forYouSection.children.add(tomorrowSection);
+    // forYouSection.children.add(laterSection);
+    // forYouSection.children.add(doneSection);
+
+    // box.store.box<Thing>().put(forYouSection);
   }
 }
 
+//TIMELY
 const timelyTag = 'TIMELY';
+
+// SECTIONS
 const todaySectionTag = 'TODAY_SECTION';
 const nowSectionTag = 'NOW_SECTION';
-const versionTag = 'VERSION_v0.2';
+const tomorrowSectionTag = 'TOMORROW_SECTION';
+const laterSectionTag = 'LATER_SECTION';
+const doneSectionTag = 'DONE_SECTION';
+
+// FOR YOU SECTION
 const forYouTag = 'FOR_YOU';
+
+//VERSION
+const versionTag = 'VERSION_v0.2';
