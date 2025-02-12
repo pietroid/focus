@@ -70,6 +70,11 @@ class DataInitializer {
       box.store.box<Thing>().put(tomorrowSection);
       box.store.box<Thing>().put(laterSection);
       box.store.box<Thing>().put(doneSection);
+
+      forYouSection.children.add(tomorrowSection);
+      forYouSection.children.add(laterSection);
+      forYouSection.children.add(doneSection);
+
       box.store.box<Thing>().put(forYouSection);
     }
     // final doneThing = box.store

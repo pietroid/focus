@@ -98,7 +98,8 @@ class App extends StatelessWidget {
             ),
             bodySmall: const TextStyle(
               fontSize: 12,
-              color: Color.fromARGB(160, 255, 255, 255),
+              letterSpacing: 0.1,
+              color: Color.fromARGB(217, 255, 255, 255),
             ),
           ),
         ),
