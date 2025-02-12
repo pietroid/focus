@@ -1,6 +1,7 @@
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
 import 'package:focus/app/app/ui/app_colors.dart';
+import 'package:glowy_borders/glowy_borders.dart';
 
 class BaseCard extends StatelessWidget {
   const BaseCard(
@@ -24,110 +25,112 @@ class BaseCard extends StatelessWidget {
           params.onChanged?.call();
         }
       },
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: ShapeDecoration(
-          color: params.color ??
-              (params.isOutlined == true
-                  ? const Color.fromARGB(255, 0, 25, 49)
-                  : AppColors.defaultCardColor),
-          shape: SmoothRectangleBorder(
-            borderRadius: SmoothBorderRadius(
-              cornerRadius: 10,
-              cornerSmoothing: 1,
-            ),
-            side: params.isOutlined == true
-                ? const BorderSide(
-                    color: Color.fromARGB(255, 140, 173, 255),
-                  )
-                : BorderSide.none,
+      child: ConditionalWrapper(
+        isInProgress: params.isInProgress == true,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
           ),
-
-          //borderRadius: BorderRadius.circular(14),
-        ),
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            if (params.isInProgress == true) ...[
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: SizedBox(
-                  height: 2.5,
-                  child: LinearProgressIndicator(
-                    backgroundColor:
-                        const Color.fromARGB(255, 0, 0, 0).withOpacity(0.3),
-                    valueColor: AlwaysStoppedAnimation(
-                      const Color.fromARGB(255, 255, 255, 255).withOpacity(0.3),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 12,
-              ),
-              child: Row(
-                children: [
-                  if (params.isInProgress == true) ...[
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1,
-                        valueColor: AlwaysStoppedAnimation(Colors.white),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      params.title,
+                      style: textTheme.bodyMedium?.copyWith(
+                        decoration: params.hasBeenDismissed
+                            ? TextDecoration.lineThrough
+                            : null,
+                        color: params.isInProgress == true
+                            ? const Color.fromARGB(255, 255, 255, 255)
+                            : Colors.white.withOpacity(
+                                params.hasBeenDismissed ? 0.5 : 1,
+                              ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    if (params.subtitle != null) ...[
+                      Text(
+                        params.subtitle!,
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
                   ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          params.title,
-                          style: textTheme.bodyMedium?.copyWith(
-                            decoration: params.hasBeenDismissed
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: params.isInProgress == true
-                                ? const Color.fromARGB(255, 255, 255, 255)
-                                : Colors.white.withOpacity(
-                                    params.hasBeenDismissed ? 0.5 : 1,
-                                  ),
-                          ),
-                        ),
-                        if (params.subtitle != null) ...[
-                          Text(
-                            params.subtitle!,
-                            style: textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (params.rightText != null)
-                    Text(
-                      params.rightText!,
-                      style: textTheme.bodySmall,
-                    ),
-                  const SizedBox(width: 10),
-                  if (params.isDraggable == true)
-                    const Icon(
-                      size: 15,
-                      Icons.menu,
-                      color: AppColors.primaryColor,
-                    ),
-                ],
+                ),
               ),
-            ),
-          ],
+              if (params.rightText != null)
+                Text(
+                  params.rightText!,
+                  style: textTheme.bodySmall,
+                ),
+              const SizedBox(width: 10),
+              if (params.isDraggable == true)
+                const Icon(
+                  size: 15,
+                  Icons.menu,
+                  color: AppColors.primaryColor,
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+class ConditionalWrapper extends StatelessWidget {
+  const ConditionalWrapper({
+    required this.isInProgress,
+    required this.child,
+    super.key,
+  });
+  final bool isInProgress;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return isInProgress
+        ? AnimatedGradientBorder(
+            borderSize: 0.4,
+            glowSize: 2,
+            gradientColors: const [
+              Color(0xFFEEFFBB),
+              Color(0xFF00B481),
+              Color(0xFF1B318F),
+              Color(0xFF9E2B3D),
+              Color(0xFFFF9A6B),
+            ],
+            animationTime: 2,
+            borderRadius: const BorderRadius.all(Radius.circular(10)),
+            child: Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: ShapeDecoration(
+                color: AppColors.defaultCardColor,
+                shape: SmoothRectangleBorder(
+                  borderRadius: SmoothBorderRadius(
+                    cornerRadius: 10,
+                    cornerSmoothing: 1,
+                  ),
+                ),
+              ),
+              child: child,
+            ),
+          )
+        : Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: ShapeDecoration(
+              color: AppColors.defaultCardColor,
+              shape: SmoothRectangleBorder(
+                borderRadius: SmoothBorderRadius(
+                  cornerRadius: 10,
+                  cornerSmoothing: 1,
+                ),
+              ),
+            ),
+            child: child,
+          );
   }
 }
 
