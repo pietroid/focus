@@ -102,7 +102,7 @@ class ConditionalWrapper extends StatelessWidget {
               Color(0xFF9E2B3D),
               Color(0xFFFF9A6B),
             ],
-            animationTime: 2,
+            animationTime: 4,
             borderRadius: const BorderRadius.all(Radius.circular(10)),
             child: Container(
               clipBehavior: Clip.antiAlias,
