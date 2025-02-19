@@ -15,8 +15,46 @@ import 'package:focus/app/thing/ui/thing_base_card.dart';
 import 'package:focus/app/common_infrastructure/ui/global_scaffold.dart';
 import 'package:provider/provider.dart';
 
-class ContentScreen extends StatelessWidget {
+class ContentScreen extends StatefulWidget {
   const ContentScreen({
+    required this.thingId,
+    super.key,
+  });
+  final int thingId;
+
+  @override
+  State<ContentScreen> createState() => _ContentScreenState();
+}
+
+class _ContentScreenState extends State<ContentScreen> {
+  late final ContentCubit contentCubit;
+  @override
+  void initState() {
+    contentCubit = ContentCubit(
+      contentRepository: ContentRepository(
+        thingId: widget.thingId,
+        box: context.read<ObjectBox>(),
+      ),
+    );
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    contentCubit.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ContentScreenContent(
+      thingId: widget.thingId,
+    );
+  }
+}
+
+class ContentScreenContent extends StatelessWidget {
+  const ContentScreenContent({
     required this.thingId,
     super.key,
   });
