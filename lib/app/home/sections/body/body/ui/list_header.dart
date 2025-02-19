@@ -40,6 +40,10 @@ class ListHeader extends StatelessWidget {
                     child: CarouselSelector(
                       children: section.children,
                       tabs: section.tabs ?? [],
+                      selectedIndex: section.tabs?.indexWhere(
+                            (tab) => tab.id == section.selectedTab?.id,
+                          ) ??
+                          0,
                     ),
                   ),
                 ],
@@ -53,10 +57,12 @@ class CarouselSelector extends StatelessWidget {
   const CarouselSelector({
     required this.children,
     required this.tabs,
+    required this.selectedIndex,
     super.key,
   });
   final List<Thing> children;
   final List<Thing> tabs;
+  final int selectedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +70,7 @@ class CarouselSelector extends StatelessWidget {
       separatorBuilder: (context, index) => const SizedBox(width: 4),
       shrinkWrap: true,
       itemBuilder: (context, index) => ChoiceSelector(
+        isSelected: selectedIndex == index,
         label: tabs[index].content,
         onTap: () {
           context.read<ForYouTabCubit>().changeTab(tabs[index]);
