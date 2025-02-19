@@ -27,7 +27,9 @@ class Thing {
   bool done;
 
   // Value in money units
-  final double? _value;
+  double? _value;
+
+  set value(double? value) => _value = value;
 
   // Children of the thing
   final children = ToMany<Thing>();

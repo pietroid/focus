@@ -24,6 +24,10 @@ class ForYouRepository {
         //haven't found a better way to sort the children via query
         thing.children.sort((a, b) => a.rank.compareTo(b.rank));
         thing.children.applyToDb();
+        for (final child in thing.children) {
+          child.children.sort((a, b) => a.rank.compareTo(b.rank));
+          child.children.applyToDb();
+        }
         return thing;
       },
     ).behaviorSubject;

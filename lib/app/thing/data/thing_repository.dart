@@ -97,38 +97,31 @@ class ThingRepository {
     required Thing newParent,
     required int newIndex,
   }) {
-    final oldRank = thing.rank;
-    thing.rank = newIndex;
-    box.store.box<Thing>().put(thing);
-    newParent.children.applyToDb();
-
     final existingParent = thing.parents.first;
     if (newParent.id != existingParent.id) {
       existingParent.children.removeWhere((child) => child.id == thing.id);
+      existingParent.children.applyToDb();
+
+      existingParent.children.sort((a, b) => a.rank.compareTo(b.rank));
+      for (var i = 0; i < existingParent.children.length; i++) {
+        existingParent.children[i].rank = i;
+        box.store.box<Thing>().put(existingParent.children[i]);
+      }
       existingParent.children.applyToDb();
 
       newParent.children.add(thing);
       newParent.children.applyToDb();
     }
 
-    for (final child in existingParent.children) {
-      if (child.id != thing.id && child.rank > oldRank) {
-        child.rank--;
-        box.store.box<Thing>().put(child);
-      }
+    newParent.children.sort((a, b) => a.rank.compareTo(b.rank));
+    newParent.children.removeWhere((child) => child.id == thing.id);
+    newParent.children.insert(newIndex, thing);
+    newParent.children.applyToDb();
+    for (var i = 0; i < newParent.children.length; i++) {
+      newParent.children[i].rank = i;
+      box.store.box<Thing>().put(newParent.children[i]);
     }
-    existingParent.children.applyToDb();
-
-    final newOrExistingParent =
-        newParent.id == existingParent.id ? existingParent : newParent;
-    // re-rank
-    for (final child in newOrExistingParent.children) {
-      if (child.id != thing.id && child.rank >= newIndex) {
-        child.rank++;
-        box.store.box<Thing>().put(child);
-      }
-    }
-    newOrExistingParent.children.applyToDb();
+    newParent.children.applyToDb();
   }
 
   BehaviorSubject<List<Thing>> watchTodoThings() {

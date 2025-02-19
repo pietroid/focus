@@ -47,9 +47,21 @@ extension TimelyBaseCardMapper on Thing {
 extension MoneyFormatter on double {
   String formatAsMoney() {
     final formatter = NumberFormat.decimalPatternDigits(
+      locale: 'pt_BR',
       decimalDigits: 2,
     );
-    final formattedNumber = formatter.parse(toString());
+    final formattedNumber = formatter.format(this);
     return '\$ $formattedNumber';
+  }
+}
+
+extension MoneyFormatterText on String {
+  num formatAsNumber() {
+    final formatter = NumberFormat.decimalPatternDigits(
+      locale: 'pt_BR',
+      decimalDigits: 2,
+    );
+    final parsedNumber = formatter.parse(this);
+    return parsedNumber;
   }
 }

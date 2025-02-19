@@ -1,5 +1,7 @@
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/home/sections/body/body/core/body.dart';
+import 'package:focus/app/home/sections/body/timely/ui/timely_base_card_mapper.dart';
 import 'package:focus/app/thing/data/thing.dart';
 import 'package:focus/app/thing/data/thing_repository.dart';
 import 'package:focus/app/app/ui/app_colors.dart';
@@ -88,6 +90,7 @@ class _BottomSheetContentState extends State<BottomSheetContent> {
                               value: value,
                             );
                         thingToSubmit.content = contentString.capitalize();
+                        thingToSubmit.value = value;
 
                         if (widget.existingThing != null) {
                           widget.thingRepository.editThing(
@@ -138,7 +141,7 @@ class _BottomSheetContentState extends State<BottomSheetContent> {
                         label: 'Valor',
                         onChanged: (valueString) {
                           setState(() {
-                            value = double.parse(valueString);
+                            value = valueString.formatAsNumber().toDouble();
                           });
                         },
                       ),
@@ -214,6 +217,7 @@ class EditableField extends StatelessWidget {
                 inputFormatters: [
                   CurrencyTextInputFormatter.currency(
                     symbol: '',
+                    locale: 'pt_BR',
                   ),
                 ],
                 textInputAction: TextInputAction.go,
