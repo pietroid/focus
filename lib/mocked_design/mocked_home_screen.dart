@@ -41,10 +41,10 @@ class MockedHomeScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 0,
               title: '😴 Falta 30min para dormir',
               subtitle: 'Que tal começar a se preparar?',
               onTap: () {},
-              openOptions: () {},
               isOutlined: true,
             ),
           ),
@@ -75,10 +75,10 @@ class MockedHomeScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 1,
               title: 'Colocar ripados',
               subtitle: '🏠 Casinha',
               onTap: () {},
-              openOptions: () {},
               isDraggable: true,
             ),
           ),
@@ -87,9 +87,9 @@ class MockedHomeScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 2,
               title: 'Fazer código hackathon',
               onTap: () {},
-              openOptions: () {},
               isDraggable: true,
             ),
           ),

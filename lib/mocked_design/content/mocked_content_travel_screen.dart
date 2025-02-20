@@ -22,6 +22,7 @@ class MockedContentTravelScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 0,
               title: 'Viagem ônibus',
               subtitle: '09:00 - 14:50',
             ),
@@ -31,6 +32,7 @@ class MockedContentTravelScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 1,
               title: 'Check-in hotel',
               subtitle: '15:00',
               rightText: r'R$ 4,00',

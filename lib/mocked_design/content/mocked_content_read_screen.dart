@@ -28,6 +28,7 @@ class MockedContentReadScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 0,
               title:
                   'Fui buscar a vassoura; o Mestre, eu sabia, estava me ensinando o segredo da vida equilibrada.\n\nA alma deve alargar-se sobre os abismos cosmogônicos, enquanto o corpo executa seus deveres diários.',
               subtitle: 'Página 135',
@@ -38,6 +39,7 @@ class MockedContentReadScreen extends StatelessWidget {
           ),
           BaseCard(
             BaseCardParams(
+              id: 1,
               title:
                   'Deus é sempre renovada alegria. Ele é inesgotável; à medida que você prosseguir em suas meditações, durante anos, Ele o fascinará com infinita capacidade inventiva.',
               subtitle: 'Página 139',

@@ -45,6 +45,12 @@ class ThingRepository {
     box.store.box<Thing>().put(thing);
   }
 
+  void removeThing({
+    required Thing thing,
+  }) {
+    box.store.box<Thing>().remove(thing.id);
+  }
+
   void setAsDone({
     required Thing thing,
   }) {

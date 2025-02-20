@@ -11,9 +11,11 @@ import 'package:provider/provider.dart';
 extension TimelyBaseCardMapper on Thing {
   BaseCardParams toBaseCardParams(BuildContext context) {
     final inProgress = parents.first.tags.contains(nowSectionTag);
+    final isTimelyTask = parents.first.tags.contains(timelyTag);
     final creationBottomSheet = context.read<CreationBottomSheet>();
     return BaseCardParams(
       title: content,
+      id: id,
       onTap: () {
         context.push('/thing/$id');
         // creationBottomSheet.show(
@@ -27,18 +29,18 @@ extension TimelyBaseCardMapper on Thing {
           existingThing: this,
         );
       },
-      hasBeenDismissed: done,
+      isDone: done,
       isInProgress: inProgress,
-      onChanged: () {
-        if (done) {
-          context.read<ThingRepository>().setAsUndone(thing: this);
-          return;
-        }
+      onDone: () {
         context.read<ThingRepository>().setAsDone(thing: this);
       },
-      openOptions: () {
-        // context.push('/thing/$id');
+      onUndone: () {
+        context.read<ThingRepository>().setAsUndone(thing: this);
       },
+      onDelete: () {
+        context.read<ThingRepository>().removeThing(thing: this);
+      },
+      isDismissable: isTimelyTask,
       rightText: value?.formatAsMoney(),
     );
   }

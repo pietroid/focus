@@ -47,8 +47,11 @@ class _ContentScreenState extends State<ContentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ContentScreenContent(
-      thingId: widget.thingId,
+    return BlocProvider.value(
+      value: contentCubit,
+      child: ContentScreenContent(
+        thingId: widget.thingId,
+      ),
     );
   }
 }
@@ -63,45 +66,37 @@ class ContentScreenContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlobalScaffold(
-      child: BlocProvider(
-        create: (context) => ContentCubit(
-          contentRepository: ContentRepository(
-            thingId: thingId,
-            box: context.read<ObjectBox>(),
-          ),
-        ),
-        child: BlocBuilder<ContentCubit, List<Thing>>(
-          builder: (context, state) => NestedDraggableList<Thing, Thing>(
-            data: state,
-            keyForList: (thing) => ValueKey(thing.id),
-            itemsForList: (list) => list.children,
-            listHeader: (list) => ContentHeader(
-              //TODO: add mapper to this
-              ContentHeaderParams(
-                title: list.content,
-                subtitle: list.value?.formatAsMoney().format(),
-              ),
+      child: BlocBuilder<ContentCubit, List<Thing>>(
+        builder: (context, state) => NestedDraggableList<Thing, Thing>(
+          data: state,
+          keyForList: (thing) => ValueKey(thing.id),
+          itemsForList: (list) => list.children,
+          listHeader: (list) => ContentHeader(
+            //TODO: add mapper to this
+            ContentHeaderParams(
+              title: list.content,
+              subtitle: list.value?.formatAsMoney().format(),
             ),
-            keyForItem: (item) => ValueKey(item.id),
-            itemBuilder: (item) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: BaseCard(
-                item.toBaseCardParams(context),
-              ),
-            ),
-            onItemReorder: (
-              Thing oldList,
-              Thing oldItem,
-              Thing newList,
-              int newItemIndex,
-            ) {
-              context.read<ThingRepository>().changeThingPriority(
-                    thing: oldItem,
-                    newParent: newList,
-                    newIndex: newItemIndex,
-                  );
-            },
           ),
+          keyForItem: (item) => ValueKey(item.id),
+          itemBuilder: (item) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: BaseCard(
+              item.toBaseCardParams(context),
+            ),
+          ),
+          onItemReorder: (
+            Thing oldList,
+            Thing oldItem,
+            Thing newList,
+            int newItemIndex,
+          ) {
+            context.read<ThingRepository>().changeThingPriority(
+                  thing: oldItem,
+                  newParent: newList,
+                  newIndex: newItemIndex,
+                );
+          },
         ),
       ),
     );

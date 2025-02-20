@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:focus/app/app/ui/app_colors.dart';
 import 'package:glowy_borders/glowy_borders.dart';
 
-class BaseCard extends StatelessWidget {
+class BaseCard extends StatefulWidget {
   const BaseCard(
     this.params, {
     super.key,
@@ -11,68 +11,118 @@ class BaseCard extends StatelessWidget {
   final BaseCardParams params;
 
   @override
+  State<BaseCard> createState() => _BaseCardState();
+}
+
+class _BaseCardState extends State<BaseCard> {
+  bool willDelete = false;
+
+  @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: params.onTap,
-      onDoubleTap: params.onDoubleTap,
-      onHorizontalDragEnd: (details) {
-        if (details.primaryVelocity! > 0) {
-          params.onChanged?.call();
+    return Dismissible(
+      key: Key('bla${widget.params.isDone}'),
+      onUpdate: (details) async {
+        if (widget.params.isDismissable == false &&
+            details.direction == DismissDirection.startToEnd &&
+            details.reached &&
+            !details.previousReached) {
+          willDelete = false;
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (widget.params.isDone) {
+            widget.params.onUndone?.call();
+          } else {
+            widget.params.onDone?.call();
+          }
         }
-        if (details.primaryVelocity! < 0) {
-          params.onChanged?.call();
+
+        if (details.direction == DismissDirection.endToStart &&
+            details.reached &&
+            !details.previousReached) {
+          willDelete = true;
         }
       },
-      child: ConditionalWrapper(
-        isInProgress: params.isInProgress == true,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
+      onDismissed: (direction) {
+        if (direction == DismissDirection.startToEnd) {
+          if (widget.params.isDone) {
+            widget.params.onUndone?.call();
+          } else {
+            widget.params.onDone?.call();
+          }
+        } else {
+          widget.params.onDelete?.call();
+        }
+      },
+      background: Row(
+        children: [
+          Icon(
+            widget.params.isDone ? Icons.undo : Icons.check,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      params.title,
-                      style: textTheme.bodyMedium?.copyWith(
-                        decoration: params.hasBeenDismissed
-                            ? TextDecoration.lineThrough
-                            : null,
-                        color: params.isInProgress == true
-                            ? const Color.fromARGB(255, 255, 255, 255)
-                            : Colors.white.withOpacity(
-                                params.hasBeenDismissed ? 0.5 : 1,
-                              ),
-                      ),
-                    ),
-                    if (params.subtitle != null) ...[
+        ],
+      ),
+      confirmDismiss: (direction) =>
+          Future.value(widget.params.isDismissable == true || willDelete),
+      secondaryBackground: const Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(
+            Icons.delete,
+          ),
+        ],
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: widget.params.onTap,
+        onDoubleTap: widget.params.onDoubleTap,
+        child: ConditionalWrapper(
+          isInProgress: widget.params.isInProgress == true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       Text(
-                        params.subtitle!,
-                        style: textTheme.bodySmall,
+                        widget.params.title,
+                        style: textTheme.bodyMedium?.copyWith(
+                          decoration: widget.params.isDone
+                              ? TextDecoration.lineThrough
+                              : null,
+                          color: widget.params.isInProgress == true
+                              ? const Color.fromARGB(255, 255, 255, 255)
+                              : Colors.white.withOpacity(
+                                  widget.params.isDone ? 0.5 : 1,
+                                ),
+                        ),
                       ),
+                      if (widget.params.subtitle != null) ...[
+                        Text(
+                          widget.params.subtitle!,
+                          style: textTheme.bodySmall,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (params.rightText != null)
-                Text(
-                  params.rightText!,
-                  style: textTheme.bodySmall,
-                ),
-              const SizedBox(width: 10),
-              if (params.isDraggable == true)
-                const Icon(
-                  size: 15,
-                  Icons.menu,
-                  color: AppColors.primaryColor,
-                ),
-            ],
+                if (widget.params.rightText != null)
+                  Text(
+                    widget.params.rightText!,
+                    style: textTheme.bodySmall,
+                  ),
+                const SizedBox(width: 10),
+                if (widget.params.isDraggable == true)
+                  const Icon(
+                    size: 15,
+                    Icons.menu,
+                    color: AppColors.primaryColor,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -194,15 +244,18 @@ class CheckBox extends StatelessWidget {
 class BaseCardParams {
   BaseCardParams({
     required this.title,
+    required this.id,
     this.rightText,
     this.subtitle,
     this.color,
     this.isInProgress,
     this.onTap,
     this.onDoubleTap,
-    this.openOptions,
-    this.onChanged,
-    this.hasBeenDismissed = false,
+    this.onDelete,
+    this.onDone,
+    this.onUndone,
+    this.isDone = false,
+    this.isDismissable = false,
     this.isOutlined,
     this.isDraggable,
   });
@@ -214,9 +267,12 @@ class BaseCardParams {
   final bool? isInProgress;
   final VoidCallback? onTap;
   final VoidCallback? onDoubleTap;
-  final VoidCallback? openOptions;
-  final VoidCallback? onChanged;
-  final bool hasBeenDismissed;
+  final VoidCallback? onDone;
+  final VoidCallback? onUndone;
+  final VoidCallback? onDelete;
+  final bool isDone;
+  final bool? isDismissable;
   final bool? isOutlined;
   final bool? isDraggable;
+  final int id;
 }
