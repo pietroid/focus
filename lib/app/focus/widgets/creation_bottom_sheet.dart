@@ -1,7 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/home_body/body/view/body.dart';
+import 'package:focus/app/home_body/view/body.dart';
 import 'package:focus/app/home_timely_section/view/timely_base_card_mapper.dart';
 import 'package:focus/app/thing/data/thing.dart';
 import 'package:focus/app/thing/data/thing_repository.dart';
