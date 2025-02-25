@@ -1,10 +1,30 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/app/home_header/bloc/progress_bar_cubit.dart';
+import 'package:timer/timer.dart';
 
 class ProgressBar extends StatelessWidget {
-  const ProgressBar({
+  const ProgressBar({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<ProgressBarCubit, ProgressBarState>(
+      bloc: ProgressBarCubit(timerRepository: context.read<TimerRepository>()),
+      builder: (context, state) {
+        return ProgressBarContent(
+          gradient: state.gradient,
+          progressPercentage: state.progressPercentage(),
+          initialValue: state.formattedInitialTime,
+          finalValue: state.formattedFinalTime,
+        );
+      },
+    );
+  }
+}
+
+class ProgressBarContent extends StatelessWidget {
+  const ProgressBarContent({
     required this.progressPercentage,
     required this.gradient,
     super.key,
