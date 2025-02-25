@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/app/app.dart';
-import 'package:focus/app/common_infrastructure/data/object_box.dart';
+import 'package:focus/app/app/view/app.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:focus/mocked_design/content/mocked_content_read_screen.dart';
 import 'package:focus/mocked_design/content/mocked_content_travel_screen.dart';
 import 'package:focus/mocked_design/mocked_home_screen.dart';
+import 'package:focus/objectbox.g.dart';
 import 'package:go_router/go_router.dart';
+import 'package:local_service/local_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   bootstrap(() async {
-    final objectBox = await ObjectBox.create();
+    final objectBox = await ObjectBox.create(
+      openStore,
+    );
     return App(
       router: MockedDesignRouter().router,
       objectBox: objectBox,
