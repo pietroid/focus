@@ -2,7 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
-import 'package:focus/app/home_header/data/timer/timer_cubit.dart';
+import 'package:focus/app/home_header/bloc/clock_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_tab_cubit.dart';
 import 'package:focus/app/for_you/data/for_you_repository.dart';
@@ -12,6 +12,7 @@ import 'package:focus/app/thing/data/thing_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_service/local_service.dart';
 import 'package:provider/provider.dart';
+import 'package:timer/timer.dart';
 
 class App extends StatelessWidget {
   const App({
@@ -31,6 +32,9 @@ class App extends StatelessWidget {
         ),
         Provider(
           create: (context) => ThingRepository(box: objectBox),
+        ),
+        Provider(
+          create: (context) => TimerRepository(),
         ),
         Provider(
           create: (context) => CreationBottomSheet(
@@ -53,11 +57,6 @@ class App extends StatelessWidget {
                 .first
                 .children
                 .first,
-          ),
-        ),
-        BlocProvider(
-          create: (context) => TimerCubit(
-            startTime: DateTime.now(),
           ),
         ),
       ],

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/home_header/widgets/progress_bar_mapper.dart';
-import 'package:focus/app/home_header/widgets/time_mapper.dart';
-import 'package:focus/app/home_header/data/timer/timer_cubit.dart';
+import 'package:focus/app/home_header/bloc/clock_cubit.dart';
 import 'package:focus/app/home_header/widgets/clock.dart';
+import 'package:focus/app/home_header/widgets/progress_bar_mapper.dart';
 import 'package:app_ui/src/string_formatter.dart';
 import 'package:focus/app/home_header/widgets/progress_bar.dart';
 import 'package:intl/intl.dart';
@@ -13,27 +12,21 @@ class HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progressBarMapper = ProgressBarMapper();
-    return BlocBuilder<TimerCubit, TimerState>(
-      builder: (context, state) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Clock(
-              time: state.formattedTime(),
-              dayOfTheWeek: state.formattedDayOfTheWeek(),
-            ),
-            const SizedBox(height: 15),
-            ProgressBar(
-              gradient: progressBarMapper.gradient,
-              progressPercentage:
-                  progressBarMapper.progressPercentage(state.currentTime),
-              initialValue: progressBarMapper.formattedInitialTime,
-              finalValue: progressBarMapper.formattedFinalTime,
-            ),
-          ],
-        ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Clock(),
+          SizedBox(height: 15),
+          // ProgressBar(
+          //   gradient: progressBarMapper.gradient,
+          //   progressPercentage:
+          //       progressBarMapper.progressPercentage(state.currentTime),
+          //   initialValue: progressBarMapper.formattedInitialTime,
+          //   finalValue: progressBarMapper.formattedFinalTime,
+          // ),
+        ],
       ),
     );
   }

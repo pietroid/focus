@@ -1,27 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/app/home_header/bloc/clock_cubit.dart';
+import 'package:timer/timer.dart';
 
 class Clock extends StatelessWidget {
   const Clock({
-    required this.time,
-    required this.dayOfTheWeek,
     super.key,
   });
-  final String time;
-  final String dayOfTheWeek;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          time,
-          style: textTheme.displayMedium,
-          textAlign: TextAlign.start,
-        ),
-        Text(dayOfTheWeek),
-      ],
+    return BlocBuilder<ClockCubit, ClockState>(
+      bloc: ClockCubit(timerRepository: context.read<TimerRepository>()),
+      builder: (context, state) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              state.formattedTime(),
+              style: textTheme.displayMedium,
+              textAlign: TextAlign.start,
+            ),
+            Text(
+              state.formattedDayOfTheWeek(),
+            ),
+          ],
+        );
+      },
     );
   }
 }

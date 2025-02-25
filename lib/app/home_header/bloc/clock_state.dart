@@ -1,9 +1,13 @@
-import 'package:app_ui/src/string_formatter.dart';
-import 'package:focus/app/home_header/data/timer/timer_cubit.dart';
-import 'package:intl/intl.dart';
+part of 'clock_cubit.dart';
 
-// Mapping the TimerState to the UI
-extension TimeMapper on TimerState {
+@immutable
+class ClockState {
+  const ClockState({required this.currentTime});
+
+  final DateTime currentTime;
+}
+
+extension TimeMapper on ClockState {
   String formattedTime() {
     final formatter = DateFormat('HH:mm');
     final formatted = formatter.format(currentTime);
