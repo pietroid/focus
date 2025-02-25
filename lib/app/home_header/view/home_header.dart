@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/home_header/bloc/clock_cubit.dart';
-import 'package:focus/app/home_header/widgets/clock.dart';
+import 'package:focus/app/home_header/clock/bloc/clock_cubit.dart';
+import 'package:focus/app/home_header/clock/view/clock.dart';
 import 'package:app_ui/src/string_formatter.dart';
-import 'package:focus/app/home_header/widgets/progress_bar.dart';
+import 'package:focus/app/home_header/progress_bar/view/progress_bar.dart';
 import 'package:intl/intl.dart';
 
 class HomeHeader extends StatelessWidget {

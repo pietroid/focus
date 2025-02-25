@@ -5,9 +5,7 @@ class ClockState {
   const ClockState({required this.currentTime});
 
   final DateTime currentTime;
-}
 
-extension TimeMapper on ClockState {
   String formattedTime() {
     final formatter = DateFormat('HH:mm');
     final formatted = formatter.format(currentTime);

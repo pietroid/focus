@@ -5,9 +5,7 @@ class ProgressBarState {
   const ProgressBarState({required this.currentTime});
 
   final DateTime currentTime;
-}
 
-extension ProgressBarStateMapper on ProgressBarState {
   double progressPercentage() {
     final totalDuration = finalTime.difference(initialTime);
     final currentDuration = currentTime.difference(initialTime);

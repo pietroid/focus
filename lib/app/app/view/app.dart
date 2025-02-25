@@ -2,7 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
-import 'package:focus/app/home_header/bloc/clock_cubit.dart';
+import 'package:focus/app/home_header/clock/bloc/clock_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_tab_cubit.dart';
 import 'package:focus/app/for_you/data/for_you_repository.dart';
