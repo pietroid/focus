@@ -1,0 +1,19 @@
+name: timely_repository
+description: A Very Good Project created by Very Good CLI.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.3.0
+
+dependencies:
+  local_service: 
+    path: ../local_service
+  rxdart: ^0.28.0
+  things:
+    path: ../things
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.25.8
+  very_good_analysis: ^6.0.0

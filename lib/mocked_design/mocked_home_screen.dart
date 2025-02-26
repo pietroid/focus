@@ -2,7 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:figma_squircle/figma_squircle.dart';
 import 'package:flutter/material.dart';
 import 'package:focus/app/focus/view/global_scaffold.dart';
-import 'package:focus/app/thing/widgets/thing_base_card.dart';
+import 'package:things/things.dart';
 
 class MockedHomeScreen extends StatelessWidget {
   const MockedHomeScreen({super.key});

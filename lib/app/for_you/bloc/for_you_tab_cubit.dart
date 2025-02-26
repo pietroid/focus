@@ -1,5 +1,5 @@
 import 'package:bloc/bloc.dart';
-import 'package:focus/app/thing/data/thing.dart';
+import 'package:things/things.dart';
 
 class ForYouTabCubit extends Cubit<Thing> {
   ForYouTabCubit({

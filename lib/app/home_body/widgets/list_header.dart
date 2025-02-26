@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/home_body/widgets/home_body_builder.dart';
-import 'package:focus/app/home_body/widgets/choice_selector.dart';
 import 'package:focus/app/for_you/bloc/for_you_tab_cubit.dart';
-import 'package:focus/app/thing/data/thing.dart';
+import 'package:focus/app/home_body/bloc/home_body_cubit.dart';
+import 'package:focus/app/home_body/widgets/choice_selector.dart';
+import 'package:things/things.dart';
 
 class ListHeader extends StatelessWidget {
   const ListHeader({

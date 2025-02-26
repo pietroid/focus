@@ -12,7 +12,7 @@ class ObjectBox {
 
   /// Create an instance of ObjectBox to use throughout the app.
   static Future<ObjectBox> create(
-    Future<Store> Function({required String directory}) openStore,
+    Store Function({required String directory}) openStore,
   ) async {
     final docsDir = await getApplicationDocumentsDirectory();
     final store =

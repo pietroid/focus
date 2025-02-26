@@ -4,9 +4,9 @@ import 'package:focus/bootstrap.dart';
 import 'package:focus/mocked_design/content/mocked_content_read_screen.dart';
 import 'package:focus/mocked_design/content/mocked_content_travel_screen.dart';
 import 'package:focus/mocked_design/mocked_home_screen.dart';
-import 'package:focus/objectbox.g.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_service/local_service.dart';
+import 'package:things/objectbox.g.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

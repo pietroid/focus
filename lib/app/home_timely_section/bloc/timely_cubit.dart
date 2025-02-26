@@ -1,6 +1,6 @@
 import 'package:bloc/bloc.dart';
-import 'package:focus/app/home_timely_section/data/timely_repository.dart';
-import 'package:focus/app/thing/data/thing.dart';
+import 'package:things/things.dart';
+import 'package:timely_repository/timely_repository.dart';
 
 class TimelyCubit extends Cubit<List<Thing>> {
   TimelyCubit({

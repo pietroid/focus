@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
-import 'package:focus/app/thing/data/initializer.dart';
-import 'package:focus/app/thing/data/thing.dart';
-import 'package:focus/app/thing/data/thing_repository.dart';
-import 'package:focus/app/thing/widgets/thing_base_card.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:things/things.dart';
 
 extension TimelyBaseCardMapper on Thing {
   BaseCardParams toBaseCardParams(BuildContext context) {

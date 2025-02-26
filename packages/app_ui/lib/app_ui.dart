@@ -3,3 +3,4 @@ library;
 
 export 'src/app_theme.dart';
 export 'src/app_colors.dart';
+export 'src/string_formatter.dart';

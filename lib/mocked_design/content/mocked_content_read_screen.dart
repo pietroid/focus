@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:focus/app/focus/view/global_scaffold.dart';
-import 'package:focus/app/thing/widgets/thing_base_card.dart';
+import 'package:things/things.dart';
 
 class MockedContentReadScreen extends StatelessWidget {
   const MockedContentReadScreen({super.key});

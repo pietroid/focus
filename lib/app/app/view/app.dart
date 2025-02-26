@@ -2,16 +2,16 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
-import 'package:focus/app/home_header/clock/bloc/clock_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_tab_cubit.dart';
-import 'package:focus/app/for_you/data/for_you_repository.dart';
+import 'package:focus/app/home_body/bloc/home_body_cubit.dart';
 import 'package:focus/app/home_timely_section/bloc/timely_cubit.dart';
-import 'package:focus/app/home_timely_section/data/timely_repository.dart';
-import 'package:focus/app/thing/data/thing_repository.dart';
+import 'package:for_you_repository/for_you_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_service/local_service.dart';
 import 'package:provider/provider.dart';
+import 'package:things/things.dart';
+import 'package:timely_repository/timely_repository.dart';
 import 'package:timer/timer.dart';
 
 class App extends StatelessWidget {
@@ -59,6 +59,7 @@ class App extends StatelessWidget {
                 .first,
           ),
         ),
+        BlocProvider(create: (context) => HomeBodyCubit()),
       ],
       child: MaterialApp.router(
         routerConfig: router,

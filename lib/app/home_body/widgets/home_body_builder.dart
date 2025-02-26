@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/for_you/bloc/for_you_cubit.dart';
 import 'package:focus/app/for_you/bloc/for_you_tab_cubit.dart';
+import 'package:focus/app/home_body/bloc/home_body_cubit.dart';
 import 'package:focus/app/home_timely_section/bloc/timely_cubit.dart';
-import 'package:focus/app/thing/data/thing.dart';
+import 'package:things/things.dart';
 
 class HomeBodyBuilder extends StatelessWidget {
   const HomeBodyBuilder({
@@ -52,25 +53,4 @@ class HomeBodyBuilder extends StatelessWidget {
       },
     );
   }
-}
-
-class HomeBodySection {
-  HomeBodySection({
-    required this.mainThing,
-    required this.children,
-    required this.type,
-    this.selectedTab,
-    this.tabs,
-  });
-
-  final Thing mainThing;
-  final Thing? selectedTab;
-  final List<Thing> children;
-  final List<Thing>? tabs;
-  final HomeBodySectionType type;
-}
-
-enum HomeBodySectionType {
-  regular,
-  carousel,
 }

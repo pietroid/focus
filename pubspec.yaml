@@ -35,6 +35,12 @@ dependencies:
   rxdart: ^0.28.0
   timer: 
     path: packages/timer
+  things:
+    path: packages/things
+  timely_repository:
+    path: packages/timely_repository
+  for_you_repository:
+    path: packages/for_you_repository
   
 
 dev_dependencies:

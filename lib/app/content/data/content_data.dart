@@ -1,8 +1,7 @@
 import 'package:local_service/local_service.dart';
 
-import 'package:focus/app/thing/data/thing.dart';
-import 'package:focus/objectbox.g.dart';
 import 'package:rxdart/subjects.dart';
+import 'package:things/things.dart';
 
 class ContentRepository {
   ContentRepository({

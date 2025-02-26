@@ -1,0 +1,23 @@
+name: things
+description: A Very Good Project created by Very Good CLI.
+version: 0.1.0+1
+publish_to: none
+
+environment:
+  sdk: ^3.3.0
+
+dependencies:
+  local_service: 
+    path: ../local_service
+  app_ui:
+    path: ../app_ui
+  figma_squircle: ^0.5.3
+  glowy_borders: ^1.0.2
+  
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  build_runner: ^2.4.13
+  test: ^1.25.8
+  very_good_analysis: ^6.0.0
+  objectbox_generator: any

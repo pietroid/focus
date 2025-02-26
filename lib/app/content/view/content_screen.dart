@@ -7,10 +7,8 @@ import 'package:focus/app/content/data/content_data.dart';
 import 'package:focus/app/content/widgets/content_header.dart';
 import 'package:focus/app/focus/view/global_scaffold.dart';
 import 'package:focus/app/home_timely_section/view/timely_base_card_mapper.dart';
-import 'package:focus/app/thing/data/thing.dart';
-import 'package:focus/app/thing/data/thing_repository.dart';
-import 'package:focus/app/thing/widgets/thing_base_card.dart';
 import 'package:local_service/local_service.dart';
+import 'package:things/things.dart';
 
 class ContentScreen extends StatefulWidget {
   const ContentScreen({
