@@ -73,7 +73,7 @@ class CarouselSelector extends StatelessWidget {
         isSelected: selectedIndex == index,
         label: tabs[index].content,
         onTap: () {
-          context.read<ForYouTabCubit>().changeTab(tabs[index]);
+          context.read<HomeBodyCubit>().selectTab(tab: tabs[index]);
         },
       ),
       scrollDirection: Axis.horizontal,

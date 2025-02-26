@@ -14,7 +14,7 @@ class HomeBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<HomeBodyCubit, HomeBodyState>(
       builder: (context, state) => NestedDraggableList<HomeBodySection, Thing>(
-        data: state.sections,
+        data: state.allSections,
         keyForList: (section) => ValueKey(section.mainThing.id),
         itemsForList: (list) => list.children,
         listHeader: (list) => ListHeader(

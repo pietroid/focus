@@ -59,7 +59,14 @@ class App extends StatelessWidget {
                 .first,
           ),
         ),
-        BlocProvider(create: (context) => HomeBodyCubit()),
+        Provider(create: (context) => TimelyRepository(box: objectBox)),
+        Provider(create: (context) => ForYouRepository(box: objectBox)),
+        BlocProvider(
+          create: (context) => HomeBodyCubit(
+            timelyRepository: context.read<TimelyRepository>(),
+            forYouRepository: context.read<ForYouRepository>(),
+          ),
+        ),
       ],
       child: MaterialApp.router(
         routerConfig: router,
