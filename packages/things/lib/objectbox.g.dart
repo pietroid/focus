@@ -19,52 +19,52 @@ export 'package:objectbox/objectbox.dart'; // so that callers only have to impor
 
 final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
-      id: const obx_int.IdUid(1, 7205426862086746981),
+      id: const obx_int.IdUid(5, 3534494805469766675),
       name: 'Thing',
-      lastPropertyId: const obx_int.IdUid(7, 7648253567774301078),
+      lastPropertyId: const obx_int.IdUid(10, 1472944842726310423),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(1, 739849683662026029),
+            id: const obx_int.IdUid(1, 8491193594695295887),
             name: 'id',
             type: 6,
             flags: 1),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(2, 710471814869474566),
-            name: 'rank',
-            type: 6,
-            flags: 0),
-        obx_int.ModelProperty(
-            id: const obx_int.IdUid(3, 2600049209867125948),
+            id: const obx_int.IdUid(2, 8915662527189686512),
             name: 'content',
             type: 9,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(4, 2673904232538421894),
+            id: const obx_int.IdUid(3, 8845361712191555473),
             name: 'createdAt',
             type: 10,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(5, 7064081710096286703),
+            id: const obx_int.IdUid(4, 4489438415895978020),
             name: 'done',
             type: 1,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(6, 3495100603482662985),
+            id: const obx_int.IdUid(8, 2486335390945327863),
             name: 'tags',
             type: 30,
             flags: 0),
         obx_int.ModelProperty(
-            id: const obx_int.IdUid(7, 7648253567774301078),
+            id: const obx_int.IdUid(9, 7667379632905956439),
             name: 'value',
             type: 8,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(10, 1472944842726310423),
+            name: 'rank',
+            type: 6,
             flags: 0)
       ],
       relations: <obx_int.ModelRelation>[
         obx_int.ModelRelation(
-            id: const obx_int.IdUid(1, 6800590978133842773),
+            id: const obx_int.IdUid(3, 5431818547799211746),
             name: 'children',
-            targetId: const obx_int.IdUid(1, 7205426862086746981))
+            targetId: const obx_int.IdUid(5, 3534494805469766675))
       ],
       backlinks: <obx_int.ModelBacklink>[
         obx_int.ModelBacklink(
@@ -106,14 +106,38 @@ obx.Store openStore(
 obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
       entities: _entities,
-      lastEntityId: const obx_int.IdUid(1, 7205426862086746981),
-      lastIndexId: const obx_int.IdUid(0, 0),
-      lastRelationId: const obx_int.IdUid(1, 6800590978133842773),
+      lastEntityId: const obx_int.IdUid(5, 3534494805469766675),
+      lastIndexId: const obx_int.IdUid(2, 5876970679639637568),
+      lastRelationId: const obx_int.IdUid(3, 5431818547799211746),
       lastSequenceId: const obx_int.IdUid(0, 0),
-      retiredEntityUids: const [],
-      retiredIndexUids: const [],
-      retiredPropertyUids: const [],
-      retiredRelationUids: const [],
+      retiredEntityUids: const [
+        1631627817501562807,
+        5074736434067970976,
+        3624636574726604689,
+        7002050964441799220
+      ],
+      retiredIndexUids: const [5876970679639637568],
+      retiredPropertyUids: const [
+        2840272927915169489,
+        958694595439191411,
+        4544843419996755169,
+        2568087456281045795,
+        2964913559125229487,
+        2451480565332523315,
+        6682837070591412613,
+        9035978168206840996,
+        2750005277514529752,
+        2546292154991111937,
+        4261564895852394679,
+        2739063483213758185,
+        5705228549106420783,
+        5163927671201236105,
+        3696488773815310160,
+        4307723726814652867,
+        421814647252034290,
+        8344290899505051100
+      ],
+      retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
       modelVersionParserMinimum: 5,
       version: 1);
@@ -123,8 +147,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
         model: _entities[0],
         toOneRelations: (Thing object) => [],
         toManyRelations: (Thing object) => {
-              obx_int.RelInfo<Thing>.toMany(1, object.id): object.children,
-              obx_int.RelInfo<Thing>.toManyBacklink(1, object.id):
+              obx_int.RelInfo<Thing>.toMany(3, object.id): object.children,
+              obx_int.RelInfo<Thing>.toManyBacklink(3, object.id):
                   object.parents
             },
         getId: (Thing object) => object.id,
@@ -135,14 +159,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final contentOffset = fbb.writeString(object.content);
           final tagsOffset = fbb.writeList(
               object.tags.map(fbb.writeString).toList(growable: false));
-          fbb.startTable(8);
+          fbb.startTable(11);
           fbb.addInt64(0, object.id);
-          fbb.addInt64(1, object.rank);
-          fbb.addOffset(2, contentOffset);
-          fbb.addInt64(3, object.createdAt.millisecondsSinceEpoch);
-          fbb.addBool(4, object.done);
-          fbb.addOffset(5, tagsOffset);
-          fbb.addFloat64(6, object.value);
+          fbb.addOffset(1, contentOffset);
+          fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
+          fbb.addBool(3, object.done);
+          fbb.addOffset(7, tagsOffset);
+          fbb.addFloat64(8, object.value);
+          fbb.addInt64(9, object.rank);
           fbb.finish(fbb.endTable());
           return object.id;
         },
@@ -150,17 +174,17 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final buffer = fb.BufferContext(fbData);
           final rootOffset = buffer.derefObject(0);
           final contentParam = const fb.StringReader(asciiOptimization: true)
-              .vTableGet(buffer, rootOffset, 8, '');
+              .vTableGet(buffer, rootOffset, 6, '');
           final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
-              const fb.Int64Reader().vTableGet(buffer, rootOffset, 10, 0));
+              const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
           final doneParam =
-              const fb.BoolReader().vTableGet(buffer, rootOffset, 12, false);
+              const fb.BoolReader().vTableGet(buffer, rootOffset, 10, false);
           final valueParam = const fb.Float64Reader()
-              .vTableGetNullable(buffer, rootOffset, 16);
+              .vTableGetNullable(buffer, rootOffset, 20);
           final tagsParam = const fb.ListReader<String>(
                   fb.StringReader(asciiOptimization: true),
                   lazy: false)
-              .vTableGet(buffer, rootOffset, 14, []);
+              .vTableGet(buffer, rootOffset, 18, []);
           final object = Thing(
               content: contentParam,
               createdAt: createdAtParam,
@@ -168,11 +192,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
               value: valueParam,
               tags: tagsParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0)
-            ..rank = const fb.Int64Reader().vTableGet(buffer, rootOffset, 6, 0);
+            ..rank =
+                const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0);
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.children, store,
-              obx_int.RelInfo<Thing>.toMany(1, object.id));
+              obx_int.RelInfo<Thing>.toMany(3, object.id));
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.parents, store,
-              obx_int.RelInfo<Thing>.toManyBacklink(1, object.id));
+              obx_int.RelInfo<Thing>.toManyBacklink(3, object.id));
           return object;
         })
   };
@@ -185,29 +210,29 @@ class Thing_ {
   /// See [Thing.id].
   static final id = obx.QueryIntegerProperty<Thing>(_entities[0].properties[0]);
 
-  /// See [Thing.rank].
-  static final rank =
-      obx.QueryIntegerProperty<Thing>(_entities[0].properties[1]);
-
   /// See [Thing.content].
   static final content =
-      obx.QueryStringProperty<Thing>(_entities[0].properties[2]);
+      obx.QueryStringProperty<Thing>(_entities[0].properties[1]);
 
   /// See [Thing.createdAt].
   static final createdAt =
-      obx.QueryDateProperty<Thing>(_entities[0].properties[3]);
+      obx.QueryDateProperty<Thing>(_entities[0].properties[2]);
 
   /// See [Thing.done].
   static final done =
-      obx.QueryBooleanProperty<Thing>(_entities[0].properties[4]);
+      obx.QueryBooleanProperty<Thing>(_entities[0].properties[3]);
 
   /// See [Thing.tags].
   static final tags =
-      obx.QueryStringVectorProperty<Thing>(_entities[0].properties[5]);
+      obx.QueryStringVectorProperty<Thing>(_entities[0].properties[4]);
 
   /// See [Thing.value].
   static final value =
-      obx.QueryDoubleProperty<Thing>(_entities[0].properties[6]);
+      obx.QueryDoubleProperty<Thing>(_entities[0].properties[5]);
+
+  /// See [Thing.rank].
+  static final rank =
+      obx.QueryIntegerProperty<Thing>(_entities[0].properties[6]);
 
   /// see [Thing.children]
   static final children =
