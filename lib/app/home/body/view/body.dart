@@ -1,9 +1,9 @@
 import 'package:app_elements/app_elements.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/home_body/bloc/home_body_cubit.dart';
-import 'package:focus/app/home_body/widgets/list_header.dart';
-import 'package:focus/app/home_timely_section/view/timely_base_card_mapper.dart';
+import 'package:focus/app/home/body/bloc/home_body_cubit.dart';
+import 'package:focus/app/home/body/widgets/list_header.dart';
+import 'package:focus/app/home/body/widgets/timely_base_card_mapper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:things/things.dart';
 

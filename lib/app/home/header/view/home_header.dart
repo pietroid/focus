@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:focus/app/home_header/clock/view/clock.dart';
-import 'package:focus/app/home_header/progress_bar/view/progress_bar.dart';
+import 'package:focus/app/home/header/clock/view/clock.dart';
+import 'package:focus/app/home/header/progress_bar/view/progress_bar.dart';
 
 class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
