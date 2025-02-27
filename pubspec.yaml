@@ -13,6 +13,8 @@ dependencies:
     path: packages/app_ui
   bloc: ^8.1.4
   currency_text_input_formatter: ^2.2.6
+  content_repository:
+    path: packages/content_repository
   drag_and_drop_lists: ^0.4.2
   figma_squircle: ^0.5.3
   flutter:

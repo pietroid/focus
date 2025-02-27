@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
-import 'package:focus/app/content/data/content_data.dart';
+import 'package:content_repository/content_repository.dart';
 import 'package:things/things.dart';
 
 class ContentCubit extends Cubit<List<Thing>> {

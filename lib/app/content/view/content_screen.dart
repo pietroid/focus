@@ -1,58 +1,17 @@
 import 'package:app_elements/app_elements.dart';
+import 'package:content_repository/content_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/content/bloc/content_cubit.dart';
-import 'package:focus/app/content/data/content_data.dart';
 import 'package:focus/app/content/widgets/content_header.dart';
 import 'package:focus/app/focus/view/global_scaffold.dart';
 import 'package:focus/app/home/body/widgets/timely_base_card_mapper.dart';
 import 'package:local_service/local_service.dart';
 import 'package:things/things.dart';
 
-class ContentScreen extends StatefulWidget {
+class ContentScreen extends StatelessWidget {
   const ContentScreen({
-    required this.thingId,
-    super.key,
-  });
-  final int thingId;
-
-  @override
-  State<ContentScreen> createState() => _ContentScreenState();
-}
-
-class _ContentScreenState extends State<ContentScreen> {
-  late final ContentCubit contentCubit;
-  @override
-  void initState() {
-    contentCubit = ContentCubit(
-      contentRepository: ContentRepository(
-        thingId: widget.thingId,
-        box: context.read<ObjectBox>(),
-      ),
-    );
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    contentCubit.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: contentCubit,
-      child: ContentScreenContent(
-        thingId: widget.thingId,
-      ),
-    );
-  }
-}
-
-class ContentScreenContent extends StatelessWidget {
-  const ContentScreenContent({
     required this.thingId,
     super.key,
   });
@@ -62,6 +21,12 @@ class ContentScreenContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlobalScaffold(
       child: BlocBuilder<ContentCubit, List<Thing>>(
+        bloc: ContentCubit(
+          contentRepository: ContentRepository(
+            thingId: thingId,
+            box: context.read<ObjectBox>(),
+          ),
+        ),
         builder: (context, state) => NestedDraggableList<Thing, Thing>(
           data: state,
           keyForList: (thing) => ValueKey(thing.id),
