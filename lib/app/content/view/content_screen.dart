@@ -22,10 +22,8 @@ class ContentScreen extends StatelessWidget {
     return GlobalScaffold(
       child: BlocBuilder<ContentCubit, List<Thing>>(
         bloc: ContentCubit(
-          contentRepository: ContentRepository(
-            thingId: thingId,
-            box: context.read<ObjectBox>(),
-          ),
+          thingId: thingId,
+          contentRepository: context.read<ContentRepository>(),
         ),
         builder: (context, state) => NestedDraggableList<Thing, Thing>(
           data: state,

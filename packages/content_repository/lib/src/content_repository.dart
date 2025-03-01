@@ -5,13 +5,11 @@ import 'package:things/things.dart';
 
 class ContentRepository {
   ContentRepository({
-    required this.thingId,
     required this.box,
   });
-  final int thingId;
   final ObjectBox box;
 
-  BehaviorSubject<List<Thing>> get stream {
+  BehaviorSubject<List<Thing>> stream({required int thingId}) {
     return SubjectQueryBuilder<Thing>(
       query: () => box.store.box<Thing>().query(
             Thing_.id.equals(thingId),

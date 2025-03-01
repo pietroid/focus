@@ -14,7 +14,6 @@ class GlobalScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final creationBottomSheet = context.read<CreationBottomSheet>();
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -24,6 +23,7 @@ class GlobalScaffold extends StatelessWidget {
       ),
       floatingActionButton: GestureDetector(
         onTap: () {
+          final creationBottomSheet = context.read<CreationBottomSheet>();
           final currentRoute = GoRouterState.of(context).uri.toString();
           if (currentRoute.contains('thing')) {
             creationBottomSheet.show(

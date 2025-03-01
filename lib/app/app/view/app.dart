@@ -1,4 +1,5 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:content_repository/content_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
@@ -32,6 +33,9 @@ class App extends StatelessWidget {
         ),
         Provider(
           create: (context) => TimerRepository(),
+        ),
+        Provider(
+          create: (context) => ContentRepository(box: objectBox),
         ),
         Provider(
           create: (context) => CreationBottomSheet(

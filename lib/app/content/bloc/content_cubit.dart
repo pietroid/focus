@@ -6,10 +6,12 @@ import 'package:things/things.dart';
 
 class ContentCubit extends Cubit<List<Thing>> {
   ContentCubit({
+    required this.thingId,
     required this.contentRepository,
-  }) : super(contentRepository.stream.value) {
-    subscription = contentRepository.stream.listen(emit);
+  }) : super(contentRepository.stream(thingId: thingId).value) {
+    subscription = contentRepository.stream(thingId: thingId).listen(emit);
   }
+  int thingId;
   StreamSubscription<List<Thing>>? subscription;
 
   final ContentRepository contentRepository;
