@@ -87,4 +87,38 @@ void main() {
     final durationButtonWidget = tester.widget<FieldButton>(durationButton);
     expect(durationButtonWidget.disabled, false);
   });
+
+  testWidgets(
+      'When tapping on the first button, it must show a new text field on the right side of the current text field',
+      (tester) async {
+    // Arrange
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CreationBottomSheetWidget(
+            thingRepository: mockThingRepository,
+          ),
+        ),
+      ),
+    );
+
+    final textField = find.byType(TextField);
+    await tester.enterText(textField, 'Test');
+    await tester.pump();
+
+    // Act
+    final valueButton = find.byType(FieldButton).first;
+    await tester.tap(valueButton);
+    await tester.pump();
+
+    // Assert
+    expect(find.byType(TextField), findsNWidgets(2));
+    
+    // Verify the second text field has the correct properties
+    final textFields = tester.widgetList<TextField>(find.byType(TextField));
+    final secondTextField = textFields.elementAt(1);
+    
+    expect(secondTextField.keyboardType, TextInputType.number);
+    expect(secondTextField.decoration?.hintText, 'Valor');
+  });
 }

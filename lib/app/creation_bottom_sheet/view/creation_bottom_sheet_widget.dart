@@ -28,6 +28,7 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
   );
   bool isTextFieldEmpty = true;
   late final TextEditingController valueController = TextEditingController();
+  bool isValueFieldVisible = false;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +90,31 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
                       ),
                     ),
                   ),
+                  if (isValueFieldVisible)
+                    Expanded(
+                      child: TextField(
+                        autofocus: true,
+                        controller: valueController,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        onChanged: (valueString) {
+                          if (valueString.isNotEmpty) {
+                            setState(() {
+                              value = double.tryParse(valueString);
+                            });
+                          }
+                        },
+                        maxLines: 1,
+                        style: GoogleFonts.onest(
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Valor',
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
                 ],
               ),
               Padding(
@@ -99,7 +125,13 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
                       icon: Icons.attach_money,
                       label: 'Valor',
                       disabled: isTextFieldEmpty,
-                      onTap: () {},
+                      onTap: () {
+                        if (!isTextFieldEmpty) {
+                          setState(() {
+                            isValueFieldVisible = !isValueFieldVisible;
+                          });
+                        }
+                      },
                     ),
                     const SizedBox(
                       width: 6,
