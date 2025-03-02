@@ -43,6 +43,7 @@ dependencies:
     path: packages/timely_repository
   for_you_repository:
     path: packages/for_you_repository
+  equatable: ^2.0.7
   
 
 dev_dependencies:
