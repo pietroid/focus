@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet_widget.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:things/things.dart';
 
@@ -44,7 +45,7 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(BottomSheetWidget), findsOneWidget);
+      expect(find.byType(CreationBottomSheetWidget), findsOneWidget);
     });
   });
 }
