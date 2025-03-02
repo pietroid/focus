@@ -1,24 +1,33 @@
-import 'package:flutter/material.dart';
+import 'package:app_ui/app_ui.dart';
 
-class ContentHeaderParams {
-  const ContentHeaderParams({
+import 'package:flutter/material.dart';
+import 'package:things/things.dart';
+
+class ContentHeader extends StatelessWidget {
+  const ContentHeader({required this.thing, super.key});
+
+  final Thing thing;
+
+  @override
+  Widget build(BuildContext context) {
+    return ContentHeaderWidget(
+      title: thing.content,
+      subtitle: 'Total: ${thing.value?.formatAsMoney()}',
+    );
+  }
+}
+
+class ContentHeaderWidget extends StatelessWidget {
+  const ContentHeaderWidget({
     required this.title,
     this.subtitle,
     this.rightText,
+    super.key,
   });
 
   final String title;
   final String? subtitle;
   final String? rightText;
-}
-
-class ContentHeader extends StatelessWidget {
-  const ContentHeader(
-    this.params, {
-    super.key,
-  });
-
-  final ContentHeaderParams params;
 
   @override
   Widget build(BuildContext context) {
@@ -27,19 +36,19 @@ class ContentHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          params.title,
+          title,
           style: Theme.of(context).textTheme.headlineLarge,
         ),
-        if (params.rightText != null || params.subtitle != null)
+        if (rightText != null || subtitle != null)
           Padding(
             padding: const EdgeInsets.only(top: 10),
             child: Row(
               children: [
-                if (params.subtitle != null) Text(params.subtitle!),
+                if (subtitle != null) Text(subtitle!),
                 Expanded(
                   child: Container(),
                 ),
-                if (params.rightText != null) Text(params.rightText!),
+                if (rightText != null) Text(rightText!),
               ],
             ),
           ),

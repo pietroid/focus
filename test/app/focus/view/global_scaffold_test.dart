@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:focus/app/focus/view/global_scaffold.dart';
-import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';

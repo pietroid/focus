@@ -1,7 +1,6 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/home/body/widgets/timely_base_card_mapper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:things/things.dart';
@@ -17,14 +16,12 @@ class CreationBottomSheet {
     Thing? existingThing,
     int? parentId,
   }) {
-    final controller = TextEditingController(text: existingThing?.content);
     showModalBottomSheet(
       useSafeArea: true,
       context: context,
       isScrollControlled: true,
       builder: (BuildContext context) {
-        return BottomSheetContent(
-          controller: controller,
+        return BottomSheetWidget(
           existingThing: existingThing,
           parentId: parentId,
           thingRepository: thingRepository,
@@ -34,9 +31,8 @@ class CreationBottomSheet {
   }
 }
 
-class BottomSheetContent extends StatefulWidget {
-  const BottomSheetContent({
-    required this.controller,
+class BottomSheetWidget extends StatefulWidget {
+  const BottomSheetWidget({
     required this.thingRepository,
     super.key,
     this.existingThing,
@@ -44,16 +40,18 @@ class BottomSheetContent extends StatefulWidget {
   });
   final Thing? existingThing;
   final int? parentId;
-  final TextEditingController controller;
   final ThingRepository thingRepository;
 
   @override
-  State<BottomSheetContent> createState() => _BottomSheetContentState();
+  State<BottomSheetWidget> createState() => _BottomSheetWidgetState();
 }
 
-class _BottomSheetContentState extends State<BottomSheetContent> {
+class _BottomSheetWidgetState extends State<BottomSheetWidget> {
   bool hasMoreOptions = false;
   double? value;
+  late final TextEditingController controller = TextEditingController(
+    text: widget.existingThing?.content,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +75,7 @@ class _BottomSheetContentState extends State<BottomSheetContent> {
                   Expanded(
                     child: TextField(
                       autofocus: true,
-                      controller: widget.controller,
+                      controller: controller,
                       textInputAction: TextInputAction.go,
                       onSubmitted: (contentString) {
                         final thingToSubmit = widget.existingThing ??
@@ -107,7 +105,6 @@ class _BottomSheetContentState extends State<BottomSheetContent> {
                         color: Colors.white,
                       ),
                       decoration: const InputDecoration(
-                        // TODO: we could have some nice random phrases here every time the user opens the bottom sheet
                         hintText: 'Quer anotar algo?',
                         border: InputBorder.none,
                       ),

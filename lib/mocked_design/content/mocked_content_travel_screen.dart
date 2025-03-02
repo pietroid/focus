@@ -13,11 +13,11 @@ class MockedContentTravelScreen extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ContentHeader(
-            ContentHeaderParams(
-              title: 'Viagem Paraty',
-              subtitle: 'viagens',
-              rightText: r'Total: R$ 200,00',
+          ContentHeader(
+            thing: Thing(
+              content: 'Viagem Paraty',
+              value: 10,
+              createdAt: DateTime.now(),
             ),
           ),
           BaseCard(

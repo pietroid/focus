@@ -2,8 +2,10 @@ import 'package:app_ui/app_ui.dart';
 import 'package:content_repository/content_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
 import 'package:focus/app/home/body/bloc/home_body_cubit.dart';
+import 'package:focus/app/home/body/mappers/base_card_mapper.dart';
+import 'package:focus/app/home/body/mappers/home_body_section_mapper.dart';
 import 'package:for_you_repository/for_you_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_service/local_service.dart';
@@ -48,8 +50,10 @@ class App extends StatelessWidget {
           create: (context) => HomeBodyCubit(
             timelyRepository: context.read<TimelyRepository>(),
             forYouRepository: context.read<ForYouRepository>(),
+            homeBodySectionMapper: HomeBodySectionMapper(),
           ),
         ),
+        Provider(create: (context) => BaseCardMapper()),
       ],
       child: MaterialApp.router(
         routerConfig: router,

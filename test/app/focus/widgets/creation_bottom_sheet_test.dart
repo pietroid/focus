@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:things/things.dart';
 
 class MockThingRepository extends Mock implements ThingRepository {}
+
 class MockBuildContext extends Mock implements BuildContext {}
 
 void main() {
@@ -43,7 +44,7 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(BottomSheetContent), findsOneWidget);
+      expect(find.byType(BottomSheetWidget), findsOneWidget);
     });
   });
 }

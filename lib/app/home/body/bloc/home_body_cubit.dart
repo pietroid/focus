@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:focus/app/home/body/mappers/home_body_section_mapper.dart';
 import 'package:for_you_repository/for_you_repository.dart';
 import 'package:meta/meta.dart';
 import 'package:things/things.dart';
@@ -10,16 +11,17 @@ class HomeBodyCubit extends Cubit<HomeBodyState> {
   HomeBodyCubit({
     required this.timelyRepository,
     required this.forYouRepository,
+    required this.homeBodySectionMapper,
   }) : super(
           HomeBodyState(
             timelySections: timelyRepository.stream.value
                 .map(
-                  (thing) => HomeBodySectionMapper.mapTimelySection(
+                  (thing) => homeBodySectionMapper.mapTimelySection(
                     thing: thing,
                   ),
                 )
                 .toList(),
-            forYouSection: HomeBodySectionMapper.mapForYouSection(
+            forYouSection: homeBodySectionMapper.mapForYouSection(
               thing: forYouRepository.stream.value.first,
               selectedTab: forYouRepository.stream.value.first.children.first,
             ),
@@ -30,7 +32,7 @@ class HomeBodyCubit extends Cubit<HomeBodyState> {
         state.copyWith(
           timelySections: timelyRepository.stream.value
               .map(
-                (thing) => HomeBodySectionMapper.mapTimelySection(
+                (thing) => homeBodySectionMapper.mapTimelySection(
                   thing: thing,
                 ),
               )
@@ -42,7 +44,7 @@ class HomeBodyCubit extends Cubit<HomeBodyState> {
     forYouRepository.stream.listen((things) {
       emit(
         state.copyWith(
-          forYouSection: HomeBodySectionMapper.mapForYouSection(
+          forYouSection: homeBodySectionMapper.mapForYouSection(
             thing: things.first,
             selectedTab: state.forYouSection.selectedTab,
           ),
@@ -54,7 +56,7 @@ class HomeBodyCubit extends Cubit<HomeBodyState> {
   void selectTab({required Thing tab}) {
     emit(
       state.copyWith(
-        forYouSection: HomeBodySectionMapper.mapForYouSection(
+        forYouSection: homeBodySectionMapper.mapForYouSection(
           thing: state.forYouSection.mainThing,
           selectedTab: tab,
         ),
@@ -64,28 +66,5 @@ class HomeBodyCubit extends Cubit<HomeBodyState> {
 
   final TimelyRepository timelyRepository;
   final ForYouRepository forYouRepository;
-}
-
-class HomeBodySectionMapper {
-  static HomeBodySection mapTimelySection({required Thing thing}) {
-    return HomeBodySection(
-      mainThing: thing,
-      children: thing.children,
-      type: HomeBodySectionType.regular,
-    );
-  }
-
-  static HomeBodySection mapForYouSection({
-    required Thing thing,
-    required Thing? selectedTab,
-  }) {
-    return HomeBodySection(
-      selectedTab: selectedTab,
-      mainThing: thing,
-      tabs: thing.children,
-      children:
-          thing.children.firstWhere((e) => e.id == selectedTab?.id).children,
-      type: HomeBodySectionType.carousel,
-    );
-  }
+  final HomeBodySectionMapper homeBodySectionMapper;
 }

@@ -2,8 +2,8 @@ import 'package:app_elements/app_elements.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/home/body/bloc/home_body_cubit.dart';
+import 'package:focus/app/home/body/mappers/base_card_mapper.dart';
 import 'package:focus/app/home/body/widgets/list_header.dart';
-import 'package:focus/app/home/body/widgets/timely_base_card_mapper.dart';
 import 'package:go_router/go_router.dart';
 import 'package:things/things.dart';
 
@@ -27,7 +27,9 @@ class HomeBody extends StatelessWidget {
         itemBuilder: (item) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 1),
           child: BaseCard(
-            item.toBaseCardParams(context),
+            context
+                .read<BaseCardMapper>()
+                .toBaseCardParams(context: context, thing: item),
           ),
         ),
         onItemReorder: (

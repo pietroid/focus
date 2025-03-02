@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:focus/app/focus/widgets/creation_bottom_sheet.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
 import 'package:focus/app/home/body/widgets/timely_base_card_mapper.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
