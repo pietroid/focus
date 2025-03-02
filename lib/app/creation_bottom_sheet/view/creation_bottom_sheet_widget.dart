@@ -26,7 +26,8 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
   late final TextEditingController controller = TextEditingController(
     text: widget.existingThing?.content,
   );
-  bool get isTextFieldEmpty => controller.text.trim().isEmpty;
+  bool isTextFieldEmpty = true;
+  late final TextEditingController valueController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +53,9 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
                       autofocus: true,
                       controller: controller,
                       textInputAction: TextInputAction.go,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => setState(() {
+                        isTextFieldEmpty = controller.text.trim().isEmpty;
+                      }),
                       onSubmitted: (contentString) {
                         final thingToSubmit = widget.existingThing ??
                             Thing(
@@ -96,11 +99,7 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
                       icon: Icons.attach_money,
                       label: 'Valor',
                       disabled: isTextFieldEmpty,
-                      onChanged: (valueString) {
-                        setState(() {
-                          value = valueString.formatAsNumber().toDouble();
-                        });
-                      },
+                      onTap: () {},
                     ),
                     const SizedBox(
                       width: 6,
@@ -109,7 +108,7 @@ class _CreationBottomSheetWidgetState extends State<CreationBottomSheetWidget> {
                       icon: Icons.timer_outlined,
                       label: 'Duração',
                       disabled: isTextFieldEmpty,
-                      onChanged: (value) {},
+                      onTap: () {},
                     ),
                   ],
                 ),

@@ -49,16 +49,14 @@ void main() {
     );
 
     // Assert
-    final valueButton = find.byIcon(Icons.attach_money);
-    final durationButton = find.byIcon(Icons.timer_outlined);
+    final valueButton = find.byType(FieldButton).first;
+    final durationButton = find.byType(FieldButton).last;
 
-    final valueButtonIcon = tester.widget<Icon>(valueButton);
-    final valueButtonColor = valueButtonIcon.color;
-    expect(valueButtonColor, AppColors.disabledCardColor);
+    final valueButtonWidget = tester.widget<FieldButton>(valueButton);
+    expect(valueButtonWidget.disabled, true);
 
-    final durationButtonIcon = tester.widget<Icon>(durationButton);
-    final durationButtonColor = durationButtonIcon.color;
-    expect(durationButtonColor, AppColors.disabledCardColor);
+    final durationButtonWidget = tester.widget<FieldButton>(durationButton);
+    expect(durationButtonWidget.disabled, true);
   });
 
   testWidgets('When text is typed, the accessory buttons must be enabled',

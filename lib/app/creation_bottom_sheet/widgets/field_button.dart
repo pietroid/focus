@@ -5,40 +5,40 @@ class FieldButton extends StatelessWidget {
   const FieldButton({
     required this.icon,
     required this.label,
-    required this.onChanged,
+    required this.onTap,
     this.disabled = false,
     super.key,
   });
   final IconData icon;
   final String label;
-  final void Function(String value) onChanged;
+  final VoidCallback onTap;
   final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        color:
-            disabled ? AppColors.disabledCardColor : AppColors.defaultCardColor,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(
-          left: 8,
-          right: 8,
-          top: 8,
-          bottom: 8,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
+          color: AppColors.defaultCardColor,
         ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: disabled
-                  ? AppColors.disabledIconColor
-                  : AppColors.primaryColor,
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: 8,
+            right: 8,
+            top: 8,
+            bottom: 8,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: disabled ? AppColors.disabledIconColor : Colors.white,
+              ),
+            ],
+          ),
         ),
       ),
     );
