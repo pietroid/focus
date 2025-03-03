@@ -1,6 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:focus/examples/cubit/example_cubit.dart';
+import 'package:focus/examples/patterns/cubit/example_cubit.dart';
 
 void main() {
   group('ExampleCubit', () {
