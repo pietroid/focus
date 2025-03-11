@@ -1,10 +1,10 @@
-import 'package:app_ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/creation_bottom_sheet/bloc/creation_bottom_sheet_bloc.dart';
-import 'package:focus/app/creation_bottom_sheet/widgets/field_button.dart';
+import 'package:focus/app/creation_bottom_sheet/mapper/extra_data_mapper.dart';
+import 'package:focus/app/creation_bottom_sheet/widgets/extra_data_section.dart';
+import 'package:focus/app/creation_bottom_sheet/widgets/text_field_section.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:things/things.dart';
 
 class CreationBottomSheetWidget extends StatelessWidget {
@@ -22,6 +22,7 @@ class CreationBottomSheetWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreationBottomSheetBloc(
+        extraDataMapper: ExtraDataMapper(),
         thingRepository: thingRepository,
         existingThing: existingThing,
         parentId: parentId,
@@ -41,7 +42,6 @@ class _CreationBottomSheetView extends StatefulWidget {
 
 class _CreationBottomSheetViewState extends State<_CreationBottomSheetView> {
   late final TextEditingController _contentController = TextEditingController();
-  late final TextEditingController _valueController = TextEditingController();
 
   @override
   void initState() {
@@ -52,17 +52,11 @@ class _CreationBottomSheetViewState extends State<_CreationBottomSheetView> {
     _contentController.addListener(() {
       bloc.add(ContentChanged(_contentController.text));
     });
-    _valueController.addListener(() {
-      if (_valueController.text.isNotEmpty) {
-        //bloc.add(ValueChanged(_valueController.text));
-      }
-    });
   }
 
   @override
   void dispose() {
     _contentController.dispose();
-    _valueController.dispose();
     super.dispose();
   }
 
@@ -71,9 +65,9 @@ class _CreationBottomSheetViewState extends State<_CreationBottomSheetView> {
     return BlocConsumer<CreationBottomSheetBloc, CreationBottomSheetState>(
       listenWhen: (previous, current) =>
           previous.status != current.status &&
-          current.status == CreationBottomSheetStatus.success,
+          current.status == CreationBottomSheetStatus.submitted,
       listener: (context, state) {
-        if (state.status == CreationBottomSheetStatus.success) {
+        if (state.status == CreationBottomSheetStatus.submitted) {
           context.pop();
         }
       },
@@ -93,75 +87,11 @@ class _CreationBottomSheetViewState extends State<_CreationBottomSheetView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          autofocus: true,
-                          controller: _contentController,
-                          textInputAction: TextInputAction.go,
-                          onSubmitted: (_) {
-                            context.read<CreationBottomSheetBloc>().add(
-                                  const FormSubmitted(),
-                                );
-                          },
-                          maxLines: null,
-                          style: GoogleFonts.onest(
-                            fontSize: 14,
-                            color: Colors.white,
-                          ),
-                          decoration: const InputDecoration(
-                            hintText: 'Quer anotar algo?',
-                            border: InputBorder.none,
-                          ),
-                        ),
-                      ),
-                      if (state.isValueFieldVisible)
-                        Expanded(
-                          child: TextField(
-                            autofocus: true,
-                            controller: _valueController,
-                            keyboardType: TextInputType.number,
-                            textInputAction: TextInputAction.done,
-                            style: GoogleFonts.onest(
-                              fontSize: 14,
-                              color: Colors.white,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: 'Valor',
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                    ],
+                  TextFieldSection(
+                    contentController: _contentController,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10, bottom: 10),
-                    child: Row(
-                      children: [
-                        FieldButton(
-                          icon: Icons.attach_money,
-                          label: 'Valor',
-                          disabled: state.isTextFieldEmpty,
-                          onTap: () {
-                            if (!state.isTextFieldEmpty) {
-                              context.read<CreationBottomSheetBloc>().add(
-                                    const ValueVisibilityToggled(),
-                                  );
-                            }
-                          },
-                        ),
-                        const SizedBox(
-                          width: 6,
-                        ),
-                        FieldButton(
-                          icon: Icons.timer_outlined,
-                          label: 'Duração',
-                          disabled: state.isTextFieldEmpty,
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
+                  ExtraDataSection(
+                    isActive: state.isTextFieldEmpty,
                   ),
                 ],
               ),

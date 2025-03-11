@@ -1,6 +1,8 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
+import 'package:focus/app/creation_bottom_sheet/mapper/extra_data_mapper.dart';
+import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet_widget.dart';
 import 'package:things/things.dart';
 
 part 'creation_bottom_sheet_event.dart';
@@ -12,6 +14,7 @@ class CreationBottomSheetBloc
   /// Creates a new instance of [CreationBottomSheetBloc].
   CreationBottomSheetBloc({
     required ThingRepository thingRepository,
+    required ExtraDataMapper extraDataMapper,
     Thing? existingThing,
     int? parentId,
   })  : _thingRepository = thingRepository,
@@ -20,14 +23,13 @@ class CreationBottomSheetBloc
         super(
           CreationBottomSheetState(
             content: existingThing?.content ?? '',
-            isTextFieldEmpty: (existingThing?.content ?? '').isEmpty,
-            value: existingThing?.value,
+            extraData: existingThing != null
+                ? extraDataMapper.extractExtraDataFromThing(existingThing)
+                : [],
           ),
         ) {
     on<ContentChanged>(_onContentChanged);
-    on<ValueVisibilityToggled>(_onValueVisibilityToggled);
-    on<ValueChanged>(_onValueChanged);
-    on<FormSubmitted>(_onFormSubmitted);
+    on<CreationSubmitted>(_onCreationSubmitted);
   }
 
   final ThingRepository _thingRepository;
@@ -41,29 +43,12 @@ class CreationBottomSheetBloc
     emit(
       state.copyWith(
         content: event.content,
-        isTextFieldEmpty: event.content.trim().isEmpty,
       ),
     );
   }
 
-  void _onValueVisibilityToggled(
-    ValueVisibilityToggled event,
-    Emitter<CreationBottomSheetState> emit,
-  ) {
-    if (state.isTextFieldEmpty) return;
-    emit(state.copyWith(isValueFieldVisible: !state.isValueFieldVisible));
-  }
-
-  void _onValueChanged(
-    ValueChanged event,
-    Emitter<CreationBottomSheetState> emit,
-  ) {
-    final value = double.tryParse(event.valueString);
-    emit(state.copyWith(value: value));
-  }
-
-  void _onFormSubmitted(
-    FormSubmitted event,
+  void _onCreationSubmitted(
+    CreationSubmitted event,
     Emitter<CreationBottomSheetState> emit,
   ) {
     if (state.isTextFieldEmpty) return;
@@ -73,12 +58,10 @@ class CreationBottomSheetBloc
         Thing(
           content: content,
           createdAt: DateTime.now(),
-          value: state.value,
         );
 
     if (_existingThing != null) {
       thingToSubmit.content = content;
-      thingToSubmit.value = state.value;
       _thingRepository.editThing(thing: thingToSubmit);
     } else {
       thingToSubmit.content = content;
@@ -88,7 +71,11 @@ class CreationBottomSheetBloc
       );
     }
 
-    emit(state.copyWith(status: CreationBottomSheetStatus.success));
+    emit(
+      state.copyWith(
+        status: CreationBottomSheetStatus.submitted,
+      ),
+    );
   }
 }
 

@@ -22,26 +22,8 @@ class ContentChanged extends CreationBottomSheetEvent {
   List<Object?> get props => [content];
 }
 
-/// Event emitted when the value field visibility is toggled
-class ValueVisibilityToggled extends CreationBottomSheetEvent {
-  /// Creates a new instance of [ValueVisibilityToggled]
-  const ValueVisibilityToggled();
-}
-
-/// Event emitted when the value field content changes
-class ValueChanged extends CreationBottomSheetEvent {
-  /// Creates a new instance of [ValueChanged]
-  const ValueChanged(this.valueString);
-
-  /// The new value as a string
-  final String valueString;
-
-  @override
-  List<Object?> get props => [valueString];
-}
-
 /// Event emitted when the form is submitted
-class FormSubmitted extends CreationBottomSheetEvent {
-  /// Creates a new instance of [FormSubmitted]
-  const FormSubmitted();
+class CreationSubmitted extends CreationBottomSheetEvent {
+  /// Creates a new instance of [CreationSubmitted]
+  const CreationSubmitted();
 }
