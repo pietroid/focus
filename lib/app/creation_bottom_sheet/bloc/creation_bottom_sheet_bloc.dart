@@ -30,6 +30,7 @@ class CreationBottomSheetBloc
         ) {
     on<ContentChanged>(_onContentChanged);
     on<CreationSubmitted>(_onCreationSubmitted);
+    on<ExtraDataAdded>(_onExtraDataAdded);
   }
 
   final ThingRepository _thingRepository;
@@ -74,6 +75,17 @@ class CreationBottomSheetBloc
     emit(
       state.copyWith(
         status: CreationBottomSheetStatus.submitted,
+      ),
+    );
+  }
+
+  void _onExtraDataAdded(
+    ExtraDataAdded event,
+    Emitter<CreationBottomSheetState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        extraData: List.of(state.extraData)..add(event.extraData),
       ),
     );
   }

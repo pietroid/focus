@@ -27,3 +27,15 @@ class CreationSubmitted extends CreationBottomSheetEvent {
   /// Creates a new instance of [CreationSubmitted]
   const CreationSubmitted();
 }
+
+class ExtraDataAdded extends CreationBottomSheetEvent {
+  /// Creates a new instance of [ExtraDataAdded]
+  const ExtraDataAdded({
+    required this.extraData,
+  });
+
+  final ExtraData extraData;
+
+  @override
+  List<Object?> get props => [extraData];
+}

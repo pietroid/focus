@@ -37,14 +37,27 @@ class CreationBottomSheetState extends Equatable {
   List<Object?> get props => [content, extraData, status];
 }
 
-class ExtraData {
-  ExtraData({
+@immutable
+class ExtraData extends Equatable {
+  const ExtraData({
     required this.key,
     this.value,
   });
 
-  String key;
-  Object? value;
+  final String key;
+  final Object? value;
+
+  @override
+  List<Object?> get props => [key, value];
+
+  ExtraData copyWith({
+    String? key,
+    Object? value,
+  }) =>
+      ExtraData(
+        key: key ?? this.key,
+        value: value ?? this.value,
+      );
 }
 
 /// Status of the creation form

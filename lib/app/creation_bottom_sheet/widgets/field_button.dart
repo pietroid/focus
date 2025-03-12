@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 class FieldButton extends StatelessWidget {
   const FieldButton({
     required this.icon,
-    required this.label,
     required this.onTap,
+    this.label,
     this.disabled = false,
     super.key,
   });
   final IconData icon;
-  final String label;
+  final String? label;
   final VoidCallback onTap;
   final bool disabled;
 
@@ -37,6 +37,20 @@ class FieldButton extends StatelessWidget {
                 size: 16,
                 color: disabled ? AppColors.disabledIconColor : Colors.white,
               ),
+              if (label != null) ...[
+                const SizedBox(
+                  width: 5,
+                ),
+                Text(
+                  label!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(
+                  width: 3,
+                ),
+              ],
             ],
           ),
         ),
