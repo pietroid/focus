@@ -28,14 +28,11 @@ class CreationSubmitted extends CreationBottomSheetEvent {
   const CreationSubmitted();
 }
 
-class ExtraDataAdded extends CreationBottomSheetEvent {
-  /// Creates a new instance of [ExtraDataAdded]
-  const ExtraDataAdded({
-    required this.extraData,
-  });
+class OnDurationEdited extends CreationBottomSheetEvent {
+  const OnDurationEdited(this.duration);
 
-  final ExtraData extraData;
+  final Duration? duration;
 
   @override
-  List<Object?> get props => [extraData];
+  List<Object?> get props => [duration];
 }

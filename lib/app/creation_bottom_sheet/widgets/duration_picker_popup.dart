@@ -44,8 +44,9 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return AlertDialog(
-      title: const Text('Select Duration'),
+      title: Text('Duração', style: textTheme.headlineMedium),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -53,19 +54,19 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildNumberPicker(
-                label: 'Hours',
+                label: 'Horas',
                 value: _hours,
                 maxValue: 23,
                 onChanged: (value) => setState(() => _hours = value),
               ),
               _buildNumberPicker(
-                label: 'Minutes',
+                label: 'Minutos',
                 value: _minutes,
                 maxValue: 59,
                 onChanged: (value) => setState(() => _minutes = value),
               ),
               _buildNumberPicker(
-                label: 'Seconds',
+                label: 'Segundos',
                 value: _seconds,
                 maxValue: 59,
                 onChanged: (value) => setState(() => _seconds = value),
@@ -77,7 +78,7 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text('Cancelar', style: textTheme.bodyMedium),
         ),
         ElevatedButton(
           onPressed: () {
@@ -89,7 +90,7 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
             widget.onDurationSelected?.call(duration);
             Navigator.of(context).pop();
           },
-          child: const Text('Confirm'),
+          child: Text('Confirmar', style: textTheme.bodyMedium),
         ),
       ],
     );
@@ -104,7 +105,7 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
     return Expanded(
       child: Column(
         children: [
-          Text(label),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
           SizedBox(
             height: 150,
             child: CupertinoPicker(
@@ -119,63 +120,6 @@ class _DurationPickerPopupState extends State<DurationPickerPopup> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class CreationPopup extends StatelessWidget {
-  const CreationPopup({
-    required this.title,
-    required this.message,
-    super.key,
-    this.onConfirm,
-    this.onCancel,
-  });
-  final String title;
-  final String message;
-  final VoidCallback? onConfirm;
-  final VoidCallback? onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(title),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            onCancel?.call();
-          },
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-            onConfirm?.call();
-          },
-          child: const Text('Confirm'),
-        ),
-      ],
-    );
-  }
-
-  // Helper method to show the popup
-  static void show(
-    BuildContext context, {
-    required String title,
-    required String message,
-    VoidCallback? onConfirm,
-    VoidCallback? onCancel,
-  }) {
-    showDialog(
-      context: context,
-      builder: (context) => CreationPopup(
-        title: title,
-        message: message,
-        onConfirm: onConfirm,
-        onCancel: onCancel,
       ),
     );
   }

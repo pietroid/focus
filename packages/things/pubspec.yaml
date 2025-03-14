@@ -13,6 +13,8 @@ dependencies:
     path: ../app_ui
   figma_squircle: ^0.5.3
   glowy_borders: ^1.0.2
+  equatable: ^2.0.3
+  meta: ^1.7.0
   
 
 dev_dependencies:

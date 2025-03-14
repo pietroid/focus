@@ -22,15 +22,14 @@ class CreationBottomSheetBloc
         _parentId = parentId,
         super(
           CreationBottomSheetState(
+            isNewThing: existingThing == null,
             content: existingThing?.content ?? '',
-            extraData: existingThing != null
-                ? extraDataMapper.extractExtraDataFromThing(existingThing)
-                : [],
+            extraData: existingThing?.extraData ?? ExtraData(),
           ),
         ) {
     on<ContentChanged>(_onContentChanged);
     on<CreationSubmitted>(_onCreationSubmitted);
-    on<ExtraDataAdded>(_onExtraDataAdded);
+    on<OnDurationEdited>(_onDurationEdited);
   }
 
   final ThingRepository _thingRepository;
@@ -43,7 +42,7 @@ class CreationBottomSheetBloc
   ) {
     emit(
       state.copyWith(
-        content: event.content,
+        content: event.content.capitalize(),
       ),
     );
   }
@@ -53,23 +52,20 @@ class CreationBottomSheetBloc
     Emitter<CreationBottomSheetState> emit,
   ) {
     if (state.isTextFieldEmpty) return;
-
-    final content = state.content.capitalize();
-    final thingToSubmit = _existingThing ??
-        Thing(
-          content: content,
-          createdAt: DateTime.now(),
-        );
-
-    if (_existingThing != null) {
-      thingToSubmit.content = content;
-      _thingRepository.editThing(thing: thingToSubmit);
-    } else {
-      thingToSubmit.content = content;
+    if (state.isNewThing) {
+      final thing = Thing(
+        content: state.content,
+        extraData: state.extraData,
+        createdAt: DateTime.now(),
+      );
       _thingRepository.addThing(
-        thing: thingToSubmit,
+        thing: thing,
         parentId: _parentId,
       );
+    } else {
+      _existingThing?.content = state.content;
+      _existingThing?.extraData = state.extraData;
+      _thingRepository.editThing(thing: _existingThing!);
     }
 
     emit(
@@ -79,13 +75,15 @@ class CreationBottomSheetBloc
     );
   }
 
-  void _onExtraDataAdded(
-    ExtraDataAdded event,
+  void _onDurationEdited(
+    OnDurationEdited event,
     Emitter<CreationBottomSheetState> emit,
   ) {
     emit(
       state.copyWith(
-        extraData: List.of(state.extraData)..add(event.extraData),
+        extraData: state.extraData.copyWith(
+          duration: event.duration,
+        ),
       ),
     );
   }

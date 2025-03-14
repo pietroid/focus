@@ -1,4 +1,5 @@
 import 'package:objectbox/objectbox.dart';
+import 'package:things/src/extra_data.dart';
 
 @Entity()
 class Thing {
@@ -6,9 +7,11 @@ class Thing {
     required this.content,
     required this.createdAt,
     this.done = false,
-    double? value,
     this.tags = const [],
-  }) : _value = value;
+    double? value,
+    ExtraData? extraData,
+  })  : _value = value,
+        _extraData = extraData ?? ExtraData();
 
   @Id()
   int id = 0;
@@ -55,5 +58,30 @@ class Thing {
     }
     if (allNull) return null;
     return accumulatedValue;
+  }
+
+  // Extra data
+  ExtraData _extraData;
+
+  ExtraData get extraData => _extraData;
+
+  set extraData(ExtraData extraData) {
+    _extraData = extraData;
+  }
+
+  Thing copyWith({
+    String? content,
+    DateTime? createdAt,
+    bool? done,
+    double? value,
+    ExtraData? extraData,
+  }) {
+    return Thing(
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      done: done ?? this.done,
+      value: value ?? _value,
+      extraData: extraData ?? _extraData,
+    );
   }
 }

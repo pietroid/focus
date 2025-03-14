@@ -32,23 +32,16 @@ class ExtraDataSection extends StatelessWidget {
               FieldButton(
                 icon: Icons.timer_outlined,
                 disabled: isActive,
-                label: state.extraData
-                    .firstWhereOrNull(
-                      (extraData) => extraData.key == 'timeDuration',
-                    )
-                    ?.value
-                    .toString(),
+                label: state.extraData.duration?.formattedDuration,
                 onTap: () {
                   DurationPickerPopup.show(
                     context,
-                    initialDuration: const Duration(minutes: 15),
+                    initialDuration:
+                        state.extraData.duration ?? const Duration(minutes: 15),
                     onDurationSelected: (duration) {
                       context.read<CreationBottomSheetBloc>().add(
-                            ExtraDataAdded(
-                              extraData: ExtraData(
-                                key: 'timeDuration',
-                                value: duration,
-                              ),
+                            OnDurationEdited(
+                              duration,
                             ),
                           );
                     },
@@ -60,5 +53,16 @@ class ExtraDataSection extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+extension on Duration {
+  String get formattedDuration {
+    if (inMinutes < 60) {
+      return '$inMinutes min';
+    }
+    final hours = inHours;
+    final minutes = inMinutes.remainder(60).toString().padLeft(2, '0');
+    return '${hours}h$minutes';
   }
 }

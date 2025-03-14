@@ -1,11 +1,13 @@
 part of 'creation_bottom_sheet_bloc.dart';
 
 /// State for [CreationBottomSheetBloc]
+@immutable
 class CreationBottomSheetState extends Equatable {
   /// Creates a new instance of [CreationBottomSheetState]
   const CreationBottomSheetState({
-    this.content = '',
-    this.extraData = const [],
+    required this.content,
+    required this.extraData,
+    required this.isNewThing,
     this.status = CreationBottomSheetStatus.editing,
   });
 
@@ -15,8 +17,11 @@ class CreationBottomSheetState extends Equatable {
   /// The content of the text field
   final String content;
 
-  /// The extra data associated with the content
-  final List<ExtraData> extraData;
+  /// The extra data of the thing
+  final ExtraData extraData;
+
+  /// Whether the thing is new
+  final bool isNewThing;
 
   /// Whether the text field is empty
   bool get isTextFieldEmpty => content.trim().isEmpty;
@@ -24,40 +29,19 @@ class CreationBottomSheetState extends Equatable {
   /// Creates a copy of this state with the given fields replaced
   CreationBottomSheetState copyWith({
     String? content,
-    List<ExtraData>? extraData,
+    ExtraData? extraData,
     CreationBottomSheetStatus? status,
-  }) =>
-      CreationBottomSheetState(
-        content: content ?? this.content,
-        extraData: extraData ?? this.extraData,
-        status: status ?? this.status,
-      );
+  }) {
+    return CreationBottomSheetState(
+      content: content ?? this.content,
+      extraData: extraData ?? this.extraData,
+      isNewThing: isNewThing,
+      status: status ?? this.status,
+    );
+  }
 
   @override
-  List<Object?> get props => [content, extraData, status];
-}
-
-@immutable
-class ExtraData extends Equatable {
-  const ExtraData({
-    required this.key,
-    this.value,
-  });
-
-  final String key;
-  final Object? value;
-
-  @override
-  List<Object?> get props => [key, value];
-
-  ExtraData copyWith({
-    String? key,
-    Object? value,
-  }) =>
-      ExtraData(
-        key: key ?? this.key,
-        value: value ?? this.value,
-      );
+  List<Object?> get props => [content, extraData, isNewThing, status];
 }
 
 /// Status of the creation form
