@@ -1,5 +1,4 @@
 import 'package:objectbox/objectbox.dart';
-import 'package:things/src/extra_data.dart';
 
 @Entity()
 class Thing {
@@ -9,9 +8,9 @@ class Thing {
     this.done = false,
     this.tags = const [],
     double? value,
-    ExtraData? extraData,
-  })  : _value = value,
-        _extraData = extraData ?? ExtraData();
+    Duration? this.duration,
+    DateTime? this.startTime,
+  }) : _value = value;
 
   @Id()
   int id = 0;
@@ -31,6 +30,27 @@ class Thing {
 
   // Value in money units
   double? _value;
+
+  // Duration of the thing
+  @Transient()
+  Duration? duration;
+
+  // Start time
+  @Property(type: PropertyType.date)
+  DateTime? startTime;
+
+  // End time
+  @Transient()
+  DateTime? get endTime => startTime?.add(duration ?? Duration.zero);
+
+  // dbDuration
+  int? get dbDuration => duration?.inMilliseconds;
+
+  set dbDuration(int? dbDuration) {
+    if (dbDuration != null) {
+      duration = Duration(milliseconds: dbDuration);
+    }
+  }
 
   set value(double? value) => _value = value;
 
@@ -60,28 +80,17 @@ class Thing {
     return accumulatedValue;
   }
 
-  // Extra data
-  ExtraData _extraData;
-
-  ExtraData get extraData => _extraData;
-
-  set extraData(ExtraData extraData) {
-    _extraData = extraData;
-  }
-
   Thing copyWith({
     String? content,
     DateTime? createdAt,
     bool? done,
     double? value,
-    ExtraData? extraData,
   }) {
     return Thing(
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
       done: done ?? this.done,
       value: value ?? _value,
-      extraData: extraData ?? _extraData,
     );
   }
 }

@@ -21,7 +21,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
       id: const obx_int.IdUid(5, 3534494805469766675),
       name: 'Thing',
-      lastPropertyId: const obx_int.IdUid(10, 1472944842726310423),
+      lastPropertyId: const obx_int.IdUid(13, 521500093592331381),
       flags: 0,
       properties: <obx_int.ModelProperty>[
         obx_int.ModelProperty(
@@ -57,6 +57,16 @@ final _entities = <obx_int.ModelEntity>[
         obx_int.ModelProperty(
             id: const obx_int.IdUid(10, 1472944842726310423),
             name: 'rank',
+            type: 6,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(12, 4935626248028005275),
+            name: 'startTime',
+            type: 10,
+            flags: 0),
+        obx_int.ModelProperty(
+            id: const obx_int.IdUid(13, 521500093592331381),
+            name: 'dbDuration',
             type: 6,
             flags: 0)
       ],
@@ -106,17 +116,18 @@ obx.Store openStore(
 obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
       entities: _entities,
-      lastEntityId: const obx_int.IdUid(5, 3534494805469766675),
-      lastIndexId: const obx_int.IdUid(2, 5876970679639637568),
+      lastEntityId: const obx_int.IdUid(6, 920103566441504799),
+      lastIndexId: const obx_int.IdUid(3, 3351610348282585490),
       lastRelationId: const obx_int.IdUid(3, 5431818547799211746),
       lastSequenceId: const obx_int.IdUid(0, 0),
       retiredEntityUids: const [
         1631627817501562807,
         5074736434067970976,
         3624636574726604689,
-        7002050964441799220
+        7002050964441799220,
+        920103566441504799
       ],
-      retiredIndexUids: const [5876970679639637568],
+      retiredIndexUids: const [5876970679639637568, 3351610348282585490],
       retiredPropertyUids: const [
         2840272927915169489,
         958694595439191411,
@@ -135,7 +146,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
         3696488773815310160,
         4307723726814652867,
         421814647252034290,
-        8344290899505051100
+        8344290899505051100,
+        5536566491913738907,
+        8212804582876994128,
+        4719168765974133927,
+        5149175803498995092,
+        3678645757652866222
       ],
       retiredRelationUids: const [7142782651244064316],
       modelVersion: 5,
@@ -159,7 +175,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           final contentOffset = fbb.writeString(object.content);
           final tagsOffset = fbb.writeList(
               object.tags.map(fbb.writeString).toList(growable: false));
-          fbb.startTable(11);
+          fbb.startTable(14);
           fbb.addInt64(0, object.id);
           fbb.addOffset(1, contentOffset);
           fbb.addInt64(2, object.createdAt.millisecondsSinceEpoch);
@@ -167,33 +183,42 @@ obx_int.ModelDefinition getObjectBoxModel() {
           fbb.addOffset(7, tagsOffset);
           fbb.addFloat64(8, object.value);
           fbb.addInt64(9, object.rank);
+          fbb.addInt64(11, object.startTime?.millisecondsSinceEpoch);
+          fbb.addInt64(12, object.dbDuration);
           fbb.finish(fbb.endTable());
           return object.id;
         },
         objectFromFB: (obx.Store store, ByteData fbData) {
           final buffer = fb.BufferContext(fbData);
           final rootOffset = buffer.derefObject(0);
+          final startTimeValue =
+              const fb.Int64Reader().vTableGetNullable(buffer, rootOffset, 26);
           final contentParam = const fb.StringReader(asciiOptimization: true)
               .vTableGet(buffer, rootOffset, 6, '');
           final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
               const fb.Int64Reader().vTableGet(buffer, rootOffset, 8, 0));
           final doneParam =
               const fb.BoolReader().vTableGet(buffer, rootOffset, 10, false);
-          final valueParam = const fb.Float64Reader()
-              .vTableGetNullable(buffer, rootOffset, 20);
           final tagsParam = const fb.ListReader<String>(
                   fb.StringReader(asciiOptimization: true),
                   lazy: false)
               .vTableGet(buffer, rootOffset, 18, []);
+          final valueParam = const fb.Float64Reader()
+              .vTableGetNullable(buffer, rootOffset, 20);
+          final startTimeParam = startTimeValue == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(startTimeValue);
           final object = Thing(
               content: contentParam,
               createdAt: createdAtParam,
               done: doneParam,
+              tags: tagsParam,
               value: valueParam,
-              tags: tagsParam)
+              startTime: startTimeParam)
             ..id = const fb.Int64Reader().vTableGet(buffer, rootOffset, 4, 0)
-            ..rank =
-                const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0);
+            ..rank = const fb.Int64Reader().vTableGet(buffer, rootOffset, 22, 0)
+            ..dbDuration = const fb.Int64Reader()
+                .vTableGetNullable(buffer, rootOffset, 28);
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.children, store,
               obx_int.RelInfo<Thing>.toMany(3, object.id));
           obx_int.InternalToManyAccess.setRelInfo<Thing>(object.parents, store,
@@ -233,6 +258,14 @@ class Thing_ {
   /// See [Thing.rank].
   static final rank =
       obx.QueryIntegerProperty<Thing>(_entities[0].properties[6]);
+
+  /// See [Thing.startTime].
+  static final startTime =
+      obx.QueryDateProperty<Thing>(_entities[0].properties[7]);
+
+  /// See [Thing.dbDuration].
+  static final dbDuration =
+      obx.QueryIntegerProperty<Thing>(_entities[0].properties[8]);
 
   /// see [Thing.children]
   static final children =
