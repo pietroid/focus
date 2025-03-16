@@ -1,7 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
-import 'package:focus/app/creation_bottom_sheet/mapper/extra_data_mapper.dart';
 import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet_widget.dart';
 import 'package:things/things.dart';
 
@@ -14,7 +13,6 @@ class CreationBottomSheetBloc
   /// Creates a new instance of [CreationBottomSheetBloc].
   CreationBottomSheetBloc({
     required ThingRepository thingRepository,
-    required ExtraDataMapper extraDataMapper,
     Thing? existingThing,
     int? parentId,
   })  : _thingRepository = thingRepository,
@@ -24,7 +22,6 @@ class CreationBottomSheetBloc
           CreationBottomSheetState(
             isNewThing: existingThing == null,
             content: existingThing?.content ?? '',
-            extraData: existingThing?.extraData ?? ExtraData(),
           ),
         ) {
     on<ContentChanged>(_onContentChanged);
@@ -55,7 +52,7 @@ class CreationBottomSheetBloc
     if (state.isNewThing) {
       final thing = Thing(
         content: state.content,
-        extraData: state.extraData,
+        duration: state.duration,
         createdAt: DateTime.now(),
       );
       _thingRepository.addThing(
@@ -64,7 +61,7 @@ class CreationBottomSheetBloc
       );
     } else {
       _existingThing?.content = state.content;
-      _existingThing?.extraData = state.extraData;
+      _existingThing?.duration = state.duration;
       _thingRepository.editThing(thing: _existingThing!);
     }
 
@@ -81,9 +78,7 @@ class CreationBottomSheetBloc
   ) {
     emit(
       state.copyWith(
-        extraData: state.extraData.copyWith(
-          duration: event.duration,
-        ),
+        duration: event.duration,
       ),
     );
   }

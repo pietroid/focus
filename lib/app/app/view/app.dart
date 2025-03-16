@@ -44,7 +44,10 @@ class App extends StatelessWidget {
             thingRepository: context.read<ThingRepository>(),
           ),
         ),
-        Provider(create: (context) => TimelyRepository(box: objectBox)),
+        Provider(
+          create: (context) =>
+              TimelyRepository(box: objectBox)..listenToDurationChanges(),
+        ),
         Provider(create: (context) => ForYouRepository(box: objectBox)),
         BlocProvider(
           create: (context) => HomeBodyCubit(

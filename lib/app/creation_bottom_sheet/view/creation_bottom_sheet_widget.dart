@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/creation_bottom_sheet/bloc/creation_bottom_sheet_bloc.dart';
-import 'package:focus/app/creation_bottom_sheet/mapper/extra_data_mapper.dart';
 import 'package:focus/app/creation_bottom_sheet/widgets/extra_data_section.dart';
 import 'package:focus/app/creation_bottom_sheet/widgets/text_field_section.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +21,6 @@ class CreationBottomSheetWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => CreationBottomSheetBloc(
-        extraDataMapper: ExtraDataMapper(),
         thingRepository: thingRepository,
         existingThing: existingThing,
         parentId: parentId,

@@ -6,8 +6,8 @@ class CreationBottomSheetState extends Equatable {
   /// Creates a new instance of [CreationBottomSheetState]
   const CreationBottomSheetState({
     required this.content,
-    required this.extraData,
     required this.isNewThing,
+    this.duration,
     this.status = CreationBottomSheetStatus.editing,
   });
 
@@ -17,8 +17,7 @@ class CreationBottomSheetState extends Equatable {
   /// The content of the text field
   final String content;
 
-  /// The extra data of the thing
-  final ExtraData extraData;
+  final Duration? duration;
 
   /// Whether the thing is new
   final bool isNewThing;
@@ -29,19 +28,19 @@ class CreationBottomSheetState extends Equatable {
   /// Creates a copy of this state with the given fields replaced
   CreationBottomSheetState copyWith({
     String? content,
-    ExtraData? extraData,
+    Duration? duration,
     CreationBottomSheetStatus? status,
   }) {
     return CreationBottomSheetState(
       content: content ?? this.content,
-      extraData: extraData ?? this.extraData,
+      duration: duration ?? this.duration,
       isNewThing: isNewThing,
       status: status ?? this.status,
     );
   }
 
   @override
-  List<Object?> get props => [content, extraData, isNewThing, status];
+  List<Object?> get props => [content, duration, isNewThing, status];
 }
 
 /// Status of the creation form

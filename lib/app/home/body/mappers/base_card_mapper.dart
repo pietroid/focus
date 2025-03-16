@@ -2,6 +2,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:focus/app/creation_bottom_sheet/view/creation_bottom_sheet.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:things/things.dart';
 
@@ -38,7 +39,20 @@ class BaseCardMapper {
         context.read<ThingRepository>().removeThing(thing: thing);
       },
       isDismissable: isTimelyTask,
-      rightText: thing.value?.formatAsMoney(),
+      rightText: thing.value?.formatAsMoney() ??
+          formatInitialAndEndTime(thing.startTime, thing.endTime),
     );
   }
+}
+
+String? formatInitialAndEndTime(DateTime? startTime, DateTime? endTime) {
+  if (startTime == null || endTime == null) return null;
+
+  return '${formattedTime(startTime)} - ${formattedTime(endTime)}';
+}
+
+String formattedTime(DateTime currentTime) {
+  final formatter = DateFormat('HH:mm');
+  final formatted = formatter.format(currentTime);
+  return formatted;
 }

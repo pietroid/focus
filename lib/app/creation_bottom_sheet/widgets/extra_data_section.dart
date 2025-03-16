@@ -15,7 +15,7 @@ class ExtraDataSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<CreationBottomSheetBloc, CreationBottomSheetState>(
-      buildWhen: (previous, current) => previous.extraData != current.extraData,
+      buildWhen: (previous, current) => previous.duration != current.duration,
       builder: (context, state) {
         return Padding(
           padding: const EdgeInsets.only(top: 10, bottom: 10),
@@ -32,12 +32,12 @@ class ExtraDataSection extends StatelessWidget {
               FieldButton(
                 icon: Icons.timer_outlined,
                 disabled: isActive,
-                label: state.extraData.duration?.formattedDuration,
+                label: state.duration?.formattedDuration,
                 onTap: () {
                   DurationPickerPopup.show(
                     context,
                     initialDuration:
-                        state.extraData.duration ?? const Duration(minutes: 15),
+                        state.duration ?? const Duration(minutes: 15),
                     onDurationSelected: (duration) {
                       context.read<CreationBottomSheetBloc>().add(
                             OnDurationEdited(
