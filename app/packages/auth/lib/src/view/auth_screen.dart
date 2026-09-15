@@ -60,19 +60,22 @@ class _AuthScreenView extends StatelessWidget {
       child: Scaffold(
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s6,
+              vertical: AppSpacing.s8,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/images/icon.png', height: 200),
-                const SizedBox(height: AppSpacing.lg),
+                Image.asset('assets/images/icon.png', height: 160),
+                const SizedBox(height: AppSpacing.s6),
                 Text(
                   'Focus',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
+                  style: AppTypography.headline,
                 ),
-                const SizedBox(height: AppSpacing.xxlg),
+                const SizedBox(height: AppSpacing.s12),
                 BlocBuilder<AuthBloc, AuthState>(
                   buildWhen: (previous, current) =>
                       previous.status != current.status,
@@ -88,11 +91,12 @@ class _AuthScreenView extends StatelessWidget {
                           onPressed: () => context.read<AuthBloc>().add(
                             const AuthGoogleSignInRequested(),
                           ),
-                          icon: AppIcon(
+                          icon: const AppIcon(
                             iconData: AppIcons.google,
-                            color: Theme.of(context).colorScheme.onPrimary,
+                            color: AppColors.onAccent,
                           ),
                           text: 'Entrar com Google',
+                          expand: true,
                         ),
                       ],
                     );

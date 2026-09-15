@@ -1,5 +1,6 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:auth/auth.dart';
+import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/home/home.dart';
@@ -19,6 +20,19 @@ class App extends StatelessWidget {
          initialLocation: initialLocation,
          routes: [
            GoRoute(path: '/', builder: (context, state) => const HomePage()),
+           // A new thread and an existing one are the same screen. The new one
+           // carries its first message as `extra` and has no slug until the
+           // server has given it one.
+           GoRoute(
+             path: '/chat',
+             builder: (context, state) =>
+                 ChatPage(initialMessage: state.extra as String?),
+           ),
+           GoRoute(
+             path: '/chat/:slug',
+             builder: (context, state) =>
+                 ChatPage(slug: state.pathParameters['slug']),
+           ),
            GoRoute(
              path: '/auth',
              builder: (context, state) => AuthScreen(
@@ -26,9 +40,9 @@ class App extends StatelessWidget {
                onUserAuthenticated: onUserAuthenticated,
                onAuthenticated: () => context.go('/'),
              ),
-            ),
-          ],
-        );
+           ),
+         ],
+       );
 
   final GoRouter _router;
 
@@ -42,6 +56,10 @@ class App extends StatelessWidget {
       listener: (context, state) {
         if (state.status == AppStatus.unauthenticated) {
           _router.go('/auth');
+        } else {
+          // Threads are per user, so the list is fetched once the user is
+          // known rather than when the home screen happens to be built.
+          context.read<ThreadsBloc>().add(const ThreadsRequested());
         }
       },
       child: MaterialApp.router(

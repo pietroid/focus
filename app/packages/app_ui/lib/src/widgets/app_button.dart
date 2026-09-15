@@ -2,21 +2,19 @@ import 'package:app_ui/app_ui.dart';
 
 /// Visual variants for [AppButton].
 enum AppButtonVariant {
-  /// A filled button with the primary color.
+  /// Accent fill. One per screen.
   primary,
 
-  /// A tonal filled button with a secondary color.
+  /// A neutral fill on [AppColors.fill], for secondary actions.
   secondary,
 
-  /// Text Button.
+  /// No fill, for the lowest-emphasis action on a screen.
   text,
 }
 
-enum _AppButtonType { filled, icon, text }
-
 /// {@template app_button}
-/// A styled button that composes Material's [FilledButton] and
-/// [OutlinedButton] with app-specific sizing and theming.
+/// The app's button. Sizing, radius, and type come from the theme, so the
+/// three variants differ only in colour.
 /// {@endtemplate}
 class AppButton extends StatelessWidget {
   /// {@macro app_button}
@@ -24,37 +22,35 @@ class AppButton extends StatelessWidget {
     required this.onPressed,
     required this.text,
     this.variant = AppButtonVariant.primary,
+    this.expand = false,
     super.key,
-  }) : icon = null,
-       _type = _AppButtonType.filled;
+  }) : icon = null;
 
   /// {@template app_button_icon}
-  /// Button variant that displays an icon before the label.
-  ///
-  /// Useful for sign-in providers such as Google or Apple.
+  /// Button variant that displays an icon before the label, for sign-in
+  /// providers and other actions carrying a mark.
   /// {@endtemplate}
   const AppButton.icon({
     required this.onPressed,
     required this.icon,
     required this.text,
     this.variant = AppButtonVariant.primary,
+    this.expand = false,
     super.key,
-  }) : _type = _AppButtonType.icon;
+  });
 
   /// {@template app_button_text}
-  /// Button variant that displays only text without a background.
-  ///
-  /// Useful for low emphasis actions such as bottom bars.
+  /// Button variant with no fill, for low-emphasis actions.
   /// {@endtemplate}
   const AppButton.text({
     required this.onPressed,
     required this.text,
-    this.variant = AppButtonVariant.primary,
+    this.expand = false,
     super.key,
   }) : icon = null,
-       _type = _AppButtonType.text;
+       variant = AppButtonVariant.text;
 
-  /// Called when the button is tapped.
+  /// Called when the button is tapped. A null value disables the button.
   final VoidCallback? onPressed;
 
   /// Optional icon displayed before the text.
@@ -66,80 +62,54 @@ class AppButton extends StatelessWidget {
   /// The visual variant of the button.
   final AppButtonVariant variant;
 
-  final _AppButtonType _type;
+  /// Whether the button stretches to the width of its parent.
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isTextVariant = _type == _AppButtonType.text;
-    final foregroundColor = switch (variant) {
-      AppButtonVariant.primary => colorScheme.onPrimary,
-      AppButtonVariant.secondary => colorScheme.onSurface,
-      AppButtonVariant.text => colorScheme.onSurface,
+    final (background, foreground) = switch (variant) {
+      AppButtonVariant.primary => (AppColors.accent, AppColors.onAccent),
+      AppButtonVariant.secondary => (AppColors.fill, AppColors.ink),
+      AppButtonVariant.text => (Colors.transparent, AppColors.ink2),
     };
-    final backgroundColor = switch (variant) {
-      AppButtonVariant.primary => colorScheme.primary,
-      AppButtonVariant.secondary => colorScheme.surface,
-      AppButtonVariant.text => null,
-    };
-    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      fontWeight: variant == AppButtonVariant.text
-          ? FontWeight.w700
-          : FontWeight.w500,
-      color: foregroundColor,
-    );
-    final label = Text(text, style: textStyle);
 
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        alignment: isTextVariant ? Alignment.center : null,
-        decoration: isTextVariant
-            ? null
-            : BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: backgroundColor,
-                border: variant == AppButtonVariant.secondary
-                    ? Border.all(color: colorScheme.outline)
-                    : null,
-              ),
-        child: icon == null
-            ? label
-            : _AppButtonIconContent(
-                icon: icon!,
-                label: label,
-                iconColor: foregroundColor,
-              ),
+    final label = Text(
+      text,
+      style: AppTypography.body.copyWith(
+        color: onPressed == null ? AppColors.ink3 : foreground,
       ),
     );
-  }
-}
 
-class _AppButtonIconContent extends StatelessWidget {
-  const _AppButtonIconContent({
-    required this.icon,
-    required this.label,
-    this.iconColor,
-  });
+    final child = icon == null
+        ? label
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconTheme(
+                data: IconThemeData(color: foreground, size: AppSpacing.s5),
+                child: icon!,
+              ),
+              const SizedBox(width: AppSpacing.s3),
+              label,
+            ],
+          );
 
-  final Widget icon;
-  final Widget label;
-  final Color? iconColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconTheme(
-          data: IconTheme.of(context).copyWith(color: iconColor),
-          child: icon,
+    final style = FilledButton.styleFrom(
+      backgroundColor: background,
+      disabledBackgroundColor: variant == AppButtonVariant.primary
+          ? AppColors.fillStrong
+          : Colors.transparent,
+      minimumSize: Size(expand ? double.infinity : 0, AppSpacing.tapTarget),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(
+          Radius.circular(AppSpacing.buttonRadius),
         ),
-        const SizedBox(width: 12),
-        label,
-      ],
+      ),
     );
+
+    return FilledButton(onPressed: onPressed, style: style, child: child);
   }
 }

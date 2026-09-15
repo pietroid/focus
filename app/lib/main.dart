@@ -1,5 +1,6 @@
 import 'package:api_client/api_client.dart';
 import 'package:auth/auth.dart';
+import 'package:chat/chat.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -53,6 +54,7 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
     tokenProvider: _AuthTokenProvider(authRepository),
   );
   final userRepository = UserRepository(apiClient: apiClient);
+  final chatRepository = ChatRepository(apiClient: apiClient);
 
   final initialUser = await authRepository.user.first;
   final initialLocation = initialUser == null ? '/auth' : '/';
@@ -61,6 +63,7 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
     () => MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>(create: (_) => authRepository),
+        RepositoryProvider<ChatRepository>(create: (_) => chatRepository),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -69,6 +72,11 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
               authRepository: authRepository,
               initialUser: initialUser,
             ),
+          ),
+          BlocProvider<ThreadsBloc>(
+            create: (_) =>
+                ThreadsBloc(chatRepository: chatRepository)
+                  ..add(const ThreadsRequested()),
           ),
         ],
         child: App(

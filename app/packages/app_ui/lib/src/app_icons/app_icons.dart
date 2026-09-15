@@ -22,4 +22,15 @@ class AppIcons {
 
   /// Logout Icon.
   static const logout = AppIconData.phosphor(PhosphorIconsRegular.signOut);
+
+  /// Send Icon, for submitting a prompt.
+  static const send = AppIconData.phosphor(PhosphorIconsFill.arrowUp);
+
+  /// Back Icon.
+  static const back = AppIconData.phosphor(PhosphorIconsRegular.arrowLeft);
+
+  /// Chevron, for a row that opens something.
+  static const chevronRight = AppIconData.phosphor(
+    PhosphorIconsRegular.caretRight,
+  );
 }

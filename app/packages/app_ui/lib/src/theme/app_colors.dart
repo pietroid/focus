@@ -1,38 +1,48 @@
 import 'package:flutter/material.dart';
 
-/// {@template app_colors}
-/// Static color tokens used throughout the app.
-/// {@endtemplate}
-class AppColors {
-  AppColors._();
+/// The color tokens for Focus.
+///
+/// Focus is a dark-only app built on true black, so the screen disappears and
+/// only the content is lit. Surfaces are opaque greys rather than translucent
+/// whites: on black a translucent white lifts the hue of whatever sits behind
+/// it, and the app leans on a single neutral ramp.
+abstract final class AppColors {
+  /// The page background behind every screen. True black.
+  static const bg = Color(0xFF000000);
 
-  /// Background color used by text fields and editors.
-  static const Color textFieldBackground = Color(0xFF1F1F1F);
+  /// The surface a sheet, a menu, or a dialog sits on.
+  static const surface = Color(0xFF0D0D0D);
 
-  /// Color used by the cursor in text fields.
-  static const Color cursorColor = Color(0xFFFFFFFF);
+  /// The borderless fill that gives a field or a card its shape.
+  static const fill = Color(0xFF1C1C1C);
 
-  /// Primary accent color (lime).
-  static const Color primary = Color(0xFFE6FF0D);
+  /// A heavier [fill], for pressed states, tracks, and inactive bars.
+  static const fillStrong = Color(0xFF2B2B2B);
 
-  /// Color rendered on top of the primary color.
-  static const Color onPrimary = Color(0xFF0F0F0F);
+  /// Hairline separators.
+  static const line = Color(0xFF232323);
 
-  /// Secondary accent color (teal).
-  static const Color secondary = Color(0xFF1F7A99);
+  /// Text primary: the lit content.
+  static const ink = Color(0xFFF5F5F5);
 
-  /// Main background color.
-  static const Color background = Color(0xFF0F0F0F);
+  /// Text secondary: labels, captions, and subtitles.
+  static const ink2 = Color(0xFFA1A1A1);
 
-  /// Surface color for cards and elevated containers.
-  static const Color surface = Color(0xFF1A1A1A);
+  /// Text tertiary: placeholders and disabled content.
+  static const ink3 = Color(0xFF6B6B6B);
 
-  /// Muted/on-surface-variant color for secondary text.
-  static const Color muted = Color(0xFFA5A5A5);
+  /// The accent. The single colour the whole app hangs off.
+  static const accent = Color(0xFFE6FF0D);
 
-  /// Outline / divider color.
-  static const Color outline = Color(0xFF3A3A3A);
+  /// Content drawn on top of [accent].
+  static const onAccent = Color(0xFF000000);
 
-  /// Error color.
-  static const Color error = Color(0xFFFF5252);
+  /// A 14% accent tint, for accent-washed fills.
+  static const accentSoft = Color(0x24E6FF0D);
+
+  /// Positive / success.
+  static const positive = Color(0xFF3ECF8E);
+
+  /// Negative / error.
+  static const negative = Color(0xFFFF5A5A);
 }
