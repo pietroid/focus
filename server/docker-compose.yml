@@ -1,0 +1,13 @@
+services:
+  focus-backend:
+    image: focus-backend:latest
+    container_name: focus-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production
+    volumes:
+      # Service account key is kept outside the repo and outside the container.
+      # Place it on the Pi at this path before deploying.
+      - /opt/focus/secrets/focus-backend-prod.json:/run/secrets/focus-backend-prod.json:ro

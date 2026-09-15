@@ -1,0 +1,74 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "App - Development",
+      "request": "launch",
+      "type": "dart",
+      "program": "app/lib/main.dart",
+      "args": [
+        "--flavor",
+        "development",
+        "--target",
+        "lib/main.dart",
+        "--dart-define",
+        "FLAVOR=development",
+        "--dart-define-from-file",
+        "env/development.json",
+        "--web-port",
+        "7357"
+      ]
+    },
+    {
+      "name": "App - Local Development",
+      "request": "launch",
+      "type": "dart",
+      "program": "app/lib/main.dart",
+      "args": [
+        "--flavor",
+        "development",
+        "--target",
+        "lib/main.dart",
+        "--dart-define",
+        "FLAVOR=development",
+        "--dart-define-from-file",
+        "env/development.local.json",
+        "--web-port",
+        "7357"
+      ]
+    },
+    {
+      "name": "App - Production",
+      "request": "launch",
+      "type": "dart",
+      "program": "app/lib/main.dart",
+      "args": [
+        "--flavor",
+        "production",
+        "--target",
+        "lib/main.dart",
+        "--dart-define",
+        "FLAVOR=production",
+        "--dart-define-from-file",
+        "env/production.json",
+        "--web-port",
+        "7357"
+      ]
+    },
+    {
+      "name": "Server - Local instance",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "cwd": "${workspaceFolder}/server",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "restart": true,
+      "autoAttachChildProcesses": true
+    }
+  ]
+}

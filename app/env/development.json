@@ -1,0 +1,6 @@
+{
+  "GOOGLE_SIGN_IN_CLIENT_ID": "YOUR_DEVELOPMENT_WEB_CLIENT_ID",
+  "PROJECT_ID": "focus-development",
+  "BACKEND_SERVICE_ACCOUNT": "focus-backend@focus-development.iam.gserviceaccount.com",
+  "API_BASE_URL": "http://localhost:3000"
+}

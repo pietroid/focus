@@ -39,3 +39,7 @@ The integrations with the Agent are:
 - Schedule task time.
 - Ask for anything, regardless of Agent Provider.
 - Agents, tokens and accounts management.
+
+## Development
+
+See [SETUP.md](./SETUP.md) for build, Firebase and deployment instructions.
