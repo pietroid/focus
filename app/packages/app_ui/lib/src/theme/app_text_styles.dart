@@ -3,8 +3,8 @@ import 'package:app_ui/app_ui.dart';
 /// {@template app_text_styles}
 /// Typography system for the Focus app.
 ///
-/// Headers (display, headline, title and label) use Plus Jakarta Sans,
-/// while body text uses IBM Plex Mono to match the pietroid.github.io
+/// Only h1 (`displayLarge`) and h2 (`displayMedium`) use Plus Jakarta Sans.
+/// Every other style uses IBM Plex Mono to match the pietroid.github.io
 /// design system.
 /// {@endtemplate}
 class AppTextStyles extends ThemeExtension<AppTextStyles> {
@@ -33,7 +33,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Display Small - Desktop: 36px, Bold, lineHeight: 44, letterSpacing: -1.5
   static const TextStyle displaySmallDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 36,
     fontWeight: FontWeight.w700,
     height: 1.22,
@@ -42,7 +42,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Large - Desktop: 32px, SemiBold, lineHeight: 40, spacing: -1.5
   static const TextStyle headlineLargeDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 32,
     fontWeight: FontWeight.w600,
     height: 1.25,
@@ -51,7 +51,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Medium - Desktop: 24px, SemiBold, lineHeight: 32, spacing: -1
   static const TextStyle headlineMediumDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 24,
     fontWeight: FontWeight.w600,
     height: 1.33,
@@ -60,7 +60,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Small - Desktop: 20px, SemiBold, lineHeight: 28, spacing: -0.75
   static const TextStyle headlineSmallDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 20,
     fontWeight: FontWeight.w600,
     height: 1.4,
@@ -69,7 +69,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Large - Desktop: 24px, Medium, lineHeight: 32, letterSpacing: -0.5
   static const TextStyle titleLargeDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 24,
     fontWeight: FontWeight.w500,
     height: 1.33,
@@ -78,7 +78,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Medium - Desktop: 20px, Medium, lineHeight: 28, letterSpacing: -0.5
   static const TextStyle titleMediumDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 20,
     fontWeight: FontWeight.w500,
     height: 1.4,
@@ -87,7 +87,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Small - Desktop: 16px, Medium, lineHeight: 24, letterSpacing: -0.25
   static const TextStyle titleSmallDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 16,
     fontWeight: FontWeight.w500,
     height: 1.5,
@@ -96,7 +96,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Large - Desktop: 16px, Medium, lineHeight: 20, letterSpacing: -0.15
   static const TextStyle labelLargeDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 16,
     fontWeight: FontWeight.w500,
     height: 1.25,
@@ -105,7 +105,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Medium - Desktop: 12px, Medium, lineHeight: 16, letterSpacing: -0.15
   static const TextStyle labelMediumDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 12,
     fontWeight: FontWeight.w500,
     height: 1.33,
@@ -114,7 +114,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Small - Desktop: 11px, Medium, lineHeight: 16, letterSpacing: -0.15
   static const TextStyle labelSmallDesktop = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 11,
     fontWeight: FontWeight.w500,
     height: 1.45,
@@ -170,7 +170,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Display Small - Mobile: 28px, Bold, lineHeight: 36, letterSpacing: -1
   static const TextStyle displaySmallMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 28,
     fontWeight: FontWeight.w700,
     height: 1.29,
@@ -179,7 +179,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Large - Mobile: 28px, SemiBold, lineHeight: 36, spacing: -1
   static const TextStyle headlineLargeMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 28,
     fontWeight: FontWeight.w600,
     height: 1.29,
@@ -188,7 +188,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Medium - Mobile: 22px, SemiBold, lineHeight: 28, spacing: -0.75
   static const TextStyle headlineMediumMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 22,
     fontWeight: FontWeight.w600,
     height: 1.27,
@@ -197,7 +197,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Headline Small - Mobile: 18px, SemiBold, lineHeight: 24, spacing: -0.5
   static const TextStyle headlineSmallMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 18,
     fontWeight: FontWeight.w600,
     height: 1.33,
@@ -206,7 +206,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Large - Mobile: 20px, Medium, lineHeight: 28, letterSpacing: -0.25
   static const TextStyle titleLargeMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 20,
     fontWeight: FontWeight.w500,
     height: 1.4,
@@ -215,7 +215,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Medium - Mobile: 18px, Medium, lineHeight: 24, letterSpacing: -0.25
   static const TextStyle titleMediumMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 18,
     fontWeight: FontWeight.w500,
     height: 1.33,
@@ -224,7 +224,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Title Small - Mobile: 14px, Medium, lineHeight: 20, letterSpacing: -0.15
   static const TextStyle titleSmallMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 14,
     fontWeight: FontWeight.w500,
     height: 1.43,
@@ -233,7 +233,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Large - Mobile: 16px, Medium, lineHeight: 20, letterSpacing: -0.15
   static const TextStyle labelLargeMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 16,
     fontWeight: FontWeight.w500,
     height: 1.25,
@@ -242,7 +242,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Medium - Mobile: 12px, Medium, lineHeight: 16, letterSpacing: -0.15
   static const TextStyle labelMediumMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 12,
     fontWeight: FontWeight.w500,
     height: 1.33,
@@ -251,7 +251,7 @@ class AppTextStyles extends ThemeExtension<AppTextStyles> {
 
   /// Label Small - Mobile: 11px, Medium, lineHeight: 16, letterSpacing: -0.15
   static const TextStyle labelSmallMobile = TextStyle(
-    fontFamily: 'Plus Jakarta Sans',
+    fontFamily: 'IBM Plex Mono',
     fontSize: 11,
     fontWeight: FontWeight.w500,
     height: 1.45,

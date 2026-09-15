@@ -4,6 +4,9 @@ import 'package:flutter_svg/svg.dart';
 
 /// {@template app_icon}
 /// Widget for displaying app icons.
+///
+/// Defaults to Phosphor icons; SVG assets are still supported for
+/// brand/logos that are not available in Phosphor.
 /// {@endtemplate}
 class AppIcon extends StatelessWidget {
   /// {@macro app_icon}
@@ -25,11 +28,19 @@ class AppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final phosphorIcon = iconData.iconData;
+    if (phosphorIcon != null) {
+      return Icon(phosphorIcon, size: size, color: color);
+    }
+
+    final assetPath = iconData.path;
+    if (assetPath == null) return const SizedBox.shrink();
+
     return SizedBox(
       width: size,
       height: size,
       child: SvgPicture.asset(
-        'assets/icons/${iconData.path}.svg',
+        'assets/icons/$assetPath.svg',
         package: 'app_ui',
         width: size,
         height: size,

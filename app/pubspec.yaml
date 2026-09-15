@@ -24,8 +24,6 @@ dependencies:
     sdk: flutter
   go_router: ^15.1.2
   intl: ^0.20.2
-  subject:
-    path: packages/subject
   user:
     path: packages/user
 

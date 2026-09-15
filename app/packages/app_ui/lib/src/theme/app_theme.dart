@@ -4,6 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 /// {@template app_theme}
 /// Composes [ThemeData] with a dark color scheme inspired by
 /// pietroid.github.io and custom [ThemeExtension]s.
+///
+/// Only h1 (`displayLarge`) and h2 (`displayMedium`) use Plus Jakarta Sans;
+/// everything else defaults to IBM Plex Mono.
 /// {@endtemplate}
 class AppTheme {
   /// The dark [ThemeData].
@@ -17,10 +20,9 @@ class AppTheme {
       baseTheme.textTheme,
     );
 
-    final textTheme = plusJakartaSansTextTheme.copyWith(
-      bodyLarge: ibmPlexMonoTextTheme.bodyLarge,
-      bodyMedium: ibmPlexMonoTextTheme.bodyMedium,
-      bodySmall: ibmPlexMonoTextTheme.bodySmall,
+    final textTheme = ibmPlexMonoTextTheme.copyWith(
+      displayLarge: plusJakartaSansTextTheme.displayLarge,
+      displayMedium: plusJakartaSansTextTheme.displayMedium,
     );
 
     return ThemeData(

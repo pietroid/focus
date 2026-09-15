@@ -5,7 +5,6 @@ import 'package:focus/app/app.dart';
 import 'package:focus/home/home.dart';
 import 'package:focus/l10n/l10n.dart';
 import 'package:go_router/go_router.dart';
-import 'package:subject/subject.dart';
 
 /// {@template app}
 /// Root widget for the Focus application.
@@ -27,17 +26,9 @@ class App extends StatelessWidget {
                onUserAuthenticated: onUserAuthenticated,
                onAuthenticated: () => context.go('/'),
              ),
-           ),
-           GoRoute(
-             path: '/subject/:id',
-             builder: (context, state) => SubjectPage(
-               subjectId: state.pathParameters['id']!,
-               uploadButtonLabel: context.l10n.uploadButton,
-               onHomePressed: () => context.go('/'),
-             ),
-           ),
-         ],
-       );
+            ),
+          ],
+        );
 
   final GoRouter _router;
 
@@ -51,10 +42,7 @@ class App extends StatelessWidget {
       listener: (context, state) {
         if (state.status == AppStatus.unauthenticated) {
           _router.go('/auth');
-          return;
         }
-
-        context.read<SubjectBloc>().add(const SubjectsRequested());
       },
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,

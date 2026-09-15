@@ -8,7 +8,6 @@ import 'package:focus/app/app.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:focus/firebase_options_development.dart' as dev;
 import 'package:focus/firebase_options_production.dart' as prod;
-import 'package:subject/subject.dart';
 import 'package:user/user.dart';
 
 const _kGoogleSignInClientId = String.fromEnvironment(
@@ -54,22 +53,14 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
     tokenProvider: _AuthTokenProvider(authRepository),
   );
   final userRepository = UserRepository(apiClient: apiClient);
-  final subjectRepository = SubjectRepository(apiClient: apiClient);
-  final subjectBloc = SubjectBloc(subjectRepository: subjectRepository);
 
   final initialUser = await authRepository.user.first;
   final initialLocation = initialUser == null ? '/auth' : '/';
-
-  if (initialUser != null) {
-    subjectBloc.add(const SubjectsRequested());
-    await subjectBloc.stream.firstWhere((state) => !state.isLoading);
-  }
 
   await bootstrap(
     () => MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>(create: (_) => authRepository),
-        RepositoryProvider<SubjectRepository>(create: (_) => subjectRepository),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -79,7 +70,6 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
               initialUser: initialUser,
             ),
           ),
-          BlocProvider<SubjectBloc>.value(value: subjectBloc),
         ],
         child: App(
           initialLocation: initialLocation,

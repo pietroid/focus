@@ -95,16 +95,9 @@ export class SubjectsController {
     @Body() dto: CreateOverlayDto,
   ): Promise<Subject> {
     if (dto.x == null || dto.y == null || !dto.text || !dto.color) {
-      throw new BadRequestException(
-        'x, y, text and color are required',
-      );
+      throw new BadRequestException('x, y, text and color are required');
     }
 
-    return this.subjectsService.addOverlay(
-      user.uid,
-      subjectId,
-      sourceId,
-      dto,
-    );
+    return this.subjectsService.addOverlay(user.uid, subjectId, sourceId, dto);
   }
 }
