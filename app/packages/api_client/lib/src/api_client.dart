@@ -12,8 +12,24 @@ class ApiClient {
     required String baseUrl,
     required TokenProvider tokenProvider,
     Dio? dio,
-  }) : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
-    _dio.interceptors.add(AuthInterceptor(tokenProvider: tokenProvider));
+  }) : _dio = dio ??
+            Dio(
+              BaseOptions(
+                baseUrl: baseUrl,
+                contentType: Headers.jsonContentType,
+                // Required for cross-origin requests when the backend sets
+                // `Access-Control-Allow-Credentials: true`. The web adapter
+                // reads this value from RequestOptions.extra; it is ignored
+                // on mobile platforms.
+                extra: const {'withCredentials': true},
+              ),
+            ) {
+    _dio.interceptors.add(
+      AuthInterceptor(
+        tokenProvider: tokenProvider,
+        dio: _dio,
+      ),
+    );
   }
 
   final Dio _dio;

@@ -7,10 +7,17 @@ import 'package:dio/dio.dart';
 /// {@endtemplate}
 class AuthInterceptor extends Interceptor {
   /// {@macro auth_interceptor}
-  const AuthInterceptor({required this.tokenProvider});
+  const AuthInterceptor({
+    required this.tokenProvider,
+    required this.dio,
+  });
 
   /// Provider used to retrieve and refresh the access token.
   final TokenProvider tokenProvider;
+
+  /// The Dio instance used to retry failed requests so that base URL,
+  /// content type and CORS credentials settings are preserved.
+  final Dio dio;
 
   @override
   Future<void> onRequest(
@@ -44,7 +51,7 @@ class AuthInterceptor extends Interceptor {
       final requestOptions = err.requestOptions;
       requestOptions.headers['Authorization'] = 'Bearer $newToken';
 
-      final response = await Dio().fetch<dynamic>(requestOptions);
+      final response = await dio.fetch<dynamic>(requestOptions);
       handler.resolve(response);
     } on Exception catch (_) {
       handler.next(err);

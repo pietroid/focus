@@ -29,15 +29,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   /// caller can create the user record on the backend.
   final Future<void> Function(AppUser user)? onUserAuthenticated;
 
+  /// Whether a sign-in flow is currently in progress. Used to suppress the
+  /// auth-stream `authenticated` emission while we wait for the backend
+  /// signup call to complete.
+  bool _isSigningIn = false;
+
   Future<void> _onStarted(AuthStarted event, Emitter<AuthState> emit) async {
     await emit.forEach(
       _authRepository.user,
-      onData: (user) => user != null
-          ? state.copyWith(
-              status: AuthStatus.authenticated,
-              user: user,
-            )
-          : const AuthState(status: AuthStatus.unauthenticated),
+      onData: (user) {
+        // While a sign-in is in progress, the stream will emit the user as
+        // soon as Firebase returns it, but we must not navigate yet. Keep
+        // the loading status and just store the user on the state.
+        if (_isSigningIn) {
+          return state.copyWith(user: user ?? state.user);
+        }
+
+        return user != null
+            ? state.copyWith(
+                status: AuthStatus.authenticated,
+                user: user,
+              )
+            : const AuthState(status: AuthStatus.unauthenticated);
+      },
       onError: (error, stackTrace) => state.copyWith(
         status: AuthStatus.failure,
         errorMessage: 'Authentication stream error',
@@ -49,10 +63,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthGoogleSignInRequested event,
     Emitter<AuthState> emit,
   ) async {
+    _isSigningIn = true;
     emit(state.copyWith(status: AuthStatus.loading));
     try {
       await _authRepository.signInWithGoogle();
-      await _ensureUserRecord(emit);
+      final user = (await _authRepository.user.firstWhere(
+        (user) => user != null,
+      ))!;
+      await onUserAuthenticated?.call(user);
+      emit(
+        state.copyWith(
+          status: AuthStatus.authenticated,
+          user: user,
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       emit(
         state.copyWith(
@@ -67,13 +91,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           errorMessage: e.toString(),
         ),
       );
-    }
-  }
-
-  Future<void> _ensureUserRecord(Emitter<AuthState> emit) async {
-    final user = await _authRepository.user.firstWhere((user) => user != null);
-    if (user != null) {
-      await onUserAuthenticated?.call(user);
+    } finally {
+      _isSigningIn = false;
     }
   }
 
