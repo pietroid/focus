@@ -82,31 +82,23 @@ ls -la /opt/focus/secrets/
 
 ---
 
-## 5. Deploy the backend from your Mac
+## 5. Deploy the backend directly on the Pi
 
-There is a convenience script at the project root that deploys the current local `main` branch to the Pi.
-
-On your Mac, from the project root:
+SSH into the Pi, then run the local deployment script from the `server` directory:
 
 ```bash
-cd /Users/pietro/Documents/pietroid.dev/focus
-./deploy-local.sh
+ssh focus@focus.local
+cd /path/to/focus/server
+npm run deploy:prod
 ```
 
 This will:
 
-1. Ensure you are on the `main` branch.
-2. Pull the latest changes from `origin/main`.
-3. Build a `linux/arm64` Docker image named `focus-backend:latest`.
-4. Save it as `focus-backend.tar`.
-5. Copy the image, `docker-compose.yml`, and `.env.production` to `/opt/focus` on the Pi.
-6. Load the image and start the container on port `3000`.
+1. Pull the latest changes from git.
+2. Build the Docker image natively on the Pi.
+3. Start the container on port `3000`.
 
-To skip the `git pull` step (for example, to deploy uncommitted local changes), run:
-
-```bash
-./deploy-local.sh --no-pull
-```
+Make sure the service account key and `.env.production` are already present on the Pi (see steps 3 and 4).
 
 ---
 

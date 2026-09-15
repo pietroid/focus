@@ -25,7 +25,7 @@ Focus is a personal productivity system with three parts:
 ## Backend Deployment
 
 - Local dev: `cd server && npm run start:dev` (uses `GOOGLE_APPLICATION_CREDENTIALS`).
-- Pi deploy: `cd server && npm run deploy:prod -- --host <pi-host>`.
+- Pi deploy: run `cd server && npm run deploy:prod` directly on the Pi.
 - The Pi exposes port `3000`.
 - The Firebase service account key must live on the Pi at `/opt/focus/secrets/focus-backend-prod.json` and is never committed.
 
@@ -49,7 +49,7 @@ npm install
 export GOOGLE_APPLICATION_CREDENTIALS="$HOME/keys/focus-backend-prod.json"
 npm run start:dev
 
-# Backend deploy to Pi
+# Backend deploy to Pi (run directly on the Pi)
 cd server
-npm run deploy:prod -- --host your-pi-hostname
+npm run deploy:prod
 ```

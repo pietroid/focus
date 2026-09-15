@@ -211,20 +211,14 @@ The backend runs on the Pi as a Docker container managed by Docker Compose.
 
 ### 5.2. Deploy
 
-From the `server` directory:
+Run this directly on the Raspberry Pi from the `server` directory:
 
 ```bash
 cd server
-npm run deploy:prod -- --host your-pi-hostname
+npm run deploy:prod
 ```
 
-This builds a `linux/arm64` Docker image, copies it to the Pi, loads it, and starts the container on port `3000`.
-
-Override defaults if needed:
-
-```bash
-npm run deploy:prod -- --host your-pi-hostname --user pi --pi-dir /opt/focus
-```
+This pulls the latest code, builds the Docker image natively on the Pi, and starts the container on port `3000`.
 
 ### 5.3. Update the app
 
