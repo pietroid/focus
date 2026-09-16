@@ -58,7 +58,7 @@ export class ThreadsService {
     text: string,
   ): Promise<void> {
     const prompt = message('user', text, new Date());
-    const answer = await this.agent.reply();
+    const answer = await this.agent.reply({ userId, slug, message: text });
 
     await this.store.append(userId, slug, title, [
       prompt,

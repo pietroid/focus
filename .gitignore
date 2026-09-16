@@ -141,3 +141,19 @@ server/.pnpm-debug.log*
 server/.eslintcache
 server/*.tsbuildinfo
 server/.nyc_output/
+
+# Agent (Express/Node.js)
+agent/node_modules/
+agent/dist/
+agent/coverage/
+# Keep .env.example as the public template; all other agent env files are local.
+agent/.env
+agent/.env.*
+!agent/.env.example
+agent/npm-debug.log*
+agent/yarn-debug.log*
+agent/yarn-error.log*
+agent/.pnpm-debug.log*
+agent/.eslintcache
+agent/*.tsbuildinfo
+agent/.nyc_output/

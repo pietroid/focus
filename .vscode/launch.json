@@ -59,6 +59,25 @@
       ]
     },
     {
+      "name": "App - Production Profile",
+      "request": "launch",
+      "type": "dart",
+      "program": "app/lib/main.dart",
+      "args": [
+        "--flavor",
+        "production",
+        "--profile",
+        "--target",
+        "lib/main.dart",
+        "--dart-define",
+        "FLAVOR=production",
+        "--dart-define-from-file",
+        "env/production.json",
+        "--web-port",
+        "7357"
+      ]
+    },
+    {
       "name": "Server - Local instance",
       "type": "node",
       "request": "launch",

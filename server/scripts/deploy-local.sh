@@ -25,7 +25,9 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ENV_FILE="$ROOT_DIR/.env.production"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
-IMAGE_NAME="focus-backend:latest"
+BACKEND_IMAGE="focus-backend:latest"
+AGENT_DIR="$ROOT_DIR/../agent"
+AGENT_IMAGE="focus-agent:latest"
 
 cd "$ROOT_DIR"
 
@@ -37,8 +39,12 @@ echo "Ensuring web root exists..."
 mkdir -p /opt/focus/web
 
 echo ""
-echo "Building Docker image..."
-docker build -t "$IMAGE_NAME" .
+echo "Building backend Docker image..."
+docker build -t "$BACKEND_IMAGE" .
+
+echo ""
+echo "Building agent Docker image..."
+docker build -t "$AGENT_IMAGE" "$AGENT_DIR"
 
 echo ""
 echo "Starting containers with docker compose..."
@@ -49,3 +55,6 @@ echo "Deployment complete."
 echo ""
 echo "Make sure the service account key is present on the Pi at:"
 echo "  /opt/focus/secrets/focus-backend-prod.json"
+echo ""
+echo "Make sure the agent environment file is present on the Pi at:"
+echo "  $AGENT_DIR/.env.production"

@@ -1,29 +1,45 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+export interface ReplyContext {
+  userId: string;
+  slug: string;
+  message: string;
+}
+
+interface AgentReplyResponse {
+  text: string;
+}
 
 /**
- * Stands in for the real agent.
+ * Client for the separate Focus agent service.
  *
- * Returns a placeholder after a short delay. The delay is deliberate: it is
- * roughly what a model call will cost, and without it the client's loading
- * state would never render long enough to be worth having.
- *
- * The real agent will take the whole thread rather than a single prompt, so
- * this takes nothing until there is something to give it.
+ * The agent runs in its own container on the internal Docker network. It has
+ * read-only access to the thread files and exposes a private /reply endpoint.
+ * This service sends the thread reference and the new user message; the agent
+ * reads the thread itself and returns a reply.
  */
 @Injectable()
 export class AgentService {
-  private readonly _replies = [
-    'Got it. I have made a note of that.',
-    'Sure. Anything else you want to add to this thread?',
-    'Noted. I will keep this one open.',
-    'Understood. Want me to break that into steps?',
-    'Filed. Tell me when something changes.',
-  ];
+  constructor(private readonly _config: ConfigService) {}
 
-  async reply(): Promise<string> {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+  async reply(context: ReplyContext): Promise<string> {
+    const agentUrl = this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
 
-    const index = Math.floor(Math.random() * this._replies.length);
-    return this._replies[index];
+    const response = await fetch(`${agentUrl}/reply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(context),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => 'unknown error');
+      throw new Error(`Agent returned ${response.status}: ${body}`);
+    }
+
+    const data = (await response.json()) as AgentReplyResponse;
+    return data.text;
   }
 }
