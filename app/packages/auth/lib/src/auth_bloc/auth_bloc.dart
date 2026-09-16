@@ -78,6 +78,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } on FirebaseAuthException catch (e) {
+      await _authRepository.signOut();
       emit(
         state.copyWith(
           status: AuthStatus.failure,
@@ -85,6 +86,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         ),
       );
     } on Exception catch (e) {
+      await _authRepository.signOut();
       emit(
         state.copyWith(
           status: AuthStatus.failure,

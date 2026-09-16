@@ -24,10 +24,29 @@ export class FirebaseStrategy extends PassportStrategy(
     }
 
     const token = authHeader.slice(7);
+    let decodedToken: DecodedIdToken;
     try {
-      return await getAuth().verifyIdToken(token);
+      decodedToken = await getAuth().verifyIdToken(token);
     } catch {
       throw new UnauthorizedException('Invalid Firebase token');
     }
+
+    const allowedEmails = this.getAllowedEmails();
+    if (
+      allowedEmails.length > 0 &&
+      (!decodedToken.email || !allowedEmails.includes(decodedToken.email))
+    ) {
+      throw new UnauthorizedException('Account not authorized');
+    }
+
+    return decodedToken;
+  }
+
+  private getAllowedEmails(): string[] {
+    const raw = process.env.ALLOWED_GOOGLE_EMAILS ?? '';
+    return raw
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email.length > 0);
   }
 }
