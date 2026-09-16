@@ -50,7 +50,7 @@ export class ThreadsService {
     return this.findOne(userId, slug);
   }
 
-  /** Writes the user's message and the agent's answer as one append. */
+  /** Writes the user's message, asks the agent, then writes the answer. */
   private async _exchange(
     userId: string,
     slug: string,
@@ -58,10 +58,11 @@ export class ThreadsService {
     text: string,
   ): Promise<void> {
     const prompt = message('user', text, new Date());
+    await this.store.append(userId, slug, title, [prompt]);
+
     const answer = await this.agent.reply({ userId, slug, message: text });
 
     await this.store.append(userId, slug, title, [
-      prompt,
       message('agent', answer, new Date()),
     ]);
   }

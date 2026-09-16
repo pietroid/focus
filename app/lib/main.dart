@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/bootstrap.dart';
-import 'package:focus/firebase_options_development.dart' as dev;
 import 'package:focus/firebase_options_production.dart' as prod;
 import 'package:user/user.dart';
 
@@ -15,7 +14,6 @@ const _kGoogleSignInClientId = String.fromEnvironment(
   'GOOGLE_SIGN_IN_CLIENT_ID',
 );
 const _kApiBaseUrl = String.fromEnvironment('API_BASE_URL');
-const _kFlavor = String.fromEnvironment('FLAVOR', defaultValue: 'development');
 
 class _AuthTokenProvider implements TokenProvider {
   _AuthTokenProvider(this._authRepository);
@@ -34,10 +32,10 @@ class _AuthTokenProvider implements TokenProvider {
 }
 
 Future<void> main() async {
-  final options = switch (_kFlavor) {
-    'production' => prod.DefaultFirebaseOptions.currentPlatform,
-    _ => dev.DefaultFirebaseOptions.currentPlatform,
-  };
+  // The development Firebase project is no longer used; both flavors talk to
+  // the production project. The flavor only controls the backend URL and the
+  // app bundle ID.
+  final options = prod.DefaultFirebaseOptions.currentPlatform;
 
   await _runAppWithFirebaseOptions(options);
 }

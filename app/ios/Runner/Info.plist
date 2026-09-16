@@ -79,20 +79,19 @@
 		<array>
 			<dict>
 				<key>CFBundleURLName</key>
-				<string>Google Sign-In (Development iOS)</string>
+				<string>Google Sign-In</string>
 				<key>CFBundleURLSchemes</key>
 				<array>
-					<string>com.googleusercontent.apps.YOUR_DEVELOPMENT_IOS_CLIENT_ID</string>
+					<string>com.googleusercontent.apps.392630770562-sm05h5l29140puk6osh709c9uunqt376</string>
 				</array>
 			</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>Google Sign-In (Production iOS)</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.392630770562-sm05h5l29140puk6osh709c9uunqt376</string>
-			</array>
-		</dict>
 		</array>
+		<key>NSLocalNetworkUsageDescription</key>
+		<string>Focus needs to connect to the development server on your local network.</string>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true/>
+		</dict>
 	</dict>
 </plist>

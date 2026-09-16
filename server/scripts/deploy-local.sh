@@ -3,14 +3,15 @@ set -euo pipefail
 
 # deploy-local.sh
 #
-# Deploy the NestJS backend locally on the Raspberry Pi.
+# Deploy the NestJS backend locally on the Raspberry Pi by building the Docker
+# images directly on the Pi.
 #
 # Usage:
 #   scripts/deploy-local.sh
 #
 # Must be run from inside the Raspberry Pi where the repo is cloned.
-# It pulls the latest code, builds the Docker image natively, and starts
-# the container with docker compose.
+# It pulls the latest code, builds the Docker images natively, and starts
+# the containers with docker compose.
 #
 # The service account JSON key must already be present on the Pi at:
 #   /opt/focus/secrets/focus-backend-prod.json
@@ -18,7 +19,12 @@ set -euo pipefail
 #
 # The Flutter web app is served separately by the focus-web (nginx) container.
 # Populate /opt/focus/web on the Pi by running app/scripts/deploy-web.sh from
-# your development machine.
+# your development machine, or by using the GitHub Actions deploy-app workflow.
+#
+# Note: this script builds images locally on the Pi. For faster deploys from
+# GitHub Actions, see .github/workflows/deploy-server.yml and
+# .github/workflows/deploy-agent.yml, which build multi-arch images and push
+# them to GitHub Container Registry (ghcr.io).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -28,6 +34,11 @@ COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
 BACKEND_IMAGE="focus-backend:latest"
 AGENT_DIR="$ROOT_DIR/../agent"
 AGENT_IMAGE="focus-agent:latest"
+
+# Tell docker compose to use the locally-built image names. GitHub Actions
+# overrides these variables to use the ghcr.io registry images instead.
+export FOCUS_BACKEND_IMAGE="$BACKEND_IMAGE"
+export FOCUS_AGENT_IMAGE="$AGENT_IMAGE"
 
 cd "$ROOT_DIR"
 

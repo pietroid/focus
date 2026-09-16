@@ -1,6 +1,6 @@
 {
-  "GOOGLE_SIGN_IN_CLIENT_ID": "YOUR_DEVELOPMENT_WEB_CLIENT_ID",
-  "PROJECT_ID": "focus-development",
-  "BACKEND_SERVICE_ACCOUNT": "focus-backend@focus-development.iam.gserviceaccount.com",
+  "GOOGLE_SIGN_IN_CLIENT_ID": "392630770562-qsl14mvdsudsf0fq9rhjg31uhftg7rl6.apps.googleusercontent.com",
+  "PROJECT_ID": "focus-production",
+  "BACKEND_SERVICE_ACCOUNT": "firebase-adminsdk-fbsvc@focus-production.iam.gserviceaccount.com",
   "API_BASE_URL": "http://localhost:3000"
 }
