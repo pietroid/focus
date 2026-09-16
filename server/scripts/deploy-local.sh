@@ -15,6 +15,10 @@ set -euo pipefail
 # The service account JSON key must already be present on the Pi at:
 #   /opt/focus/secrets/focus-backend-prod.json
 # The key is NEVER committed; keep it outside version control.
+#
+# The Flutter web app is served separately by the focus-web (nginx) container.
+# Populate /opt/focus/web on the Pi by running app/scripts/deploy-web.sh from
+# your development machine.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -29,11 +33,15 @@ echo "Pulling latest code..."
 git pull
 
 echo ""
+echo "Ensuring web root exists..."
+mkdir -p /opt/focus/web
+
+echo ""
 echo "Building Docker image..."
 docker build -t "$IMAGE_NAME" .
 
 echo ""
-echo "Starting container with docker compose..."
+echo "Starting containers with docker compose..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d
 
 echo ""

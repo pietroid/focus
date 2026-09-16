@@ -3,8 +3,8 @@ services:
     image: focus-backend:latest
     container_name: focus-backend
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     env_file:
       - .env.production
     volumes:
@@ -13,3 +13,17 @@ services:
       - /opt/focus/secrets/focus-backend-prod.json:/run/secrets/focus-backend-prod.json:ro
       # Thread data is persisted on the host so it survives container rebuilds.
       - /opt/focus/data/threads:/app/data/threads
+
+  focus-web:
+    image: nginx:alpine
+    container_name: focus-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - focus-backend
+    volumes:
+      # Flutter web build output. Populate this directory with the
+      # app/scripts/deploy-web.sh script from your dev machine.
+      - /opt/focus/web:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
