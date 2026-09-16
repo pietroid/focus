@@ -31,14 +31,16 @@ abstract final class AppColors {
   /// Text tertiary: placeholders and disabled content.
   static const ink3 = Color(0xFF6B6B6B);
 
-  /// The accent. The single colour the whole app hangs off.
-  static const accent = Color(0xFFE6FF0D);
+  /// The accent. A neutral light grey so buttons and highlights stay
+  /// harmonious with the dark greyscale surfaces and the green / red
+  /// semantic colours.
+  static const accent = Color(0xFFD4D4D4);
 
   /// Content drawn on top of [accent].
   static const onAccent = Color(0xFF000000);
 
   /// A 14% accent tint, for accent-washed fills.
-  static const accentSoft = Color(0x24E6FF0D);
+  static const accentSoft = Color(0x24D4D4D4);
 
   /// Positive / success.
   static const positive = Color(0xFF3ECF8E);

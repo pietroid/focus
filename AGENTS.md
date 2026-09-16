@@ -39,10 +39,18 @@ The Flutter web app is served by an nginx container (`focus-web`) on the Pi.
    cd server
    npm run deploy:prod
    ```
-2. From your dev machine, build and copy the web app to the Pi:
+2. Deploy the web app:
+
+   **Option A — from your dev machine:**
    ```bash
    cd app
    ./scripts/deploy-web.sh pi@<pi-ip>
+   ```
+
+   **Option B — locally on the Pi (requires Flutter SDK on the Pi):**
+   ```bash
+   cd app
+   ./scripts/deploy-web-local.sh
    ```
 3. Open `http://<pi-ip>` in a browser.
 
@@ -75,4 +83,8 @@ npm run deploy:prod
 # Web deploy to Pi (from your dev machine)
 cd app
 ./scripts/deploy-web.sh pi@<pi-ip>
+
+# Web deploy locally on the Pi (requires Flutter SDK on the Pi)
+cd app
+./scripts/deploy-web-local.sh
 ```
