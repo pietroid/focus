@@ -60,7 +60,7 @@ jobs:
           TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.TUNNEL_SERVICE_TOKEN_SECRET }}
         run: |
           set -euo pipefail
-          cloudflared access tcp --hostname deploy.pietroid.dev --url localhost:2222 &
+          cloudflared access tcp --hostname deploy.pietroteruya.dev --url localhost:2222 &
           sleep 5
 
       - name: Deploy to Raspberry Pi
