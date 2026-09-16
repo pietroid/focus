@@ -11,3 +11,5 @@ services:
       # Service account key is kept outside the repo and outside the container.
       # Place it on the Pi at this path before deploying.
       - /opt/focus/secrets/focus-backend-prod.json:/run/secrets/focus-backend-prod.json:ro
+      # Thread data is persisted on the host so it survives container rebuilds.
+      - /opt/focus/data/threads:/app/data/threads
