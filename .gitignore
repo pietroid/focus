@@ -120,6 +120,7 @@ app/env/*.local.json
 # Generated Firebase config files (regenerate with ./app/update_firebase_config.sh)
 app/firebase.json
 app/lib/firebase_options_*.dart
+!app/lib/firebase_options_production.dart
 app/android/app/src/*/google-services.json
 app/ios/Runner/GoogleService-Info*.plist
 

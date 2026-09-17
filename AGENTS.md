@@ -288,7 +288,7 @@ NestJS backend.
 - `agent/.env.production` is gitignored; use `agent/.env.example` as a template.
 - The SSH deploy key can log in to the Pi. Keep the private key safe and limit
   what the Pi user can do (do not give it root unless necessary).
-- Generated Firebase config files (`firebase_options_*.dart`, `google-services.json`, `GoogleService-Info.plist`) must be regenerated with `./app/update_firebase_config.sh` after Firebase changes.
+- `app/lib/firebase_options_production.dart` is tracked (it only contains public Firebase client API keys). Other generated Firebase config files (`firebase_options_development.dart`, `google-services.json`, `GoogleService-Info.plist`) remain gitignored and must be regenerated with `./app/update_firebase_config.sh` after Firebase changes.
 
 ## Common Commands
 

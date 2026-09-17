@@ -95,7 +95,7 @@ This regenerates:
 - `ios/Runner/GoogleService-Info.plist`
 - `ios/Runner/GoogleService-Info-Development.plist`
 
-> The currently committed generated files contain placeholder or old API keys and must be regenerated before the app can talk to `focus-production`.
+> `lib/firebase_options_production.dart` is tracked in the repository. The remaining generated files are gitignored and must be regenerated before the app can talk to `focus-production`.
 
 ### 3.8. iOS URL Schemes
 
