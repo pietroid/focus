@@ -47,8 +47,8 @@ jobs:
       - name: Install cloudflared
         run: |
           set -euo pipefail
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
+          sudo dpkg -i cloudflared-linux-arm64.deb
 
       - name: Start Cloudflare SSH proxy
         env:
