@@ -69,8 +69,10 @@ jobs:
           TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.TUNNEL_SERVICE_TOKEN_SECRET }}
         run: |
           set -euo pipefail
-          cloudflared access tcp --hostname deploy.pietroteruya.dev --url localhost:2222 &
+          cloudflared access tcp --hostname deploy.pietroteruya.dev --url localhost:2222 > /tmp/cloudflared.log 2>&1 &
           sleep 5
+          echo "--- cloudflared proxy logs ---"
+          cat /tmp/cloudflared.log
 
       - name: Deploy to Raspberry Pi
         env:
