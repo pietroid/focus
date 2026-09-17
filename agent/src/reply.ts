@@ -5,24 +5,97 @@ export interface ReplyContext {
   newMessage: string;
 }
 
-/**
- * Stand-in for the real agent.
- *
- * In the future this can call an LLM using the thread messages and the new
- * user message as context. For now it returns a placeholder after a short
- * delay so the client's loading state remains visible.
- */
-export async function agentReply(context: ReplyContext): Promise<string> {
-  const replies = [
-    'Got it. I have made a note of that.',
-    'Sure. Anything else you want to add to this thread?',
-    'Noted. I will keep this one open.',
-    'Understood. Want me to break that into steps?',
-    'Filed. Tell me when something changes.',
+interface OpenRouterMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface OpenRouterResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+  error?: {
+    message: string;
+  };
+}
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+function getEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
+function buildMessages(thread: Thread, newMessage: string): OpenRouterMessage[] {
+  const messages: OpenRouterMessage[] = [
+    {
+      role: 'system',
+      content:
+        'You are Focus, a concise personal productivity assistant. You help the user think through tasks, capture notes, and make progress on their threads. Keep replies brief and actionable.',
+    },
   ];
 
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  for (const message of thread.messages) {
+    messages.push({
+      role: message.role === 'agent' ? 'assistant' : 'user',
+      content: message.text,
+    });
+  }
 
-  const index = Math.floor(Math.random() * replies.length);
-  return replies[index];
+  messages.push({ role: 'user', content: newMessage });
+  return messages;
+}
+
+async function callOpenRouter(messages: OpenRouterMessage[]): Promise<string> {
+  const apiKey = getEnv('OPENROUTER_API_KEY');
+  const model = getEnv('OPENROUTER_MODEL') ?? 'openai/gpt-4o-mini';
+
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY is not configured');
+  }
+
+  const response = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+    }),
+  });
+
+  const data = (await response.json()) as OpenRouterResponse;
+
+  if (!response.ok || data.error) {
+    const message = data.error?.message ?? `OpenRouter returned ${response.status}`;
+    throw new Error(`OpenRouter request failed: ${message}`);
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content !== 'string' || content.trim() === '') {
+    throw new Error('OpenRouter returned an empty reply');
+  }
+
+  return content.trim();
+}
+
+/**
+ * Generates a reply for the given thread and new user message.
+ *
+ * The reply is produced by calling OpenRouter using the thread history as
+ * context. If OpenRouter is not configured or the request fails, a short
+ * fallback message is returned so the endpoint remains usable.
+ */
+export async function agentReply(context: ReplyContext): Promise<string> {
+  const messages = buildMessages(context.thread, context.newMessage);
+
+  try {
+    return await callOpenRouter(messages);
+  } catch (error) {
+    console.error('Agent reply failed:', error);
+    return 'Sorry, I could not generate a reply right now. Please try again in a moment.';
+  }
 }

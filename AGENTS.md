@@ -220,6 +220,10 @@ container.
   `/app/data/threads`.
 - It does **not** see the backend's Firebase service account or
   `.env.production` secrets.
+- Replies are generated via the [OpenRouter](https://openrouter.ai/) API using
+  the thread history as context. Configure it with `OPENROUTER_API_KEY` and
+  `OPENROUTER_MODEL` in `agent/.env.production`. If the key is missing or the
+  request fails, the agent returns a short fallback message.
 
 ## Manual / Local Deployment
 
