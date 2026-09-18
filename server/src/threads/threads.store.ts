@@ -1,11 +1,12 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
-import { Message } from './entities/message.entity';
+import { Message, ToolCall } from './entities/message.entity';
 import { Thread, ThreadSummary } from './entities/thread.entity';
 import {
   dayFolder,
   parseThreadDay,
+  previewFrom,
   serializeThreadDay,
   titleFrom,
 } from './thread-markdown';
@@ -15,6 +16,7 @@ import {
  *
  * ```
  * <root>/<userId>/<thread-slug>/<YYYY-MM-DD>/thread.md
+ * <root>/<userId>/<thread-slug>/pending-tool-calls.json
  * ```
  *
  * A thread is a folder of days, so appending to a conversation only ever
@@ -22,6 +24,8 @@ import {
  * filed under the user who owns them: the layout below that is exactly the
  * per-thread shape, and the extra segment keeps one user's threads from being
  * readable by another.
+ *
+ * Pending tool calls are stored in a sidecar file keyed by message id.
  */
 @Injectable()
 export class ThreadsStore {
@@ -35,6 +39,10 @@ export class ThreadsStore {
 
   private _threadDir(userId: string, slug: string): string {
     return path.join(this._userDir(userId), sanitizeSegment(slug));
+  }
+
+  private _pendingToolCallsFile(userId: string, slug: string): string {
+    return path.join(this._threadDir(userId, slug), 'pending-tool-calls.json');
   }
 
   /** Whether a thread folder already exists. */
@@ -62,6 +70,8 @@ export class ThreadsStore {
     let title = '';
 
     for (const day of days) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+
       const file = path.join(dir, day, 'thread.md');
       const markdown = await readFileOrNull(file);
       if (markdown === null) continue;
@@ -72,6 +82,15 @@ export class ThreadsStore {
     }
 
     messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+    const pendingToolCalls = await this._readPendingToolCalls(userId, slug);
+    for (const message of messages) {
+      const pending = pendingToolCalls[message.id];
+      if (pending !== undefined) {
+        message.metadata = message.metadata ?? { contentType: 'text' };
+        message.metadata.pendingToolCall = pending;
+      }
+    }
 
     if (title === '') {
       const first = messages.find((message) => message.role === 'user');
@@ -134,6 +153,80 @@ export class ThreadsStore {
         'utf8',
       );
     }
+
+    await this._updatePendingToolCalls(userId, slug, messages);
+  }
+
+  /**
+   * Finds a pending tool call by id for a thread.
+   */
+  async findPendingToolCall(
+    userId: string,
+    slug: string,
+    toolCallId: string,
+  ): Promise<ToolCall | null> {
+    const calls = await this._readPendingToolCalls(userId, slug);
+    return calls[toolCallId] ?? null;
+  }
+
+  /**
+   * Removes a pending tool call after it has been confirmed or rejected.
+   */
+  async removePendingToolCall(
+    userId: string,
+    slug: string,
+    toolCallId: string,
+  ): Promise<void> {
+    const calls = await this._readPendingToolCalls(userId, slug);
+    if (calls[toolCallId] === undefined) return;
+
+    delete calls[toolCallId];
+    await this._writePendingToolCalls(userId, slug, calls);
+  }
+
+  private async _readPendingToolCalls(
+    userId: string,
+    slug: string,
+  ): Promise<Record<string, ToolCall>> {
+    const file = this._pendingToolCallsFile(userId, slug);
+    const content = await readFileOrNull(file);
+    if (content === null) return {};
+
+    try {
+      return JSON.parse(content) as Record<string, ToolCall>;
+    } catch {
+      return {};
+    }
+  }
+
+  private async _writePendingToolCalls(
+    userId: string,
+    slug: string,
+    calls: Record<string, ToolCall>,
+  ): Promise<void> {
+    const file = this._pendingToolCallsFile(userId, slug);
+    await fs.writeFile(file, JSON.stringify(calls, null, 2), 'utf8');
+  }
+
+  private async _updatePendingToolCalls(
+    userId: string,
+    slug: string,
+    messages: Message[],
+  ): Promise<void> {
+    const calls = await this._readPendingToolCalls(userId, slug);
+    let changed = false;
+
+    for (const message of messages) {
+      const pending = message.metadata?.pendingToolCall;
+      if (pending !== undefined) {
+        calls[pending.id] = pending;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await this._writePendingToolCalls(userId, slug, calls);
+    }
   }
 }
 
@@ -143,7 +236,7 @@ function toSummary(thread: Thread): ThreadSummary {
   return {
     slug: thread.slug,
     title: thread.title,
-    preview: last === undefined ? '' : last.text.split('\n')[0].trim(),
+    preview: last === undefined ? '' : previewFrom(last),
     messageCount: thread.messages.length,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,

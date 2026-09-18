@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
+import { LoggingInterceptor } from './common/logging.interceptor';
 import { initializeFirebaseAdmin } from './firebase/firebase-admin';
 
 async function bootstrap() {
@@ -33,10 +34,13 @@ async function bootstrap() {
   // guards/interceptors, so it will record OPTIONS requests as well.
   app.use((req: Request, _res: Response, next: NextFunction) => {
     logger.log(
-      `${req.method} ${req.url} - Origin: ${req.headers.origin ?? 'none'}`,
+      `REQUEST ${req.method} ${req.url} - Origin: ${req.headers.origin ?? 'none'} - Content-Length: ${req.headers['content-length'] ?? 'none'}`,
     );
     next();
   });
+
+  // Logs response status, timing, user id and errors for every handled request.
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   await app.listen(process.env.PORT ?? 3000);
   logger.log(`Server listening on port ${process.env.PORT ?? 3000}`);

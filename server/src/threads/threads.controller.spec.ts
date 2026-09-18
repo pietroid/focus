@@ -15,11 +15,12 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
-import { AgentService } from './agent.service';
+import { AgentReplyPayload, AgentService } from './agent.service';
 import { ThreadsController } from './threads.controller';
 import { ThreadsService } from './threads.service';
 import { ThreadsStore } from './threads.store';
 import { Thread, ThreadSummary } from './entities/thread.entity';
+import { A2uiValidationService } from './a2ui-validation.service';
 
 /** supertest types `body` as `any`; these keep the assertions typed. */
 function thread(response: { body: unknown }): Thread {
@@ -40,10 +41,20 @@ class StubAuthGuard implements CanActivate {
   }
 }
 
-/** Answers instantly, so the suite does not pay the agent's fake latency. */
+/** Answers instantly with a simple A2UI tree, so the suite does not pay the agent's fake latency. */
 class StubAgentService {
-  reply(): Promise<string> {
-    return Promise.resolve('Noted.');
+  reply(): Promise<AgentReplyPayload> {
+    return Promise.resolve({
+      a2ui: { component: 'Text', text: 'Noted.' },
+      metadata: { model: 'stub', latencyMs: 0 },
+    });
+  }
+
+  executeTool(): Promise<AgentReplyPayload> {
+    return Promise.resolve({
+      a2ui: { component: 'Text', text: 'Done.' },
+      metadata: { model: 'stub', latencyMs: 0 },
+    });
   }
 }
 
@@ -57,7 +68,12 @@ describe('ThreadsController', () => {
 
     const moduleRef = await Test.createTestingModule({
       controllers: [ThreadsController],
-      providers: [ThreadsService, ThreadsStore, AgentService],
+      providers: [
+        ThreadsService,
+        ThreadsStore,
+        AgentService,
+        A2uiValidationService,
+      ],
     })
       .overrideGuard(FirebaseAuthGuard)
       .useClass(StubAuthGuard)
@@ -92,7 +108,7 @@ describe('ThreadsController', () => {
     });
     expect(thread(response).messages[1]).toMatchObject({
       role: 'agent',
-      text: 'Noted.',
+      metadata: { contentType: 'a2ui' },
     });
   });
 
@@ -111,6 +127,7 @@ describe('ThreadsController', () => {
     expect(markdown).toContain('# Buy milk');
     expect(markdown).toMatch(/## user @ /);
     expect(markdown).toMatch(/## agent @ /);
+    expect(markdown).toContain('"component":"Text"');
   });
 
   it('appends to an existing thread', async () => {

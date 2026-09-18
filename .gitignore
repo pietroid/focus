@@ -158,3 +158,5 @@ agent/.pnpm-debug.log*
 agent/.eslintcache
 agent/*.tsbuildinfo
 agent/.nyc_output/
+
+.secrets

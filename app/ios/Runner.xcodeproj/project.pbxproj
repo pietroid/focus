@@ -133,7 +133,6 @@
 				2BD28919F686F5B8C122FB9C /* Pods-RunnerTests.profile-development.xcconfig */,
 				15623D8B655D0EB3B4C18D6F /* Pods-RunnerTests.release-production.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -264,7 +263,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -502,6 +501,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = Focus;
 				FLUTTER_TARGET = lib/main.dart;
@@ -597,6 +597,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = Focus;
 				FLUTTER_TARGET = lib/main.dart;
@@ -687,6 +688,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = Focus;
 				FLUTTER_TARGET = lib/main.dart;
@@ -782,6 +784,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = "[DEV] Focus";
 				FLUTTER_TARGET = lib/main.dart;
@@ -875,6 +878,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = "[DEV] Focus";
 				FLUTTER_TARGET = lib/main.dart;
@@ -967,6 +971,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = K3U55XXNRM;
 				ENABLE_BITCODE = NO;
 				FLAVOR_APP_NAME = "[DEV] Focus";
 				FLUTTER_TARGET = lib/main.dart;
@@ -1045,7 +1050,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};

@@ -203,7 +203,12 @@ Repository variables (Settings → Secrets and variables → Actions):
    sudo mkdir -p /opt/focus/web
    sudo chown -R "$USER:$USER" /opt/focus/web
    ```
-6. Install Docker and docker compose on the Pi.
+6. Create the shared thread data directory:
+   ```bash
+   sudo mkdir -p /opt/focus/data/threads
+   sudo chown -R "$USER:$USER" /opt/focus/data
+   ```
+7. Install Docker and docker compose on the Pi.
 
 After the first server deploy, the `focus-web` nginx container will be running.
 Subsequent app deploys will sync new web files and reload nginx.
@@ -216,14 +221,33 @@ container.
 - It is **not** exposed to the public internet. It only exposes port `3001`
   inside the Docker network.
 - The backend talks to it at `http://focus-agent:3001`.
+- It exposes two main endpoints:
+  - `POST /reply` — generates the next A2UI message in a thread.
+  - `POST /execute-tool` — executes a confirmed tool call on behalf of the user.
 - It has **read-only** access to the thread files mounted at
-  `/app/data/threads`.
+  `/app/data/threads`. The backend writes these files; the Agent only reads them.
 - It does **not** see the backend's Firebase service account or
   `.env.production` secrets.
 - Replies are generated via the [OpenRouter](https://openrouter.ai/) API using
   the thread history as context. Configure it with `OPENROUTER_API_KEY` and
   `OPENROUTER_MODEL` in `agent/.env.production`. If the key is missing or the
-  request fails, the agent returns a short fallback message.
+  request fails, the agent returns a short fallback A2UI message.
+- Every reply is an A2UI component tree. Even plain text is wrapped in a `Text`
+  component.
+- Integrations (Calendar, Web Search, API calls) are exposed to the model as
+  OpenRouter tools and run inside the Agent. The backend orchestrates user
+  confirmation for write/sensitive tools but never executes integrations or
+  holds their secrets. Configure integration keys only in
+  `agent/.env.production`.
+- **Google Calendar** connects via a service account or OAuth2 refresh token.
+  Set `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` / `GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY`
+  or `GOOGLE_CALENDAR_REFRESH_TOKEN` plus client credentials. Use
+  `GOOGLE_CALENDAR_ID` to target a specific calendar (defaults to `primary`).
+- **Web Search** works best with an API such as **Serper.dev** or
+  **Brave Search API**. Set `WEB_SEARCH_API_KEY` and `WEB_SEARCH_API_BASE_URL`.
+  If no key is configured, the agent falls back to DuckDuckGo's HTML results
+  page, which is convenient for local development but can break if their markup
+  changes.
 
 ## Manual / Local Deployment
 

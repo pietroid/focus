@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
-import { agentReply } from './reply.js';
-import { readThread } from './thread-store.js';
+import { agentExecuteTool, agentReply, fallbackReply } from './reply.js';
+import { ToolCall } from './a2ui/types.js';
 
 export interface ServerConfig {
   dataDir: string;
@@ -10,6 +10,12 @@ interface ReplyBody {
   userId?: string;
   slug?: string;
   message?: string;
+}
+
+interface ExecuteToolBody {
+  userId?: string;
+  slug?: string;
+  toolCall?: ToolCall;
 }
 
 export function createServer(config: ServerConfig): express.Express {
@@ -36,15 +42,53 @@ export function createServer(config: ServerConfig): express.Express {
       return;
     }
 
-    const thread = await readThread(config.dataDir, userId, slug);
-    if (thread === null) {
-      res.status(404).json({ error: `Thread "${slug}" not found` });
+    const result = await agentReply({
+      userId,
+      slug,
+      message,
+      dataDir: config.dataDir,
+    });
+
+    res.json(result);
+  });
+
+  app.post('/execute-tool', async (req: Request, res: Response) => {
+    const { userId, slug, toolCall } = req.body as ExecuteToolBody;
+
+    if (!userId || typeof userId !== 'string') {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+    if (!slug || typeof slug !== 'string') {
+      res.status(400).json({ error: 'slug is required' });
+      return;
+    }
+    if (toolCall === null || typeof toolCall !== 'object') {
+      res.status(400).json({ error: 'toolCall is required' });
+      return;
+    }
+    if (
+      typeof toolCall.id !== 'string' ||
+      toolCall.type !== 'function' ||
+      typeof toolCall.function?.name !== 'string' ||
+      typeof toolCall.function?.arguments !== 'string'
+    ) {
+      res.status(400).json({ error: 'toolCall is malformed' });
       return;
     }
 
-    const text = await agentReply({ thread, newMessage: message });
-    res.json({ text });
+    const result = await agentExecuteTool({
+      userId,
+      slug,
+      toolCall,
+      dataDir: config.dataDir,
+    });
+
+    res.json(result);
   });
 
   return app;
 }
+
+/** Health-check response helper for tests. */
+export { fallbackReply };

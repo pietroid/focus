@@ -1,4 +1,10 @@
-import { Message, MessageRole } from './entities/message.entity';
+import {
+  A2uiComponent,
+  Message,
+  MessageContentType,
+  MessageRole,
+  ToolCall,
+} from './entities/message.entity';
 
 /**
  * The on-disk format for one day of a thread.
@@ -12,29 +18,62 @@ import { Message, MessageRole } from './entities/message.entity';
  *
  * ## agent @ 2026-09-15T19:23:05.456Z
  *
- * Noted.
+ * {"a2ui":{"component":"Text","text":"Noted."}}
  * ```
  *
  * Markdown rather than JSON so a day of conversation stays readable, diffable,
- * and editable by hand. The title repeats in every day file: it costs one line
- * and means any single file makes sense on its own, without the folder around
- * it.
+ * and editable by hand. Agent messages store A2UI JSON in the body when the
+ * metadata indicates the content type is 'a2ui'.
  */
 
 /** Matches a message header, and only a message header. */
-const HEADER = /^## (user|agent) @ (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/;
+const HEADER = /^## (user|agent|system) @ (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/;
 
 /** Matches the thread title heading. */
 const TITLE = /^# (.+)$/;
 
 /**
+ * Detects whether a message body is an A2UI JSON payload.
+ */
+function looksLikeA2ui(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return false;
+
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    return parsed.a2ui !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extracts the A2UI tree from an agent message body, if present.
+ */
+function parseA2ui(text: string): A2uiComponent | undefined {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{')) return undefined;
+
+  try {
+    const parsed = JSON.parse(trimmed) as { a2ui?: A2uiComponent };
+    return parsed.a2ui;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Renders [title] and [messages] as the markdown for one day file.
  */
 export function serializeThreadDay(title: string, messages: Message[]): string {
-  const blocks = messages.map(
-    (message) =>
-      `## ${message.role} @ ${message.createdAt.toISOString()}\n\n${message.text.trim()}`,
-  );
+  const blocks = messages.map((message) => {
+    const body =
+      message.metadata?.contentType === 'a2ui' && message.metadata?.a2ui !== undefined
+        ? JSON.stringify({ a2ui: message.metadata.a2ui })
+        : message.text.trim();
+
+    return `## ${message.role} @ ${message.createdAt.toISOString()}\n\n${body}`;
+  });
 
   return [`# ${title}`, ...blocks].join('\n\n') + '\n';
 }
@@ -58,12 +97,24 @@ export function parseThreadDay(markdown: string): {
 
   const flush = () => {
     if (current === null) return;
-    messages.push({
+
+    const text = current.body.join('\n').trim();
+    const a2ui = current.role !== 'user' ? parseA2ui(text) : undefined;
+    const contentType: MessageContentType =
+      a2ui !== undefined ? 'a2ui' : 'text';
+
+    const message: Message = {
       id: messageId(current.role, current.createdAt),
       role: current.role,
-      text: current.body.join('\n').trim(),
+      text,
       createdAt: current.createdAt,
-    });
+    };
+
+    if (contentType === 'a2ui') {
+      message.metadata = { contentType, a2ui };
+    }
+
+    messages.push(message);
     current = null;
   };
 
@@ -143,4 +194,33 @@ export function dayFolder(date: Date): string {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Extracts a human-readable preview from a message.
+ *
+ * For A2UI agent messages, the preview is taken from the first Text component.
+ */
+export function previewFrom(message: Message): string {
+  if (message.metadata?.contentType === 'a2ui' && message.metadata.a2ui) {
+    const text = firstTextInTree(message.metadata.a2ui);
+    if (text !== undefined) return text.split('\n')[0].trim();
+  }
+
+  return message.text.split('\n')[0].trim();
+}
+
+function firstTextInTree(component: A2uiComponent): string | undefined {
+  if (component.component === 'Text' && typeof component.text === 'string') {
+    return component.text;
+  }
+
+  if (Array.isArray(component.children)) {
+    for (const child of component.children) {
+      const found = firstTextInTree(child as A2uiComponent);
+      if (found !== undefined) return found;
+    }
+  }
+
+  return undefined;
 }

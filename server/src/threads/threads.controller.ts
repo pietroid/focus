@@ -10,6 +10,7 @@ import {
 import * as adminAuth from 'firebase-admin/auth';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { ConfirmToolDto } from './dto/confirm-tool.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { Thread, ThreadSummary } from './entities/thread.entity';
@@ -53,6 +54,29 @@ export class ThreadsController {
       user.uid,
       slug,
       requireMessage(dto.message),
+    );
+  }
+
+  @Post(':slug/tools/:toolCallId/confirm')
+  async confirmTool(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('slug') slug: string,
+    @Param('toolCallId') toolCallId: string,
+    @Body() dto: ConfirmToolDto,
+  ): Promise<Thread> {
+    console.log('[threads.controller] confirmTool called', {
+      userId: user.uid,
+      slug,
+      toolCallId,
+      confirmed: dto.confirmed,
+      hasArguments: dto.arguments !== undefined,
+    });
+    return this.threadsService.confirmTool(
+      user.uid,
+      slug,
+      toolCallId,
+      dto.confirmed === true,
+      dto.arguments,
     );
   }
 }

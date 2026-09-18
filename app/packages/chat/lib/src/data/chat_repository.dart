@@ -49,4 +49,22 @@ class ChatRepository {
 
     return Thread.fromJson(response.data ?? <String, dynamic>{});
   }
+
+  /// Confirms or rejects a pending tool call.
+  Future<Thread> confirmTool({
+    required String slug,
+    required String toolCallId,
+    required bool confirmed,
+    Map<String, dynamic>? arguments,
+  }) async {
+    final response = await apiClient.post<Map<String, dynamic>>(
+      '/threads/$slug/tools/$toolCallId/confirm',
+      data: {
+        'confirmed': confirmed,
+        'arguments': arguments,
+      },
+    );
+
+    return Thread.fromJson(response.data ?? <String, dynamic>{});
+  }
 }

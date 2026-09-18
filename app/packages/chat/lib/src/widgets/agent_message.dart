@@ -1,27 +1,46 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/models/models.dart';
+import 'package:chat/src/widgets/a2ui_renderer.dart';
 
 /// {@template agent_message}
-/// The agent's turn: bare content, left-aligned, no balloon.
+/// The agent's turn: A2UI content when available, otherwise plain text.
 ///
-/// Today that content is text. The widget exists so that when a reply becomes
-/// a card or a chart, only this file changes.
+/// The alignment and skeleton are preserved from the original implementation.
 /// {@endtemplate}
 class AgentMessage extends StatelessWidget {
   /// {@macro agent_message}
-  const AgentMessage({required this.message, super.key});
+  const AgentMessage({
+    required this.message,
+    required this.onAction,
+    this.enabled = true,
+    super.key,
+  });
 
   /// The message to draw.
   final ChatMessage message;
 
+  /// Called when the user interacts with an A2UI action.
+  final void Function(Map<String, dynamic> action) onAction;
+
+  /// Whether interactive components inside the message respond to taps.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
+    final a2ui = message.metadata?.a2ui;
+
     return Align(
       alignment: Alignment.centerLeft,
-      child: Text(
-        message.text,
-        style: AppTypography.bodyRegular.copyWith(color: AppColors.ink),
-      ),
+      child: a2ui != null && message.isA2ui
+          ? A2uiRenderer(
+              component: a2ui,
+              onAction: onAction,
+              enabled: enabled,
+            )
+          : Text(
+              message.text,
+              style: AppTypography.bodyRegular.copyWith(color: AppColors.ink),
+            ),
     );
   }
 }

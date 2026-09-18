@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:api_client/src/interceptors/auth_interceptor.dart';
 import 'package:api_client/src/token_provider.dart';
 import 'package:dio/dio.dart';
@@ -30,6 +32,7 @@ class ApiClient {
         dio: _dio,
       ),
     );
+    _dio.interceptors.add(_loggingInterceptor());
   }
 
   final Dio _dio;
@@ -60,5 +63,43 @@ class ApiClient {
   /// Performs a `DELETE` request to [path].
   Future<Response<T>> delete<T>(String path) {
     return _dio.delete<T>(path);
+  }
+
+  Interceptor _loggingInterceptor() {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) {
+        log(
+          '[ApiClient] >> ${options.method} ${options.uri}',
+          name: 'api_client',
+          error: {
+            'headers': options.headers,
+            'data': options.data,
+          },
+        );
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        log(
+          '[ApiClient] << ${response.statusCode} ${response.requestOptions.uri}',
+          name: 'api_client',
+          error: {
+            'data': response.data,
+          },
+        );
+        handler.next(response);
+      },
+      onError: (error, handler) {
+        log(
+          '[ApiClient] !! ${error.response?.statusCode ?? 'network'} ${error.requestOptions.uri}',
+          name: 'api_client',
+          error: {
+            'message': error.message,
+            'responseData': error.response?.data,
+            'stackTrace': error.stackTrace?.toString(),
+          },
+        );
+        handler.next(error);
+      },
+    );
   }
 }
