@@ -39,7 +39,7 @@ class AgentMessage extends StatelessWidget {
             )
           : Text(
               message.text,
-              style: AppTypography.bodyRegular.copyWith(color: AppColors.ink),
+              style: AppTypography.body.copyWith(color: AppColors.ink),
             ),
     );
   }

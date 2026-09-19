@@ -46,7 +46,7 @@ class ChatBubble extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.end,
             spacing: AppSpacing.s2,
             children: [
-              Text(message.text, style: AppTypography.bodyRegular),
+              Text(message.text, style: AppTypography.body),
               Text(
                 DateFormat.Hm().format(message.createdAt),
                 style: AppTypography.caption.copyWith(color: AppColors.ink3),

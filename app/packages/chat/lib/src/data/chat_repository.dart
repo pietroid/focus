@@ -21,6 +21,34 @@ class ChatRepository {
         .toList();
   }
 
+  /// Writes where the home screen's lists ended up after a drag.
+  ///
+  /// [buckets] is the whole placement, not the one thread that moved: a drop
+  /// shifts everything below it in two lists at once, and sending the result
+  /// is the only version of this that cannot disagree with what is on screen.
+  Future<List<ThreadSummary>> savePlacements(
+    Map<ThreadBucket, List<String>> buckets,
+  ) async {
+    final placements = <Map<String, dynamic>>[
+      for (final entry in buckets.entries)
+        for (var index = 0; index < entry.value.length; index++)
+          {
+            'slug': entry.value[index],
+            'bucket': entry.key.wire,
+            'index': index,
+          },
+    ];
+
+    final response = await apiClient.post<List<dynamic>>(
+      '/threads/placements',
+      data: {'placements': placements},
+    );
+
+    return (response.data ?? <dynamic>[])
+        .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+        .toList();
+  }
+
   /// One thread, with every message it holds.
   Future<Thread> fetchThread(String slug) async {
     final response = await apiClient.get<Map<String, dynamic>>(

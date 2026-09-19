@@ -16,7 +16,13 @@ import { Trace } from '../common/trace';
 import { ActionDto } from './dto/action.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
-import { Thread, ThreadSummary } from './entities/thread.entity';
+import { PlacementsDto } from './dto/placements.dto';
+import {
+  isThreadBucket,
+  Thread,
+  ThreadBucket,
+  ThreadSummary,
+} from './entities/thread.entity';
 import { ThreadsService } from './threads.service';
 
 type DecodedIdToken = adminAuth.DecodedIdToken;
@@ -53,6 +59,26 @@ export class ThreadsController {
     @Param('traceId') traceId: string,
   ): Promise<unknown> {
     return this.threadsService.findTrace(user.uid, slug, traceId);
+  }
+
+  /**
+   * Rewrites where threads sit on the home screen after a drag.
+   *
+   * Declared before the `:slug` routes so `placements` is read as this route
+   * and not as a thread called "placements".
+   */
+  @Post('placements')
+  async setPlacements(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() dto: PlacementsDto,
+  ): Promise<ThreadSummary[]> {
+    const trace = Trace.start(user.uid);
+
+    return this.threadsService.setPlacements(
+      user.uid,
+      (dto.placements ?? []).map(requirePlacement),
+      trace,
+    );
   }
 
   @Post()
@@ -150,6 +176,28 @@ export class ThreadsController {
         );
     }
   }
+}
+
+function requirePlacement(placement: {
+  slug?: string;
+  bucket?: string;
+  index?: number;
+}): { slug: string; bucket: ThreadBucket; index: number } {
+  const slug = placement.slug?.trim() ?? '';
+  if (slug === '') throw new BadRequestException('slug is required');
+
+  if (!isThreadBucket(placement.bucket)) {
+    throw new BadRequestException(
+      `Unknown bucket "${String(placement.bucket)}"`,
+    );
+  }
+
+  const index = placement.index;
+  if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) {
+    throw new BadRequestException('index must be a non-negative integer');
+  }
+
+  return { slug, bucket: placement.bucket, index };
 }
 
 function requireMessage(message: string | undefined): string {

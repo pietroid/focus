@@ -16,7 +16,7 @@ abstract final class A2uiIcons {
   static const _icons = <String, IconData>{
     // time
     'calendar': PhosphorIconsRegular.calendarBlank,
-    
+
     'calendarPlus': PhosphorIconsRegular.calendarPlus,
     'calendarCheck': PhosphorIconsRegular.calendarCheck,
     'calendarX': PhosphorIconsRegular.calendarX,

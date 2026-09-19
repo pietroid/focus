@@ -236,7 +236,7 @@ describe('ThreadsController', () => {
     expect(thread(second).slug).toBe('standup-2');
   });
 
-  it('lists threads most recently updated first', async () => {
+  it('lists threads in the order they were placed', async () => {
     await request(app.getHttpServer())
       .post('/threads')
       .send({ message: 'First' })
@@ -250,12 +250,54 @@ describe('ThreadsController', () => {
       .get('/threads')
       .expect(200);
 
-    expect(summaries(response).map((t) => t.slug)).toEqual(['second', 'first']);
-    expect(summaries(response)[0]).toMatchObject({
+    // A new thread lands at the end of "em breve", so the list reads in the
+    // order the threads were written.
+    expect(summaries(response).map((t) => t.slug)).toEqual(['first', 'second']);
+    expect(summaries(response)[1]).toMatchObject({
       title: 'Second',
       preview: 'Noted.',
       messageCount: 2,
+      bucket: 'em_breve',
+      order: 1,
     });
+  });
+
+  it('rewrites where threads sit when the app sends a placement', async () => {
+    await request(app.getHttpServer())
+      .post('/threads')
+      .send({ message: 'First' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/threads')
+      .send({ message: 'Second' })
+      .expect(201);
+
+    const moved = await request(app.getHttpServer())
+      .post('/threads/placements')
+      .send({
+        placements: [
+          { slug: 'second', bucket: 'agora', index: 0 },
+          { slug: 'first', bucket: 'em_breve', index: 0 },
+        ],
+      })
+      .expect(201);
+
+    expect(summaries(moved).map((t) => [t.slug, t.bucket])).toEqual([
+      ['second', 'agora'],
+      ['first', 'em_breve'],
+    ]);
+  });
+
+  it('refuses a placement into a bucket that does not exist', async () => {
+    await request(app.getHttpServer())
+      .post('/threads')
+      .send({ message: 'First' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/threads/placements')
+      .send({ placements: [{ slug: 'first', bucket: 'amanha', index: 0 }] })
+      .expect(400);
   });
 
   it('drops an action type the catalog does not have', async () => {

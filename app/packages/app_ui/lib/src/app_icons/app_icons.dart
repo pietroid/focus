@@ -24,7 +24,11 @@ class AppIcons {
   static const logout = AppIconData.phosphor(PhosphorIconsRegular.signOut);
 
   /// Send Icon, for submitting a prompt.
-  static const send = AppIconData.phosphor(PhosphorIconsFill.arrowUp);
+  ///
+  /// The paper plane rather than an arrow in a filled circle: the sheet's
+  /// send sits inside the field, where a solid disc would be the loudest
+  /// thing on a black screen.
+  static const send = AppIconData.phosphor(PhosphorIconsFill.paperPlaneRight);
 
   /// Back Icon.
   static const back = AppIconData.phosphor(PhosphorIconsRegular.arrowLeft);

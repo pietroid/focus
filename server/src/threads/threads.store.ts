@@ -2,7 +2,14 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
 import { Message } from './entities/message.entity';
-import { Thread, ThreadState, ThreadSummary } from './entities/thread.entity';
+import {
+  DEFAULT_BUCKET,
+  isThreadBucket,
+  THREAD_BUCKETS,
+  Thread,
+  ThreadState,
+  ThreadSummary,
+} from './entities/thread.entity';
 import {
   dayFolder,
   parseThreadDay,
@@ -91,17 +98,24 @@ export class ThreadsStore {
       title = first === undefined ? slug : titleFrom(first.text);
     }
 
+    const createdAt = messages[0]?.createdAt ?? new Date();
+
     return {
       slug,
       title,
       messages,
       solved: state.solved,
-      createdAt: messages[0]?.createdAt ?? new Date(),
+      bucket: state.bucket ?? DEFAULT_BUCKET,
+      // A thread that has never been dragged sorts by when it started, so an
+      // account that has never touched the lists still reads oldest-first
+      // rather than in whatever order the filesystem handed them over.
+      order: state.order ?? createdAt.getTime(),
+      createdAt,
       updatedAt: messages[messages.length - 1]?.createdAt ?? new Date(),
     };
   }
 
-  /** Every thread the user owns, most recently updated first. */
+  /** Every thread the user owns, by bucket and then by place within it. */
   async readAllSummaries(userId: string): Promise<ThreadSummary[]> {
     const slugs = await this.listSlugs(userId);
     const threads = await Promise.all(
@@ -111,7 +125,11 @@ export class ThreadsStore {
     return threads
       .filter((thread): thread is Thread => thread !== null)
       .map(toSummary)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      .sort(
+        (a, b) =>
+          THREAD_BUCKETS.indexOf(a.bucket) - THREAD_BUCKETS.indexOf(b.bucket) ||
+          a.order - b.order,
+      );
   }
 
   /**
@@ -157,7 +175,12 @@ export class ThreadsStore {
 
     try {
       const parsed = JSON.parse(content) as Partial<ThreadState>;
-      return { solved: parsed.solved === true, title: parsed.title };
+      return {
+        solved: parsed.solved === true,
+        title: parsed.title,
+        bucket: isThreadBucket(parsed.bucket) ? parsed.bucket : undefined,
+        order: typeof parsed.order === 'number' ? parsed.order : undefined,
+      };
     } catch {
       return { solved: false };
     }
@@ -234,6 +257,8 @@ function toSummary(thread: Thread): ThreadSummary {
     preview: last === undefined ? '' : previewFrom(last),
     messageCount: thread.messages.length,
     solved: thread.solved,
+    bucket: thread.bucket,
+    order: thread.order,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
   };

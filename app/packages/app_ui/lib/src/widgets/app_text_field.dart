@@ -73,7 +73,7 @@ class AppTextField extends StatelessWidget {
         cursorColor: AppColors.ink,
         cursorWidth: 1.5,
         cursorRadius: const Radius.circular(AppSpacing.s1),
-        style: AppTypography.bodyRegular,
+        style: AppTypography.body,
         decoration: InputDecoration(hintText: hintText),
       ),
     );

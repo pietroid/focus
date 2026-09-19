@@ -316,6 +316,23 @@ not reach the user.
 A blocked write is not a failed one. Nothing was attempted, so the proposal the
 model wrote is exactly right and is shown as is.
 
+### The home screen's three lists
+
+A thread sits in one of three buckets — `agora`, `em_breve`, `depois` — and
+holds a place inside it. Both live in the thread's `state.json` next to
+`solved`, and both mean exactly one thing: what the user decided when they
+dragged the card.
+
+Nothing derives a bucket. The agent does not set one, no date implies one, and
+a thread that has never been touched reports `em_breve` ordered by when it was
+created. A new thread is placed at the end of `em_breve` the moment it is
+created, because something just written is next but not now.
+
+`POST /threads/placements` takes the whole placement of every list a drag
+touched, not the one thread that moved. One drop shifts the index of
+everything below it in two lists at once, so sending the result is the only
+version of this that cannot disagree with what is on screen.
+
 ### Actions
 
 A rendered component fires an action; the app posts it verbatim to

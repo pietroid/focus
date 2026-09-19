@@ -1,6 +1,42 @@
 import 'package:chat/src/models/chat_message.dart';
 import 'package:equatable/equatable.dart';
 
+/// Which of the home screen's three lists a thread sits in.
+///
+/// The bucket is the user's own judgement about when something happens. It is
+/// never derived from a date and the agent never sets it: a thread starts in
+/// [ThreadBucket.emBreve] and moves only because someone dragged it.
+enum ThreadBucket {
+  /// What is being done right now.
+  agora('agora', 'Agora'),
+
+  /// What is next, but not yet.
+  emBreve('em_breve', 'Em breve'),
+
+  /// Parked, on purpose.
+  depois('depois', 'Depois');
+
+  const ThreadBucket(this.wire, this.label);
+
+  /// The name the API uses.
+  final String wire;
+
+  /// The section header, as the user reads it.
+  final String label;
+
+  /// The bucket a thread lands in when it is created, and the fallback for a
+  /// name the app does not know.
+  static const ThreadBucket fallback = ThreadBucket.emBreve;
+
+  /// The bucket [wire] names, or [fallback].
+  static ThreadBucket fromWire(String? wire) {
+    return ThreadBucket.values.firstWhere(
+      (bucket) => bucket.wire == wire,
+      orElse: () => fallback,
+    );
+  }
+}
+
 /// {@template thread}
 /// A conversation, with every message it holds.
 /// {@endtemplate}
@@ -11,6 +47,7 @@ class Thread extends Equatable {
     required this.title,
     required this.messages,
     required this.solved,
+    required this.bucket,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -26,6 +63,7 @@ class Thread extends Equatable {
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList(),
       solved: json['solved'] as bool? ?? false,
+      bucket: ThreadBucket.fromWire(json['bucket'] as String?),
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -43,6 +81,9 @@ class Thread extends Equatable {
   /// Whether the user has marked this thread closed.
   final bool solved;
 
+  /// Which of the home screen's lists it sits in.
+  final ThreadBucket bucket;
+
   /// When the thread's first message was written.
   final DateTime createdAt;
 
@@ -55,6 +96,7 @@ class Thread extends Equatable {
     title,
     messages,
     solved,
+    bucket,
     createdAt,
     updatedAt,
   ];
@@ -71,6 +113,7 @@ class ThreadSummary extends Equatable {
     required this.preview,
     required this.messageCount,
     required this.solved,
+    required this.bucket,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -83,6 +126,7 @@ class ThreadSummary extends Equatable {
       preview: json['preview'] as String? ?? '',
       messageCount: json['messageCount'] as int? ?? 0,
       solved: json['solved'] as bool? ?? false,
+      bucket: ThreadBucket.fromWire(json['bucket'] as String?),
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -103,11 +147,28 @@ class ThreadSummary extends Equatable {
   /// Whether the user has marked this thread closed.
   final bool solved;
 
+  /// Which of the home screen's lists it sits in.
+  final ThreadBucket bucket;
+
   /// When the thread's first message was written.
   final DateTime createdAt;
 
   /// When the thread's last message was written.
   final DateTime updatedAt;
+
+  /// Returns a copy with the given fields replaced.
+  ThreadSummary copyWith({ThreadBucket? bucket}) {
+    return ThreadSummary(
+      slug: slug,
+      title: title,
+      preview: preview,
+      messageCount: messageCount,
+      solved: solved,
+      bucket: bucket ?? this.bucket,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -116,6 +177,7 @@ class ThreadSummary extends Equatable {
     preview,
     messageCount,
     solved,
+    bucket,
     createdAt,
     updatedAt,
   ];

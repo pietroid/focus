@@ -1,100 +1,64 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/models/models.dart';
-import 'package:intl/intl.dart';
 
 /// {@template thread_tile}
 /// One thread on the home screen's list.
 ///
-/// Title, last line, and when it was last touched. The preview is the thread's
-/// most recent message, so the list says where each conversation got to rather
-/// than only what it was called.
+/// The title and nothing else. Which list a card is in already says when it
+/// happens, so a timestamp next to it would be a second, quieter answer to
+/// the same question.
+///
+/// It carries no gestures of its own. Tapping and dragging on the home screen
+/// are read by one listener over the whole list, which tells each card how it
+/// is being touched through [pressed], [hidden], and [lifted].
 /// {@endtemplate}
 class ThreadTile extends StatelessWidget {
   /// {@macro thread_tile}
-  const ThreadTile({required this.thread, required this.onTap, super.key});
+  const ThreadTile({
+    required this.thread,
+    this.pressed = false,
+    this.hidden = false,
+    this.lifted = false,
+    super.key,
+  });
 
   /// The thread to draw.
   final ThreadSummary thread;
 
-  /// Called when the row is tapped.
-  final VoidCallback onTap;
+  /// Whether a finger is resting on it.
+  final bool pressed;
+
+  /// Whether this is the place a card in the air left open behind it.
+  ///
+  /// It is still laid out, and still the full size it was, so the lists it
+  /// left keep the shape they had while it is gone.
+  final bool hidden;
+
+  /// Whether this is the copy that follows the finger.
+  final bool lifted;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.fill,
-      borderRadius: BorderRadius.circular(AppSpacing.chipRadius),
-      child: InkWell(
-        onTap: onTap,
+    return Opacity(
+      opacity: hidden ? 0 : 1,
+      child: Material(
+        color: pressed || lifted ? AppColors.fillStrong : AppColors.fill,
         borderRadius: BorderRadius.circular(AppSpacing.chipRadius),
+        elevation: lifted ? 8 : 0,
+        shadowColor: AppColors.bg,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s4,
             vertical: AppSpacing.s3,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (thread.solved) ...[
-                          const AppIcon(
-                            iconData: AppIcons.check,
-                            size: AppSpacing.s4,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: AppSpacing.s2),
-                        ],
-                        Expanded(
-                          child: Text(
-                            thread.title,
-                            style: AppTypography.body.copyWith(
-                              // A closed thread keeps its place in the list but
-                              // stops competing for attention with the open
-                              // ones above it.
-                              color: thread.solved
-                                  ? AppColors.ink2
-                                  : AppColors.ink,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (thread.preview.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.s1),
-                      Text(
-                        thread.preview,
-                        style: AppTypography.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s3),
-              Text(
-                _stamp(thread.updatedAt),
-                style: AppTypography.caption.copyWith(color: AppColors.ink3),
-              ),
-            ],
+          child: Text(
+            thread.title,
+            style: AppTypography.body,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),
     );
-  }
-
-  /// The time for a thread touched today, the date for an older one.
-  static String _stamp(DateTime at) {
-    final now = DateTime.now();
-    final isToday =
-        at.year == now.year && at.month == now.month && at.day == now.day;
-
-    return isToday ? DateFormat.Hm().format(at) : DateFormat.MMMd().format(at);
   }
 }

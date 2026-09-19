@@ -104,7 +104,7 @@ abstract final class AppTheme {
           foregroundColor: AppColors.onAccent,
           minimumSize: const Size(0, AppSpacing.tapTarget),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
-          textStyle: AppTypography.body,
+          textStyle: AppTypography.bodyStrong,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(
               Radius.circular(AppSpacing.buttonRadius),
@@ -117,7 +117,7 @@ abstract final class AppTheme {
           foregroundColor: AppColors.ink,
           minimumSize: const Size(0, AppSpacing.tapTarget),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-          textStyle: AppTypography.body,
+          textStyle: AppTypography.bodyStrong,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(
               Radius.circular(AppSpacing.buttonRadius),
@@ -138,7 +138,7 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.fill,
-        hintStyle: AppTypography.bodyRegular.copyWith(color: AppColors.ink3),
+        hintStyle: AppTypography.body.copyWith(color: AppColors.ink3),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.s5,
           vertical: AppSpacing.s3,

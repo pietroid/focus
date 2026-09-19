@@ -55,7 +55,7 @@ class AppListItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: AppTypography.body),
+              Text(title, style: AppTypography.bodyStrong),
               if (supporting != null && supporting.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.s1),
                 Text(

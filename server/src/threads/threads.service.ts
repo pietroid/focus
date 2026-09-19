@@ -17,7 +17,12 @@ import {
   ToolDescriptor,
 } from './agent.service';
 import { Message, MessageMetadata, ToolRun } from './entities/message.entity';
-import { Thread, ThreadSummary } from './entities/thread.entity';
+import {
+  DEFAULT_BUCKET,
+  Thread,
+  ThreadBucket,
+  ThreadSummary,
+} from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
 import { ThreadsStore } from './threads.store';
 
@@ -76,6 +81,13 @@ export class ThreadsService {
     trace.log('thread.create', { slug });
 
     await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
+    // A new thread lands at the end of "em breve": it is the one list that
+    // means "not now, but not parked either", and the end is where something
+    // just written belongs until the user says otherwise.
+    await this.store.updateState(userId, slug, {
+      bucket: DEFAULT_BUCKET,
+      order: await this._nextOrder(userId, DEFAULT_BUCKET, slug),
+    });
     // Nothing has been proposed yet, so the first turn of a thread can only
     // read and propose.
     await this._answer(userId, slug, trace, { allowWrites: false });
@@ -129,6 +141,58 @@ export class ThreadsService {
       return message.metadata?.proposedWrite === true;
     }
     return false;
+  }
+
+  /**
+   * Moves threads between the home screen's lists, or within one.
+   *
+   * The app sends the whole placement it wants rather than a delta, because
+   * one drag changes the index of every thread below it in both the list it
+   * left and the list it joined. Sending the result is the only version of
+   * this that cannot drift from what is on screen.
+   */
+  async setPlacements(
+    userId: string,
+    placements: { slug: string; bucket: ThreadBucket; index: number }[],
+    trace: Trace,
+  ): Promise<ThreadSummary[]> {
+    trace.log('thread.placements', { count: placements.length });
+
+    for (const placement of placements) {
+      if (!(await this.store.exists(userId, placement.slug))) {
+        throw new NotFoundException(`No thread "${placement.slug}"`);
+      }
+    }
+
+    for (const placement of placements) {
+      await this.store.updateState(userId, placement.slug, {
+        bucket: placement.bucket,
+        order: placement.index,
+      });
+    }
+
+    return this.findAll(userId);
+  }
+
+  /**
+   * One past the last order in [bucket], so a new thread lands at the end.
+   *
+   * [exclude] is the thread being placed. Its messages are already on disk by
+   * the time this runs, so without it the thread would be measured against
+   * the placeholder order it does not have yet.
+   */
+  private async _nextOrder(
+    userId: string,
+    bucket: ThreadBucket,
+    exclude?: string,
+  ): Promise<number> {
+    const summaries = await this.store.readAllSummaries(userId);
+    const orders = summaries
+      .filter((summary) => summary.bucket === bucket)
+      .filter((summary) => summary.slug !== exclude)
+      .map((summary) => summary.order);
+
+    return orders.length === 0 ? 0 : Math.max(...orders) + 1;
   }
 
   /** Applies a thread-level change the app asked for. */

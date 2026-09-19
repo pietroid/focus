@@ -83,12 +83,14 @@ class AppButton extends StatelessWidget {
     // Disabled states drop to the neutral ramp rather than to a faded colour,
     // so a greyed-out destructive button does not still read as red.
     final (background, foreground, border) = switch (variant) {
-      AppButtonVariant.primary => enabled
-          ? (color, _onColor(color), Colors.transparent)
-          : (AppColors.fillStrong, AppColors.ink3, Colors.transparent),
-      AppButtonVariant.secondary => enabled
-          ? (Colors.transparent, color, color.withValues(alpha: 0.45))
-          : (Colors.transparent, AppColors.ink3, AppColors.line),
+      AppButtonVariant.primary =>
+        enabled
+            ? (color, _onColor(color), Colors.transparent)
+            : (AppColors.fillStrong, AppColors.ink3, Colors.transparent),
+      AppButtonVariant.secondary =>
+        enabled
+            ? (Colors.transparent, color, color.withValues(alpha: 0.45))
+            : (Colors.transparent, AppColors.ink3, AppColors.line),
       AppButtonVariant.tertiary => (
         Colors.transparent,
         enabled ? AppColors.ink2 : AppColors.ink3,
@@ -98,7 +100,7 @@ class AppButton extends StatelessWidget {
 
     final label = Text(
       text,
-      style: AppTypography.body.copyWith(color: foreground),
+      style: AppTypography.bodyStrong.copyWith(color: foreground),
     );
 
     final child = icon == null

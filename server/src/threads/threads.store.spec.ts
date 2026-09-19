@@ -99,7 +99,7 @@ describe('ThreadsStore', () => {
     await expect(fs.readdir(root)).resolves.toEqual([]);
   });
 
-  it('orders summaries by most recently updated', async () => {
+  it('orders summaries oldest first until one has been placed', async () => {
     await store.append('u1', 'old', 'Old', [
       message('user', 'old', new Date(2026, 8, 14, 10, 0)),
     ]);
@@ -108,9 +108,26 @@ describe('ThreadsStore', () => {
     ]);
 
     const summaries = await store.readAllSummaries('u1');
-    expect(summaries.map((s) => s.slug)).toEqual(['new', 'old']);
-    expect(summaries[0].preview).toBe('new');
+    expect(summaries.map((s) => s.slug)).toEqual(['old', 'new']);
+    expect(summaries[0].preview).toBe('old');
     expect(summaries[0].messageCount).toBe(1);
+    expect(summaries[0].bucket).toBe('em_breve');
+  });
+
+  it('puts a placed thread where its order says, not where its date does', async () => {
+    await store.append('u1', 'old', 'Old', [
+      message('user', 'old', new Date(2026, 8, 14, 10, 0)),
+    ]);
+    await store.append('u1', 'new', 'New', [
+      message('user', 'new', new Date(2026, 8, 16, 10, 0)),
+    ]);
+
+    await store.updateState('u1', 'new', { bucket: 'agora', order: 0 });
+    await store.updateState('u1', 'old', { bucket: 'depois', order: 1 });
+
+    const summaries = await store.readAllSummaries('u1');
+    expect(summaries.map((s) => s.slug)).toEqual(['new', 'old']);
+    expect(summaries.map((s) => s.bucket)).toEqual(['agora', 'depois']);
   });
 
   it('remembers that a thread was solved', async () => {

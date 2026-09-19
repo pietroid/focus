@@ -118,7 +118,7 @@ class A2uiRenderer extends StatelessWidget {
       'title' => AppTypography.title,
       'caption' => AppTypography.caption,
       'label' => AppTypography.label,
-      _ => AppTypography.bodyRegular,
+      _ => AppTypography.body,
     };
 
     return Text(
