@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
-import { Message, ToolCall } from './entities/message.entity';
-import { Thread, ThreadSummary } from './entities/thread.entity';
+import { Message } from './entities/message.entity';
+import { Thread, ThreadState, ThreadSummary } from './entities/thread.entity';
 import {
   dayFolder,
   parseThreadDay,
@@ -16,7 +16,7 @@ import {
  *
  * ```
  * <root>/<userId>/<thread-slug>/<YYYY-MM-DD>/thread.md
- * <root>/<userId>/<thread-slug>/pending-tool-calls.json
+ * <root>/<userId>/<thread-slug>/state.json
  * ```
  *
  * A thread is a folder of days, so appending to a conversation only ever
@@ -25,7 +25,6 @@ import {
  * per-thread shape, and the extra segment keeps one user's threads from being
  * readable by another.
  *
- * Pending tool calls are stored in a sidecar file keyed by message id.
  */
 @Injectable()
 export class ThreadsStore {
@@ -41,8 +40,8 @@ export class ThreadsStore {
     return path.join(this._userDir(userId), sanitizeSegment(slug));
   }
 
-  private _pendingToolCallsFile(userId: string, slug: string): string {
-    return path.join(this._threadDir(userId, slug), 'pending-tool-calls.json');
+  private _stateFile(userId: string, slug: string): string {
+    return path.join(this._threadDir(userId, slug), 'state.json');
   }
 
   /** Whether a thread folder already exists. */
@@ -83,16 +82,11 @@ export class ThreadsStore {
 
     messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-    const pendingToolCalls = await this._readPendingToolCalls(userId, slug);
-    for (const message of messages) {
-      const pending = pendingToolCalls[message.id];
-      if (pending !== undefined) {
-        message.metadata = message.metadata ?? { contentType: 'text' };
-        message.metadata.pendingToolCall = pending;
-      }
-    }
+    const state = await this.readState(userId, slug);
 
-    if (title === '') {
+    if (state.title !== undefined && state.title !== '') {
+      title = state.title;
+    } else if (title === '') {
       const first = messages.find((message) => message.role === 'user');
       title = first === undefined ? slug : titleFrom(first.text);
     }
@@ -101,6 +95,7 @@ export class ThreadsStore {
       slug,
       title,
       messages,
+      solved: state.solved,
       createdAt: messages[0]?.createdAt ?? new Date(),
       updatedAt: messages[messages.length - 1]?.createdAt ?? new Date(),
     };
@@ -153,80 +148,77 @@ export class ThreadsStore {
         'utf8',
       );
     }
-
-    await this._updatePendingToolCalls(userId, slug, messages);
   }
 
-  /**
-   * Finds a pending tool call by id for a thread.
-   */
-  async findPendingToolCall(
-    userId: string,
-    slug: string,
-    toolCallId: string,
-  ): Promise<ToolCall | null> {
-    const calls = await this._readPendingToolCalls(userId, slug);
-    return calls[toolCallId] ?? null;
-  }
-
-  /**
-   * Removes a pending tool call after it has been confirmed or rejected.
-   */
-  async removePendingToolCall(
-    userId: string,
-    slug: string,
-    toolCallId: string,
-  ): Promise<void> {
-    const calls = await this._readPendingToolCalls(userId, slug);
-    if (calls[toolCallId] === undefined) return;
-
-    delete calls[toolCallId];
-    await this._writePendingToolCalls(userId, slug, calls);
-  }
-
-  private async _readPendingToolCalls(
-    userId: string,
-    slug: string,
-  ): Promise<Record<string, ToolCall>> {
-    const file = this._pendingToolCallsFile(userId, slug);
-    const content = await readFileOrNull(file);
-    if (content === null) return {};
+  /** The thread's stored state, defaulting to an open thread. */
+  async readState(userId: string, slug: string): Promise<ThreadState> {
+    const content = await readFileOrNull(this._stateFile(userId, slug));
+    if (content === null) return { solved: false };
 
     try {
-      return JSON.parse(content) as Record<string, ToolCall>;
+      const parsed = JSON.parse(content) as Partial<ThreadState>;
+      return { solved: parsed.solved === true, title: parsed.title };
     } catch {
-      return {};
+      return { solved: false };
     }
   }
 
-  private async _writePendingToolCalls(
+  /** Merges [changes] into the thread's state. */
+  async updateState(
     userId: string,
     slug: string,
-    calls: Record<string, ToolCall>,
-  ): Promise<void> {
-    const file = this._pendingToolCallsFile(userId, slug);
-    await fs.writeFile(file, JSON.stringify(calls, null, 2), 'utf8');
+    changes: Partial<ThreadState>,
+  ): Promise<ThreadState> {
+    const next = { ...(await this.readState(userId, slug)), ...changes };
+    await fs.mkdir(this._threadDir(userId, slug), { recursive: true });
+    await fs.writeFile(
+      this._stateFile(userId, slug),
+      JSON.stringify(next, null, 2),
+      'utf8',
+    );
+    return next;
   }
 
-  private async _updatePendingToolCalls(
+  /** Writes a turn's trace next to the thread it explains. */
+  async saveTrace(
     userId: string,
     slug: string,
-    messages: Message[],
+    traceId: string,
+    payload: unknown,
   ): Promise<void> {
-    const calls = await this._readPendingToolCalls(userId, slug);
-    let changed = false;
+    const dir = path.join(this._threadDir(userId, slug), 'traces');
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(
+      path.join(dir, `${sanitizeSegment(traceId)}.json`),
+      JSON.stringify(payload, null, 2),
+      'utf8',
+    );
+  }
 
-    for (const message of messages) {
-      const pending = message.metadata?.pendingToolCall;
-      if (pending !== undefined) {
-        calls[pending.id] = pending;
-        changed = true;
-      }
-    }
+  /** Reads one stored trace back, or null when it has been cleaned up. */
+  async readTrace(
+    userId: string,
+    slug: string,
+    traceId: string,
+  ): Promise<unknown | null> {
+    const file = path.join(
+      this._threadDir(userId, slug),
+      'traces',
+      `${sanitizeSegment(traceId)}.json`,
+    );
+    const content = await readFileOrNull(file);
+    if (content === null) return null;
 
-    if (changed) {
-      await this._writePendingToolCalls(userId, slug, calls);
+    try {
+      return JSON.parse(content) as unknown;
+    } catch {
+      return null;
     }
+  }
+
+  /** Removes a thread and everything in it. */
+  async remove(userId: string, slug: string): Promise<void> {
+    await fs.rm(this._threadDir(userId, slug), { recursive: true, force: true });
   }
 }
 
@@ -238,6 +230,7 @@ function toSummary(thread: Thread): ThreadSummary {
     title: thread.title,
     preview: last === undefined ? '' : previewFrom(last),
     messageCount: thread.messages.length,
+    solved: thread.solved,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
   };

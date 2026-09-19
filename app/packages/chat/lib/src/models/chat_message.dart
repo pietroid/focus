@@ -80,62 +80,27 @@ class A2uiComponent extends Equatable {
   List<Object?> get props => [component, children, properties];
 }
 
-/// Pending tool call stored alongside an A2UI confirmation message.
-class PendingToolCall extends Equatable {
-  /// {@macro pending_tool_call}
-  const PendingToolCall({
-    required this.id,
-    required this.name,
-    required this.arguments,
-  });
-
-  /// Creates a [PendingToolCall] from JSON.
-  factory PendingToolCall.fromJson(Map<String, dynamic> json) {
-    final function = json['function'] as Map<String, dynamic>?;
-
-    return PendingToolCall(
-      id: json['id'] as String? ?? '',
-      name: function?['name'] as String? ?? '',
-      arguments: function?['arguments'] as String? ?? '{}',
-    );
-  }
-
-  /// The tool call id.
-  final String id;
-
-  /// The tool name.
-  final String name;
-
-  /// JSON-encoded tool arguments.
-  final String arguments;
-
-  @override
-  List<Object?> get props => [id, name, arguments];
-}
-
 /// Extra metadata attached to a message.
 class ChatMessageMetadata extends Equatable {
   /// {@macro chat_message_metadata}
   const ChatMessageMetadata({
     required this.contentType,
     this.a2ui,
-    this.pendingToolCall,
     this.model,
     this.latencyMs,
+    this.traceId,
   });
 
   /// Creates metadata from the API's JSON.
   factory ChatMessageMetadata.fromJson(Map<String, dynamic> json) {
     final rawA2ui = json['a2ui'] as Map<String, dynamic>?;
-    final rawPending = json['pendingToolCall'] as Map<String, dynamic>?;
 
     return ChatMessageMetadata(
       contentType: MessageContentType.fromJson(json['contentType'] as String?),
       a2ui: rawA2ui != null ? A2uiComponent.fromJson(rawA2ui) : null,
-      pendingToolCall:
-          rawPending != null ? PendingToolCall.fromJson(rawPending) : null,
       model: json['model'] as String?,
       latencyMs: json['latencyMs'] as int?,
+      traceId: json['traceId'] as String?,
     );
   }
 
@@ -145,18 +110,23 @@ class ChatMessageMetadata extends Equatable {
   /// The parsed A2UI tree, when [contentType] is [MessageContentType.a2ui].
   final A2uiComponent? a2ui;
 
-  /// A tool call awaiting user confirmation.
-  final PendingToolCall? pendingToolCall;
-
   /// The model that generated an agent message.
   final String? model;
 
   /// Time spent generating the reply, in milliseconds.
   final int? latencyMs;
 
+  /// The turn this message belongs to, matching the server and agent logs.
+  final String? traceId;
+
   @override
-  List<Object?> get props =>
-      [contentType, a2ui, pendingToolCall, model, latencyMs];
+  List<Object?> get props => [
+    contentType,
+    a2ui,
+    model,
+    latencyMs,
+    traceId,
+  ];
 }
 
 /// {@template chat_message}

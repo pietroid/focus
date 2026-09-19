@@ -6,6 +6,12 @@ import 'package:flutter/material.dart';
 /// only the content is lit. Surfaces are opaque greys rather than translucent
 /// whites: on black a translucent white lifts the hue of whatever sits behind
 /// it, and the app leans on a single neutral ramp.
+///
+/// Against that ramp sits a five-colour palette, and every one of them means
+/// something. Colour in this app is reserved for what can be acted on or what
+/// carries a state: a button, an icon that says how something went, a caption
+/// that is a warning. Nothing is coloured to be pretty, because once anything
+/// is, nothing is legible at a glance.
 abstract final class AppColors {
   /// The page background behind every screen. True black.
   static const bg = Color(0xFF000000);
@@ -31,20 +37,71 @@ abstract final class AppColors {
   /// Text tertiary: placeholders and disabled content.
   static const ink3 = Color(0xFF6B6B6B);
 
-  /// The accent. A neutral light grey so buttons and highlights stay
-  /// harmonious with the dark greyscale surfaces and the green / red
-  /// semantic colours.
-  static const accent = Color(0xFFD4D4D4);
+  /// The accent: pale lime. The one colour that says "this is the thing to
+  /// tap". On true black it is the brightest thing on screen, so it is spent
+  /// carefully: one primary action per view.
+  static const accent = Color(0xFFEEFFBB);
 
-  /// Content drawn on top of [accent].
+  /// Content drawn on top of [accent]. The lime is light, so this is black.
   static const onAccent = Color(0xFF000000);
 
   /// A 14% accent tint, for accent-washed fills.
-  static const accentSoft = Color(0x24D4D4D4);
+  static const accentSoft = Color(0x24EEFFBB);
 
-  /// Positive / success.
-  static const positive = Color(0xFF3ECF8E);
+  /// Done, free, available, confirmed.
+  static const success = Color(0xFF00B481);
 
-  /// Negative / error.
-  static const negative = Color(0xFFFF5A5A);
+  /// Neutral context: something true but not an outcome.
+  ///
+  /// The deep navy is too dark to read as text on black, so [infoInk] is what
+  /// text and icons use, and this stays for fills and borders.
+  static const info = Color(0xFF1B318F);
+
+  /// A lifted [info], legible as text and icons on the black background.
+  static const infoInk = Color(0xFF7C92E8);
+
+  /// Blocked, failed, destructive.
+  static const danger = Color(0xFF9E2B3D);
+
+  /// A lifted [danger], legible as text and icons on the black background.
+  static const dangerInk = Color(0xFFE8697C);
+
+  /// Needs attention, but nothing has gone wrong yet.
+  static const warning = Color(0xFFFF9A6B);
+
+  /// Positive / success. Retained as the semantic name used by older widgets.
+  static const Color positive = success;
+
+  /// Negative / error. Retained as the semantic name used by older widgets.
+  static const Color negative = dangerInk;
+
+  /// The colour for a role, as the agent names it.
+  ///
+  /// The agent picks a role and never a hex, so the palette can change here
+  /// without touching a prompt or rewriting a thread that has already been
+  /// stored. An unknown role falls back to [ink] rather than to nothing, so a
+  /// new role added on the server degrades to readable text.
+  static Color forRole(String? role) {
+    return switch (role) {
+      'accent' => accent,
+      'success' => success,
+      'info' => infoInk,
+      'warning' => warning,
+      'danger' => dangerInk,
+      'ink' => ink,
+      'ink2' => ink2,
+      'ink3' => ink3,
+      _ => ink,
+    };
+  }
+
+  /// The fill behind a surface tinted by [role], at 12% opacity.
+  static Color washForRole(String? role) {
+    return forRole(role).withValues(alpha: 0.12);
+  }
+
+  /// The border for a surface tinted by [role], at 32% opacity.
+  static Color borderForRole(String? role) {
+    return forRole(role).withValues(alpha: 0.32);
+  }
 }

@@ -113,28 +113,34 @@ describe('ThreadsStore', () => {
     expect(summaries[0].messageCount).toBe(1);
   });
 
-  it('stores and retrieves pending tool calls by tool call id', async () => {
-    const at = new Date(2026, 8, 15, 10, 0);
-    const toolCallId = 'call-schedule-123';
-    const metadata: MessageMetadata = {
-      contentType: 'a2ui',
-      pendingToolCall: {
-        id: toolCallId,
-        type: 'function',
-        function: {
-          name: 'calendar_create_event',
-          arguments: JSON.stringify({ title: 'Standup', startTime: '2026-09-16T10:00:00', endTime: '2026-09-16T11:00:00' }),
-        },
-      },
-    };
-
-    await store.append('u1', 'schedule', 'Schedule', [
-      message('agent', 'Confirm?', at, metadata),
+  it('remembers that a thread was solved', async () => {
+    await store.append('u1', 'done', 'Done', [
+      message('user', 'ship it', new Date(2026, 8, 15, 10, 0)),
     ]);
 
-    const found = await store.findPendingToolCall('u1', 'schedule', toolCallId);
-    expect(found).not.toBeNull();
-    expect(found?.id).toBe(toolCallId);
-    expect(found?.function.name).toBe('calendar_create_event');
+    expect((await store.read('u1', 'done'))?.solved).toBe(false);
+
+    await store.updateState('u1', 'done', { solved: true });
+    expect((await store.read('u1', 'done'))?.solved).toBe(true);
+  });
+
+  it('keeps a message\'s trace id across a round trip to disk', async () => {
+    const at = new Date(2026, 8, 15, 10, 0);
+    await store.append('u1', 'traced', 'Traced', [
+      message('agent', '', at, {
+        contentType: 'a2ui',
+        a2ui: { component: 'Text', text: 'Noted.' },
+        traceId: 't_abc',
+        model: 'stub',
+        parseStrategy: 'direct',
+      }),
+    ]);
+
+    const thread = await store.read('u1', 'traced');
+    expect(thread?.messages[0].metadata).toMatchObject({
+      traceId: 't_abc',
+      model: 'stub',
+      parseStrategy: 'direct',
+    });
   });
 });

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer';
 
 import 'package:bloc/bloc.dart';
@@ -14,15 +13,21 @@ part 'chat_state.dart';
 ///
 /// A message is shown the moment it is sent, before the server has seen it, so
 /// the screen never looks like it dropped what the user typed. The agent's
-/// answer is what the skeleton waits for.
+/// answer is what the typing indicator waits for.
+///
+/// Actions are not interpreted here. `dismiss` and `openUrl` are the only two
+/// the app can finish on its own; everything else is posted to the server as
+/// it arrived. An earlier version guessed at tool actions and, when it could
+/// not find an id, sent a fabricated message reading "Please run
+/// calendar_create_event with {...}" into the conversation. That is exactly
+/// the class of bug that goes unnoticed until it is in a screenshot.
 /// {@endtemplate}
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// {@macro chat_bloc}
   ChatBloc({required this.chatRepository}) : super(const ChatState()) {
     on<ChatThreadRequested>(_onThreadRequested);
     on<ChatMessageSent>(_onMessageSent);
-    on<ChatToolConfirmed>(_onToolConfirmed);
-    on<ChatA2uiAction>(_onA2uiAction);
+    on<ChatActionFired>(_onActionFired);
   }
 
   /// Repository used to read and write threads.
@@ -35,9 +40,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     emit(state.copyWith(status: ChatStatus.loading, slug: event.slug));
 
     try {
-      final thread = await chatRepository.fetchThread(event.slug);
-      emit(_loaded(thread));
-    } on Exception catch (_) {
+      emit(_loaded(await chatRepository.fetchThread(event.slug)));
+    } on Exception catch (error, stackTrace) {
+      _logFailure('fetchThread', error, stackTrace);
       emit(
         state.copyWith(
           status: ChatStatus.failure,
@@ -71,7 +76,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           : await chatRepository.sendMessage(slug, text);
 
       emit(_loaded(thread));
-    } on Exception catch (_) {
+    } on Exception catch (error, stackTrace) {
+      _logFailure('sendMessage', error, stackTrace);
+
       // Drop the optimistic copy: leaving it on screen under an error would
       // claim the message was sent when it was not.
       emit(
@@ -86,157 +93,74 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
-  Future<void> _onToolConfirmed(
-    ChatToolConfirmed event,
+  Future<void> _onActionFired(
+    ChatActionFired event,
     Emitter<ChatState> emit,
   ) async {
+    final action = event.action;
+    final type = action['type'] as String?;
     final slug = state.slug;
-    if (slug == null) return;
 
     log(
-      '[ChatBloc] confirming tool',
+      '[ChatBloc] action fired',
       name: 'chat_bloc',
-      error: {
-        'toolCallId': event.toolCallId,
-        'confirmed': event.confirmed,
-        'arguments': event.arguments,
-        'slug': slug,
-      },
+      error: {'type': type, 'slug': slug, 'action': action},
     );
 
-    emit(
-      state.copyWith(
-        status: ChatStatus.awaitingAction,
-      ),
-    );
+    // Handled entirely on this side: nothing to ask the server about.
+    if (type == 'dismiss' || type == 'openUrl') return;
+
+    if (slug == null) {
+      log(
+        '[ChatBloc] action dropped: the thread has no slug yet',
+        name: 'chat_bloc',
+        error: {'type': type},
+      );
+      return;
+    }
+
+    // Every action is disabled at once, so a double tap cannot resolve the
+    // same pending call twice while the first request is still open.
+    emit(state.copyWith(status: ChatStatus.awaitingAction));
 
     try {
-      final thread = await chatRepository.confirmTool(
-        slug: slug,
-        toolCallId: event.toolCallId,
-        confirmed: event.confirmed,
-        arguments: event.arguments,
-      );
-
-      emit(_loaded(thread));
+      emit(_loaded(await chatRepository.runAction(slug: slug, action: action)));
     } on Exception catch (error, stackTrace) {
-      log(
-        '[ChatBloc] confirmTool failed',
-        name: 'chat_bloc',
-        error: error,
-        stackTrace: stackTrace,
-      );
+      _logFailure('runAction', error, stackTrace);
       emit(
         state.copyWith(
-          // Revert to the previous screen so the user can retry the action.
+          // Back to ready rather than failure, so the buttons come alive again
+          // and the user can retry the action they meant.
           status: ChatStatus.ready,
-          errorMessage: 'Could not confirm the action. Please try again.',
+          errorMessage: 'That did not go through. Try again.',
         ),
       );
     }
   }
 
-  Future<void> _onA2uiAction(
-    ChatA2uiAction event,
-    Emitter<ChatState> emit,
-  ) async {
-    final action = event.action;
-    final type = action['type'] as String?;
-
+  void _logFailure(String operation, Object error, StackTrace stackTrace) {
     log(
-      '[ChatBloc] handling A2UI action',
+      '[ChatBloc] $operation failed',
       name: 'chat_bloc',
-      error: {
-        'type': type,
-        'tool': action['tool'],
-        'requiresConfirmation': action['requiresConfirmation'],
-        '_toolCallId': action['_toolCallId'],
-        'arguments': action['arguments'],
-        'fullAction': action,
-      },
+      error: error,
+      stackTrace: stackTrace,
     );
-
-    switch (type) {
-      case 'tool':
-        final requiresConfirmation =
-            action['requiresConfirmation'] as bool? ?? false;
-        final slug = state.slug;
-        if (slug == null) return;
-
-        // Disable every action immediately so the user cannot double-tap.
-        emit(state.copyWith(status: ChatStatus.awaitingAction));
-
-        var toolCallId = action['_toolCallId'] as String? ??
-            state.pendingToolCall?.id ??
-            '';
-
-        if (toolCallId.isEmpty) {
-          // The model emitted a tool action without a backend pending call.
-          // Treat it as a new user request so the agent can process it through
-          // the proper tool loop and return a confirmable action.
-          final toolName = action['tool'] as String? ?? '';
-          final arguments = action['arguments'] as Map<String, dynamic>? ?? {};
-          add(ChatMessageSent('Please run $toolName with $arguments'));
-          break;
-        }
-
-        if (requiresConfirmation) {
-          emit(
-            state.copyWith(
-              pendingToolCall: PendingToolCall(
-                id: toolCallId,
-                name: action['tool'] as String? ?? '',
-                arguments: jsonEncode(
-                  action['arguments'] as Map<String, dynamic>? ?? {},
-                ),
-              ),
-            ),
-          );
-        } else {
-          add(
-            ChatToolConfirmed(
-              toolCallId: toolCallId,
-              confirmed: true,
-              arguments: action['arguments'] as Map<String, dynamic>?,
-            ),
-          );
-        }
-        break;
-      case 'reply':
-        final text = action['text'] as String?;
-        if (text != null && text.isNotEmpty) {
-          add(ChatMessageSent(text));
-        }
-        break;
-      case 'dismiss':
-        // Reset to the idle state so actions are re-enabled and the skeleton
-        // is hidden.
-        emit(
-          state.copyWith(
-            status: ChatStatus.ready,
-            pendingToolCall: null,
-          ),
-        );
-        break;
-      case 'openUrl':
-      // URLs are handled by the presentation layer via url_launcher.
-      default:
-        break;
-    }
   }
 
   ChatState _loaded(Thread thread) {
-    final pending = thread.messages
-        .map((message) => message.metadata?.pendingToolCall)
-        .whereType<PendingToolCall>()
-        .lastOrNull;
+    final trace = thread.messages.last.metadata?.traceId;
+    if (trace != null) {
+      // Printed on every turn so a screenshot of the app is enough to find the
+      // matching server and agent logs.
+      log('[ChatBloc] turn $trace', name: 'chat_bloc');
+    }
 
     return ChatState(
       status: ChatStatus.ready,
       slug: thread.slug,
       title: thread.title,
       messages: thread.messages,
-      pendingToolCall: pending,
+      solved: thread.solved,
     );
   }
 }

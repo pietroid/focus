@@ -45,24 +45,24 @@ class AgentMessage extends StatelessWidget {
   }
 }
 
-/// {@template agent_message_skeleton}
+/// {@template agent_typing}
 /// What stands in for the agent's turn while it is being written.
 ///
-/// Shaped like the reply rather than like a spinner: same alignment, same
-/// width, so nothing jumps when the text lands.
+/// Aligned like a reply and no wider than it needs to be. It used to be a
+/// block of grey bars sized to a paragraph, which guessed at a shape the
+/// answer often did not have and jumped when the real one arrived.
 /// {@endtemplate}
-class AgentMessageSkeleton extends StatelessWidget {
-  /// {@macro agent_message_skeleton}
-  const AgentMessageSkeleton({super.key});
+class AgentTyping extends StatelessWidget {
+  /// {@macro agent_typing}
+  const AgentTyping({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Align(
       alignment: Alignment.centerLeft,
-      child: FractionallySizedBox(
-        alignment: Alignment.centerLeft,
-        widthFactor: 0.72,
-        child: AppSkeletonLines(),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: AppSpacing.s2),
+        child: AppTypingIndicator(),
       ),
     );
   }

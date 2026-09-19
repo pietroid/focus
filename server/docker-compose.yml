@@ -27,9 +27,6 @@ services:
       # The agent has its own environment file. It never sees the backend's
       # Firebase credentials or allowed-email list.
       - ../agent/.env.production
-    volumes:
-      # Read-only access to the same thread data the backend writes.
-      - /opt/focus/data/threads:/app/data/threads:ro
 
   focus-web:
     image: nginx:alpine

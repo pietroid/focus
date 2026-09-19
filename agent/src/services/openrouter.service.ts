@@ -1,8 +1,4 @@
-import {
-  OpenRouterMessage,
-  ToolCall,
-  ToolDefinition,
-} from '../a2ui/types.js';
+import { OpenRouterMessage, ToolCall, ToolDefinition } from '../types.js';
 
 /** Outcome of a single OpenRouter generation call. */
 export type OpenRouterOutcome =
@@ -46,6 +42,11 @@ export class OpenRouterService {
     private readonly _appUrl = 'https://focus.pietroid.dev',
     private readonly _appName = 'Focus',
   ) {}
+
+  /** The model this client is pinned to. */
+  get model(): string {
+    return this._model;
+  }
 
   async generate(
     messages: OpenRouterMessage[],

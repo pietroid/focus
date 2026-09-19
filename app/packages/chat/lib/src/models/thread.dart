@@ -10,6 +10,7 @@ class Thread extends Equatable {
     required this.slug,
     required this.title,
     required this.messages,
+    required this.solved,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -24,6 +25,7 @@ class Thread extends Equatable {
       messages: rawMessages
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList(),
+      solved: json['solved'] as bool? ?? false,
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -38,6 +40,9 @@ class Thread extends Equatable {
   /// Every message, oldest first.
   final List<ChatMessage> messages;
 
+  /// Whether the user has marked this thread closed.
+  final bool solved;
+
   /// When the thread's first message was written.
   final DateTime createdAt;
 
@@ -45,7 +50,14 @@ class Thread extends Equatable {
   final DateTime updatedAt;
 
   @override
-  List<Object?> get props => [slug, title, messages, createdAt, updatedAt];
+  List<Object?> get props => [
+    slug,
+    title,
+    messages,
+    solved,
+    createdAt,
+    updatedAt,
+  ];
 }
 
 /// {@template thread_summary}
@@ -58,6 +70,7 @@ class ThreadSummary extends Equatable {
     required this.title,
     required this.preview,
     required this.messageCount,
+    required this.solved,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -69,6 +82,7 @@ class ThreadSummary extends Equatable {
       title: json['title'] as String? ?? '',
       preview: json['preview'] as String? ?? '',
       messageCount: json['messageCount'] as int? ?? 0,
+      solved: json['solved'] as bool? ?? false,
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -86,6 +100,9 @@ class ThreadSummary extends Equatable {
   /// How many messages the thread holds.
   final int messageCount;
 
+  /// Whether the user has marked this thread closed.
+  final bool solved;
+
   /// When the thread's first message was written.
   final DateTime createdAt;
 
@@ -98,6 +115,7 @@ class ThreadSummary extends Equatable {
     title,
     preview,
     messageCount,
+    solved,
     createdAt,
     updatedAt,
   ];

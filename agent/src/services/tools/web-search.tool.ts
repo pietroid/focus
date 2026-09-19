@@ -1,4 +1,5 @@
 import { ToolImplementation, UserContext } from './tool.interface.js';
+import { ToolDefinition } from '../../types.js';
 
 interface SearchResult {
   title: string;
@@ -21,7 +22,28 @@ interface SearchResult {
  */
 export class WebSearchTool implements ToolImplementation {
   readonly name = 'web_search';
-  readonly requiresConfirmation = false;
+
+  readonly definition: ToolDefinition = {
+    type: 'function',
+    function: {
+      name: 'web_search',
+      description:
+        'Search the web for current information. Use it whenever the answer ' +
+        'depends on something that changes, such as prices, news, or opening ' +
+        'hours.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for' },
+        },
+        required: ['query'],
+      },
+    },
+  };
+
+  summarize(args: Record<string, unknown>): string {
+    return `Buscar na web por "${String(args.query ?? '')}"`;
+  }
 
   async execute(
     args: Record<string, unknown>,

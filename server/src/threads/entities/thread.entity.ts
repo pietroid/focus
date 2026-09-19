@@ -6,6 +6,8 @@ export class Thread {
   slug: string;
   title: string;
   messages: Message[];
+  /** Whether the user considers this thread closed. */
+  solved: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,14 @@ export class ThreadSummary {
   /** The last message's text, trimmed to a single line. */
   preview: string;
   messageCount: number;
+  solved: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** What is stored about a thread beyond its messages. */
+export interface ThreadState {
+  solved: boolean;
+  /** Set when the user or the agent renamed the thread. */
+  title?: string;
 }

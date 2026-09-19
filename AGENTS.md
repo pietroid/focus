@@ -6,7 +6,15 @@ Focus is a personal productivity system with three parts:
 
 1. **Flutter app** in `app/` — cross-platform control center (iOS, Android, Web).
 2. **NestJS backend** in `server/` — REST API, Firebase Auth, Firestore.
-3. **AI agent** in `agent/` — separate TypeScript service that replies to threads.
+3. **AI agent** in `agent/` — separate TypeScript service that runs the model
+   and its tools. It has no UI opinions and no access to the thread files.
+
+### Language
+
+Everything the user reads is in Brazilian Portuguese: app strings, the trees
+the server builds, the tool summaries the approval card shows, and the model's
+own replies. Code, comments, commits and this file stay in English. A new
+user-facing string in English is a bug.
 
 ## Stack
 
@@ -203,7 +211,8 @@ Repository variables (Settings → Secrets and variables → Actions):
    sudo mkdir -p /opt/focus/web
    sudo chown -R "$USER:$USER" /opt/focus/web
    ```
-6. Create the shared thread data directory:
+6. Create the thread data directory. Only the backend mounts it; the agent
+   is given the thread it needs in each request.
    ```bash
    sudo mkdir -p /opt/focus/data/threads
    sudo chown -R "$USER:$USER" /opt/focus/data
@@ -213,41 +222,123 @@ Repository variables (Settings → Secrets and variables → Actions):
 After the first server deploy, the `focus-web` nginx container will be running.
 Subsequent app deploys will sync new web files and reload nginx.
 
-## Agent Notes
+## Architecture: who owns what
 
-The agent is a separate Express service that runs inside its own Docker
-container.
+The split is one sentence: **the agent gets reliable data, the server decides
+what the user sees.**
 
-- It is **not** exposed to the public internet. It only exposes port `3001`
-  inside the Docker network.
-- The backend talks to it at `http://focus-agent:3001`.
-- It exposes two main endpoints:
-  - `POST /reply` — generates the next A2UI message in a thread.
-  - `POST /execute-tool` — executes a confirmed tool call on behalf of the user.
-- It has **read-only** access to the thread files mounted at
-  `/app/data/threads`. The backend writes these files; the Agent only reads them.
-- It does **not** see the backend's Firebase service account or
-  `.env.production` secrets.
-- Replies are generated via the [OpenRouter](https://openrouter.ai/) API using
-  the thread history as context. Configure it with `OPENROUTER_API_KEY` and
-  `OPENROUTER_MODEL` in `agent/.env.production`. If the key is missing or the
-  request fails, the agent returns a short fallback A2UI message.
-- Every reply is an A2UI component tree. Even plain text is wrapped in a `Text`
-  component.
-- Integrations (Calendar, Web Search, API calls) are exposed to the model as
-  OpenRouter tools and run inside the Agent. The backend orchestrates user
-  confirmation for write/sensitive tools but never executes integrations or
-  holds their secrets. Configure integration keys only in
-  `agent/.env.production`.
+```
+app  ──POST /threads/:slug/messages──▶  server
+                                        │ builds the prompt (persona, catalog,
+                                        │ hygiene rules, thread history)
+                                        ▼
+                                       agent  POST /generate
+                                        │ runs the model, executes every tool
+                                        │ it asks for, loops until there is an
+                                        │ answer; returns { raw, toolTrace }
+                                        ▼
+                                       server parses → validates → scrubs → stores
+                                        │
+app  ◀──────── thread with a clean A2UI tree ─────────┘
+```
+
+### The server owns A2UI
+
+Everything under `server/src/a2ui/` is the single source of truth:
+
+- `a2ui.catalog.ts` — the components, colour roles, icon names and action
+  types. The system prompt is **generated from** this file, so the prompt and
+  the validator can never describe different catalogs.
+- `a2ui-prompt.service.ts` — persona, catalog, the rules about what the user
+  must never read, and the history (replayed as prose, not as stored JSON).
+- `a2ui-parser.service.ts` — recovers a tree from whatever the model actually
+  said: bare JSON, a code fence, JSON buried in prose, or plain prose. It
+  reports which rung of that ladder it landed on as `parseStrategy`.
+- `a2ui-validation.service.ts` — drops unknown components, strips unknown
+  props, and scrubs user-facing strings of tool names, JSON, ids and markdown.
+- `a2ui.builders.ts` — the few trees the server writes itself, for the turn
+  where the model never answered at all.
+
+The Flutter app implements the other half of the same catalog in
+`packages/chat/lib/src/widgets/a2ui_renderer.dart` and
+`packages/app_ui/lib/src/app_icons/a2ui_icons.dart`. The icon lists are checked
+against each other by `packages/app_ui/test/a2ui_icons_test.dart`, which reads
+the server's source directly.
+
+### The agent owns tools
+
+`agent/` no longer knows what A2UI is, has no prompt of its own, and no longer
+reads the thread files. It exposes two routes on the private Docker network:
+
+- `GET /tools` — name and description for each tool. The server asks rather
+  than keeping a copy, so adding a tool is a one-file change.
+- `POST /generate` — runs the prompt the server built, executing every tool the
+  model calls inline and returning `{ raw, toolTrace }`.
+
+There is no approval step. A tool runs the moment the model asks for it, and
+the model writes the sentence about it with the result already in hand, so the
+user reads what happened rather than what was proposed. Each tool in
+`agent/src/services/tools/` carries its own OpenRouter definition and its own
+`summarize()`, which is the line a trace reads back in plain Portuguese.
+
+### Actions
+
+A rendered component fires an action; the app posts it verbatim to
+`POST /threads/:slug/actions` and renders the thread that comes back. The app
+interprets exactly two of them itself — `dismiss` and `openUrl` — because
+neither needs the server.
+
+| Action | Who handles it |
+|--------|----------------|
+| `reply` | Server: appends the text as a user message and answers it. |
+| `thread` (`solve`/`reopen`/`rename`/`delete`) | Server alone. No agent call. |
+| `dismiss`, `openUrl` | App only. The server 400s if one arrives. |
+
+An action type outside the catalog is dropped by the validator, taking its
+component with it, so a button a model invented cannot fire anything.
+
+Only the last turn's actions are live. The app disables buttons on every
+message above it: they belong to a moment the conversation has already moved
+past.
+
+### Observability
+
+Every turn gets a trace id (`t_<base36>_<hex>`), minted in the controller and
+passed to the agent in the `x-focus-trace-id` header. Both containers log
+one-line JSON under it, so one command replays a whole turn in order:
+
+```bash
+docker logs focus-backend & docker logs focus-agent | grep t_mu7hizeb_65a155d1
+```
+
+The turn is also written to
+`<thread>/traces/<traceId>.json` and readable at
+`GET /threads/:slug/traces/:traceId`. The trace id is stored on the message
+itself and logged by the app, so a screenshot is enough to find the turn
+behind it.
+
+Events worth knowing: `prompt.built`, `agent.generate.start/ok/fail`,
+`tool.start/ok/fail`, `tool.awaitingApproval`, `a2ui.parse`, `a2ui.repaired`
+(every repair and rejection, in full), `a2ui.validated`, `turn.unavailable`.
+
+### Integrations
+
+- Replies are generated via the [OpenRouter](https://openrouter.ai/) API.
+  Configure `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in
+  `agent/.env.production`. Without a key the agent returns 502 and the server
+  shows a written "could not reach my brain" message rather than a blank turn.
 - **Google Calendar** connects via a service account or OAuth2 refresh token.
-  Set `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` / `GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY`
-  or `GOOGLE_CALENDAR_REFRESH_TOKEN` plus client credentials. Use
-  `GOOGLE_CALENDAR_ID` to target a specific calendar (defaults to `primary`).
-- **Web Search** works best with an API such as **Serper.dev** or
-  **Brave Search API**. Set `WEB_SEARCH_API_KEY` and `WEB_SEARCH_API_BASE_URL`.
-  If no key is configured, the agent falls back to DuckDuckGo's HTML results
-  page, which is convenient for local development but can break if their markup
-  changes.
+  Set `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` /
+  `GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY` or `GOOGLE_CALENDAR_REFRESH_TOKEN`
+  plus client credentials. Use `GOOGLE_CALENDAR_ID` to target a specific
+  calendar (defaults to `primary`).
+- **Web Search** works best with **Serper.dev** or the **Brave Search API**.
+  Set `WEB_SEARCH_API_KEY` and `WEB_SEARCH_API_BASE_URL`. Without a key it
+  falls back to scraping DuckDuckGo's HTML, which is fine locally and brittle
+  in production.
+
+Integration secrets live only in `agent/.env.production`. The server never
+holds them and never executes an integration.
 
 ## Manual / Local Deployment
 

@@ -1,24 +1,17 @@
+import { A2uiComponent, A2uiIssue } from '../../a2ui/a2ui.types';
+
 /** Who wrote a message. */
 export type MessageRole = 'user' | 'agent' | 'system';
 
 /** Content type stored in the message body. */
 export type MessageContentType = 'text' | 'a2ui';
 
-/** Pending tool call stored alongside an A2UI confirmation message. */
-export interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
-/** A2UI component node. */
-export interface A2uiComponent {
-  component: string;
-  children?: A2uiComponent[];
-  [key: string]: unknown;
+/** What a tool did, kept for observability rather than for display. */
+export interface ToolRun {
+  name: string;
+  ok: boolean;
+  durationMs: number;
+  error?: string;
 }
 
 /** Extra metadata attached to a message. */
@@ -26,8 +19,15 @@ export interface MessageMetadata {
   contentType: MessageContentType;
   model?: string;
   latencyMs?: number;
-  pendingToolCall?: ToolCall;
   a2ui?: A2uiComponent;
+  /** The turn this message belongs to. Present on every agent message. */
+  traceId?: string;
+  /** Tools that ran while producing it. */
+  toolRuns?: ToolRun[];
+  /** What the validator had to repair or reject, if anything. */
+  a2uiIssues?: A2uiIssue[];
+  /** How the raw model output was read: direct, fenced, salvaged, wrapped. */
+  parseStrategy?: string;
 }
 
 /** A single turn in a thread. */
@@ -38,6 +38,5 @@ export class Message {
   /** The message body, as written in the markdown file. */
   text: string;
   createdAt: Date;
-  /** Optional metadata, including content type and A2UI tree. */
   metadata?: MessageMetadata;
 }

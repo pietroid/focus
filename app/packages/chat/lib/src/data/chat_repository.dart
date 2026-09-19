@@ -50,21 +50,28 @@ class ChatRepository {
     return Thread.fromJson(response.data ?? <String, dynamic>{});
   }
 
-  /// Confirms or rejects a pending tool call.
-  Future<Thread> confirmTool({
+  /// Runs an action a rendered component fired.
+  ///
+  /// The action object is posted exactly as it arrived. The app deliberately
+  /// does not read it first: what an action means, which ones need a pending
+  /// call, and which ones touch the thread itself are all the server's to know,
+  /// and duplicating that judgement here is how the two drift apart.
+  Future<Thread> runAction({
     required String slug,
-    required String toolCallId,
-    required bool confirmed,
-    Map<String, dynamic>? arguments,
+    required Map<String, dynamic> action,
   }) async {
     final response = await apiClient.post<Map<String, dynamic>>(
-      '/threads/$slug/tools/$toolCallId/confirm',
-      data: {
-        'confirmed': confirmed,
-        'arguments': arguments,
-      },
+      '/threads/$slug/actions',
+      data: {'action': action},
     );
 
-    return Thread.fromJson(response.data ?? <String, dynamic>{});
+    final body = response.data ?? <String, dynamic>{};
+    final thread = body['thread'] as Map<String, dynamic>?;
+
+    if (thread == null) {
+      throw StateError('The action removed the thread');
+    }
+
+    return Thread.fromJson(thread);
   }
 }

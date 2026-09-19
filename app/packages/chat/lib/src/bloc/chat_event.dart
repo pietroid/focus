@@ -38,34 +38,12 @@ final class ChatMessageSent extends ChatEvent {
   List<Object?> get props => [text];
 }
 
-/// Confirms or rejects a pending tool call.
-final class ChatToolConfirmed extends ChatEvent {
+/// Carries an action from a rendered component straight to the server.
+final class ChatActionFired extends ChatEvent {
   /// {@macro chat_event}
-  const ChatToolConfirmed({
-    required this.toolCallId,
-    required this.confirmed,
-    this.arguments,
-  });
+  const ChatActionFired(this.action);
 
-  /// The id of the pending tool call.
-  final String toolCallId;
-
-  /// Whether the user confirmed the action.
-  final bool confirmed;
-
-  /// Optional override of the original tool arguments.
-  final Map<String, dynamic>? arguments;
-
-  @override
-  List<Object?> get props => [toolCallId, confirmed, arguments];
-}
-
-/// Handles an A2UI action from the rendered component tree.
-final class ChatA2uiAction extends ChatEvent {
-  /// {@macro chat_event}
-  const ChatA2uiAction(this.action);
-
-  /// The action payload emitted by the component.
+  /// The action object, exactly as the component carried it.
   final Map<String, dynamic> action;
 
   @override

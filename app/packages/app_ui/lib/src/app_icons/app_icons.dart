@@ -29,6 +29,9 @@ class AppIcons {
   /// Back Icon.
   static const back = AppIconData.phosphor(PhosphorIconsRegular.arrowLeft);
 
+  /// Check, for something that has been closed out.
+  static const check = AppIconData.phosphor(PhosphorIconsBold.check);
+
   /// Chevron, for a row that opens something.
   static const chevronRight = AppIconData.phosphor(
     PhosphorIconsRegular.caretRight,

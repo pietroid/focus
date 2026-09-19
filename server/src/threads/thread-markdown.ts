@@ -1,9 +1,9 @@
+import { A2uiComponent } from '../a2ui/a2ui.types';
 import {
-  A2uiComponent,
   Message,
   MessageContentType,
+  MessageMetadata,
   MessageRole,
-  ToolCall,
 } from './entities/message.entity';
 
 /**
@@ -22,8 +22,11 @@ import {
  * ```
  *
  * Markdown rather than JSON so a day of conversation stays readable, diffable,
- * and editable by hand. Agent messages store A2UI JSON in the body when the
- * metadata indicates the content type is 'a2ui'.
+ * and editable by hand. An agent message stores its A2UI tree in the body,
+ * alongside a `meta` object carrying the trace id, the model and what the
+ * validator had to fix. Keeping that in the file rather than only in a log
+ * means a turn can still be explained days later, after the container that
+ * logged it is gone.
  */
 
 /** Matches a message header, and only a message header. */
@@ -32,31 +35,22 @@ const HEADER = /^## (user|agent|system) @ (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/;
 /** Matches the thread title heading. */
 const TITLE = /^# (.+)$/;
 
-/**
- * Detects whether a message body is an A2UI JSON payload.
- */
-function looksLikeA2ui(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('{')) return false;
-
-  try {
-    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    return parsed.a2ui !== undefined;
-  } catch {
-    return false;
-  }
+/** The body of an agent message, as written into the file. */
+interface StoredBody {
+  a2ui?: A2uiComponent;
+  meta?: Omit<MessageMetadata, 'contentType' | 'a2ui'>;
 }
 
 /**
- * Extracts the A2UI tree from an agent message body, if present.
+ * Reads an agent message body back, when it holds an A2UI payload.
  */
-function parseA2ui(text: string): A2uiComponent | undefined {
+function parseBody(text: string): StoredBody | undefined {
   const trimmed = text.trim();
   if (!trimmed.startsWith('{')) return undefined;
 
   try {
-    const parsed = JSON.parse(trimmed) as { a2ui?: A2uiComponent };
-    return parsed.a2ui;
+    const parsed = JSON.parse(trimmed) as StoredBody;
+    return parsed.a2ui === undefined ? undefined : parsed;
   } catch {
     return undefined;
   }
@@ -67,15 +61,24 @@ function parseA2ui(text: string): A2uiComponent | undefined {
  */
 export function serializeThreadDay(title: string, messages: Message[]): string {
   const blocks = messages.map((message) => {
-    const body =
-      message.metadata?.contentType === 'a2ui' && message.metadata?.a2ui !== undefined
-        ? JSON.stringify({ a2ui: message.metadata.a2ui })
-        : message.text.trim();
-
-    return `## ${message.role} @ ${message.createdAt.toISOString()}\n\n${body}`;
+    return `## ${message.role} @ ${message.createdAt.toISOString()}\n\n${serializeBody(message)}`;
   });
 
   return [`# ${title}`, ...blocks].join('\n\n') + '\n';
+}
+
+/** One message body: the A2UI payload plus its metadata, or plain text. */
+function serializeBody(message: Message): string {
+  const metadata = message.metadata;
+  if (metadata?.contentType !== 'a2ui' || metadata.a2ui === undefined) {
+    return message.text.trim();
+  }
+
+  const { contentType: _contentType, a2ui, ...meta } = metadata;
+  const body: StoredBody = { a2ui };
+  if (Object.keys(meta).length > 0) body.meta = meta;
+
+  return JSON.stringify(body);
 }
 
 /**
@@ -99,9 +102,9 @@ export function parseThreadDay(markdown: string): {
     if (current === null) return;
 
     const text = current.body.join('\n').trim();
-    const a2ui = current.role !== 'user' ? parseA2ui(text) : undefined;
+    const stored = current.role === 'user' ? undefined : parseBody(text);
     const contentType: MessageContentType =
-      a2ui !== undefined ? 'a2ui' : 'text';
+      stored === undefined ? 'text' : 'a2ui';
 
     const message: Message = {
       id: messageId(current.role, current.createdAt),
@@ -110,8 +113,8 @@ export function parseThreadDay(markdown: string): {
       createdAt: current.createdAt,
     };
 
-    if (contentType === 'a2ui') {
-      message.metadata = { contentType, a2ui };
+    if (stored !== undefined) {
+      message.metadata = { ...stored.meta, contentType, a2ui: stored.a2ui };
     }
 
     messages.push(message);
@@ -211,8 +214,9 @@ export function previewFrom(message: Message): string {
 }
 
 function firstTextInTree(component: A2uiComponent): string | undefined {
-  if (component.component === 'Text' && typeof component.text === 'string') {
-    return component.text;
+  for (const key of ['text', 'title']) {
+    const value = component[key];
+    if (typeof value === 'string' && value.trim() !== '') return value;
   }
 
   if (Array.isArray(component.children)) {

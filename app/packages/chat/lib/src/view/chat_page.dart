@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/bloc/chat_bloc.dart';
 import 'package:chat/src/data/chat_repository.dart';
-import 'package:chat/src/models/models.dart';
 import 'package:chat/src/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -61,91 +60,55 @@ class _ChatView extends StatelessWidget {
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
       },
-      child: BlocListener<ChatBloc, ChatState>(
-        listenWhen: (previous, current) =>
-            previous.pendingToolCall != current.pendingToolCall &&
-            current.pendingToolCall != null,
-        listener: (context, state) {
-          unawaited(_showToolConfirmation(context, state.pendingToolCall!));
-        },
-        child: Scaffold(
-          appBar: AppBar(
-            leading: AppIconButton(
-              iconData: AppIcons.back,
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-            title: BlocBuilder<ChatBloc, ChatState>(
-              buildWhen: (previous, current) => previous.title != current.title,
-              builder: (context, state) => Text(
-                state.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: AppIconButton(
+            iconData: AppIcons.back,
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          title: BlocBuilder<ChatBloc, ChatState>(
+            buildWhen: (previous, current) => previous.title != current.title,
+            builder: (context, state) => Text(
+              state.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          body: SafeArea(
-            top: false,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: AppSpacing.maxContentWidth,
-                ),
-                child: const Column(
-                  children: [
-                    Expanded(child: _Messages()),
-                    _Composer(),
-                  ],
-                ),
+          actions: [
+            BlocBuilder<ChatBloc, ChatState>(
+              buildWhen: (previous, current) =>
+                  previous.solved != current.solved,
+              builder: (context, state) => state.solved
+                  ? const Padding(
+                      padding: EdgeInsets.only(right: AppSpacing.s4),
+                      child: AppBadge(
+                        text: 'Feito',
+                        color: AppColors.success,
+                        iconData: AppIconData.phosphor(Icons.check),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppSpacing.maxContentWidth,
+              ),
+              child: const Column(
+                children: [
+                  Expanded(child: _Messages()),
+                  _Composer(),
+                ],
               ),
             ),
           ),
         ),
       ),
     );
-  }
-
-  Future<void> _showToolConfirmation(
-    BuildContext context,
-    PendingToolCall pending,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(
-          'Confirm action',
-          style: AppTypography.title,
-        ),
-        content: Text(
-          'Allow ${pending.name}?',
-          style: AppTypography.bodyRegular,
-        ),
-        actions: [
-          AppButton.text(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            text: 'Cancel',
-          ),
-          AppButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            text: 'Confirm',
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == null) {
-      if (!context.mounted) return;
-      context.read<ChatBloc>().add(const ChatA2uiAction({'type': 'dismiss'}));
-      return;
-    }
-
-    if (!context.mounted) return;
-    context.read<ChatBloc>().add(
-          ChatToolConfirmed(
-            toolCallId: pending.id,
-            confirmed: confirmed,
-          ),
-        );
   }
 }
 
@@ -162,11 +125,11 @@ class _Messages extends StatelessWidget {
               horizontal: AppSpacing.s6,
               vertical: AppSpacing.s4,
             ),
-            child: AgentMessageSkeleton(),
+            child: AgentTyping(),
           );
         }
 
-        final skeletonCount = state.isAwaiting ? 1 : 0;
+        final typingCount = state.isAwaiting ? 1 : 0;
         final actionsEnabled = !state.isAwaitingAction;
 
         // Reversed so the list sits at the newest message without measuring
@@ -176,21 +139,28 @@ class _Messages extends StatelessWidget {
           reverse: true,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.s6,
-            vertical: AppSpacing.s4,
+            vertical: AppSpacing.s5,
           ),
-          itemCount: state.messages.length + skeletonCount,
-          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.s4),
+          itemCount: state.messages.length + typingCount,
+          // Turns need more air between them than lines do inside one, so the
+          // separator is a step above the gap the renderer uses for children.
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.s6),
           itemBuilder: (context, index) {
-            if (index < skeletonCount) return const AgentMessageSkeleton();
+            if (index < typingCount) return const AgentTyping();
 
-            final message = state
-                .messages[state.messages.length - 1 - index + skeletonCount];
+            final position = state.messages.length - 1 - index + typingCount;
+            final message = state.messages[position];
+
+            // Only the last turn can still be acted on. A button further up
+            // the thread belongs to a decision already taken, and tapping it
+            // would replay a moment the conversation has moved past.
+            final isLatest = position == state.messages.length - 1;
 
             return message.isUser
                 ? ChatBubble(message: message)
                 : AgentMessage(
                     message: message,
-                    enabled: actionsEnabled,
+                    enabled: actionsEnabled && isLatest,
                     onAction: (action) => _handleAction(context, action),
                   );
           },
@@ -210,7 +180,7 @@ class _Messages extends StatelessWidget {
       return;
     }
 
-    context.read<ChatBloc>().add(ChatA2uiAction(action));
+    context.read<ChatBloc>().add(ChatActionFired(action));
   }
 
   Future<void> _launchUrl(String url) async {
@@ -229,7 +199,7 @@ class _Composer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.s6,
-        AppSpacing.s2,
+        AppSpacing.s3,
         AppSpacing.s6,
         AppSpacing.s4,
       ),

@@ -1,21 +1,36 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { A2uiValidationService } from './a2ui-validation.service';
-import { AgentService, AgentReplyPayload } from './agent.service';
+import { A2uiParserService } from '../a2ui/a2ui-parser.service';
+import { A2uiPromptService } from '../a2ui/a2ui-prompt.service';
+import { A2uiValidationService } from '../a2ui/a2ui-validation.service';
+import { emptyReplyUi, unavailableUi } from '../a2ui/a2ui.builders';
+import { A2uiComponent } from '../a2ui/a2ui.types';
+import { Trace } from '../common/trace';
 import {
-  A2uiComponent,
-  Message,
-  MessageMetadata,
-  ToolCall,
-} from './entities/message.entity';
+  AgentUnavailableError,
+  AgentService,
+  GenerateResult,
+  ToolDescriptor,
+} from './agent.service';
+import { Message, MessageMetadata } from './entities/message.entity';
 import { Thread, ThreadSummary } from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
 import { ThreadsStore } from './threads.store';
 
+/**
+ * A thread, end to end.
+ *
+ * One turn is always the same five steps: write what the user said, build the
+ * prompt, ask the agent, read what came back, write the answer. The agent runs
+ * whatever tools it needs inside step three, so there is one place where a turn
+ * can go wrong and one trace that describes it.
+ */
 @Injectable()
 export class ThreadsService {
   constructor(
     private readonly store: ThreadsStore,
     private readonly agent: AgentService,
+    private readonly prompt: A2uiPromptService,
+    private readonly parser: A2uiParserService,
     private readonly validator: A2uiValidationService,
   ) {}
 
@@ -29,18 +44,32 @@ export class ThreadsService {
     return thread;
   }
 
+  /** One turn's trace, for debugging a reply after the fact. */
+  async findTrace(
+    userId: string,
+    slug: string,
+    traceId: string,
+  ): Promise<unknown> {
+    const trace = await this.store.readTrace(userId, slug, traceId);
+    if (trace === null) throw new NotFoundException(`No trace "${traceId}"`);
+    return trace;
+  }
+
   /**
    * Starts a thread from its first message and answers it.
    *
    * The slug comes from the message, so a thread's folder says what it is
    * without anything having to open it.
    */
-  async create(userId: string, text: string): Promise<Thread> {
+  async create(userId: string, text: string, trace: Trace): Promise<Thread> {
     const slug = await this._freeSlug(userId, slugify(text));
-    const title = titleFrom(text);
+    trace.attachSlug(slug);
+    trace.log('thread.create', { slug });
 
-    console.log('[threads.create] starting thread', { userId, slug, title });
-    await this._exchange(userId, slug, title, text);
+    await this.store.append(userId, slug, titleFrom(text), [
+      userMessage(text),
+    ]);
+    await this._answer(userId, slug, trace);
 
     return this.findOne(userId, slug);
   }
@@ -50,170 +79,226 @@ export class ThreadsService {
     userId: string,
     slug: string,
     text: string,
+    trace: Trace,
   ): Promise<Thread> {
     const thread = await this.findOne(userId, slug);
+    trace.log('thread.message', { slug, length: text.length });
 
-    console.log('[threads.addMessage] appending message', { userId, slug, textLength: text.length });
-    await this._exchange(userId, slug, thread.title, text);
+    await this.store.append(userId, slug, thread.title, [userMessage(text)]);
+    await this._answer(userId, slug, trace);
 
     return this.findOne(userId, slug);
   }
 
-  /** Confirms or rejects a pending tool call. */
-  async confirmTool(
+  /** Applies a thread-level change the app asked for. */
+  async applyThreadOp(
     userId: string,
     slug: string,
-    toolCallId: string,
-    confirmed: boolean,
-    argumentOverride?: Record<string, unknown>,
-  ): Promise<Thread> {
-    console.log('[threads.confirmTool] start', { userId, slug, toolCallId, confirmed, hasArgumentOverride: argumentOverride !== undefined });
-    const thread = await this.findOne(userId, slug);
+    op: 'solve' | 'reopen' | 'rename' | 'delete',
+    title: string | undefined,
+    trace: Trace,
+  ): Promise<Thread | null> {
+    await this.findOne(userId, slug);
+    trace.log('thread.op', { slug, op, title });
 
-    const pending = await this.store.findPendingToolCall(userId, slug, toolCallId);
-    if (pending === null) {
-      console.error('[threads.confirmTool] pending tool call not found', { userId, slug, toolCallId });
-      throw new NotFoundException(`No pending tool call "${toolCallId}"`);
+    switch (op) {
+      case 'solve':
+        await this.store.updateState(userId, slug, { solved: true });
+        break;
+      case 'reopen':
+        await this.store.updateState(userId, slug, { solved: false });
+        break;
+      case 'rename':
+        if (title === undefined || title.trim() === '') {
+          throw new NotFoundException('rename needs a title');
+        }
+        await this.store.updateState(userId, slug, { title: title.trim() });
+        break;
+      case 'delete':
+        await this.store.remove(userId, slug);
+        return null;
     }
-
-    console.log('[threads.confirmTool] found pending tool call', { toolCallId, tool: pending.function.name });
-    await this.store.removePendingToolCall(userId, slug, toolCallId);
-
-    if (!confirmed) {
-      await this.store.append(userId, slug, thread.title, [
-        message(
-          'system',
-          JSON.stringify({
-            a2ui: {
-              component: 'Text',
-              text: 'Action cancelled.',
-            },
-          }),
-          new Date(),
-          { contentType: 'a2ui' },
-        ),
-      ]);
-
-      return this.findOne(userId, slug);
-    }
-
-    const toolCall: ToolCall =
-      argumentOverride !== undefined
-        ? {
-            ...pending,
-            function: {
-              ...pending.function,
-              arguments: JSON.stringify(argumentOverride),
-            },
-          }
-        : pending;
-
-    console.log('[threads.confirmTool] executing tool via agent', { toolCallId, tool: toolCall.function.name, arguments: toolCall.function.arguments });
-    const payload = await this.agent.executeTool({
-      userId,
-      slug,
-      toolCall,
-    });
-    console.log('[threads.confirmTool] agent executeTool result', { toolCallId, model: payload.metadata.model, hasA2ui: payload.a2ui !== undefined });
-
-    await this._appendAgentReply(userId, slug, thread.title, payload);
 
     return this.findOne(userId, slug);
   }
 
-  /** Writes the user's message, asks the agent, then writes the answer. */
-  private async _exchange(
+  /**
+   * Asks the agent for the next reply and writes it into the thread.
+   *
+   * Everything the user will read passes through parse, then validate, then
+   * store. A reply that fails any of those still lands as a message, because a
+   * thread that silently stops answering is harder to debug than one that says
+   * what went wrong.
+   */
+  private async _answer(
     userId: string,
     slug: string,
-    title: string,
-    text: string,
+    trace: Trace,
+    options: {
+      note?: string;
+      toolRuns?: MessageMetadata['toolRuns'];
+    } = {},
   ): Promise<void> {
-    console.log('[threads._exchange] asking agent', { userId, slug, textLength: text.length });
-    const prompt = message('user', text, new Date());
-    await this.store.append(userId, slug, title, [prompt]);
+    const thread = await this.findOne(userId, slug);
 
-    const answer = await this.agent.reply({ userId, slug, message: text });
-    console.log('[threads._exchange] agent replied', { userId, slug, model: answer.metadata.model, hasPendingToolCall: answer.pendingToolCall !== undefined });
+    let tools: ToolDescriptor[] = [];
+    let result: GenerateResult;
 
-    await this._appendAgentReply(userId, slug, title, answer);
-  }
+    try {
+      tools = await this.agent.tools(trace);
+      const messages = this.prompt.build({
+        history: thread.messages,
+        userMessage: '',
+        tools,
+        note: options.note,
+      });
 
-  private async _appendAgentReply(
-    userId: string,
-    slug: string,
-    title: string,
-    payload: AgentReplyPayload,
-  ): Promise<void> {
-    console.log('[threads._appendAgentReply] validating agent payload', {
-      userId,
-      slug,
-      model: payload.metadata.model,
-      hasPendingToolCall: payload.pendingToolCall !== undefined,
+      trace.log('prompt.built', {
+        messageCount: messages.length,
+        systemChars: messages[0]?.content.length ?? 0,
+        tools: tools.map((tool) => tool.name),
+      });
+
+      result = await this.agent.generate({ userId, slug, messages }, trace);
+    } catch (error) {
+      await this._handleUnavailable(userId, slug, thread.title, trace, error);
+      return;
+    }
+
+    const toolRuns = [
+      ...(options.toolRuns ?? []),
+      ...result.toolTrace.map((entry) => ({
+        name: entry.name,
+        ok: entry.ok,
+        durationMs: entry.durationMs,
+        error: entry.error,
+      })),
+    ];
+
+    const parsed = this.parser.parse(result.raw);
+    trace.log('a2ui.parse', {
+      strategy: parsed.strategy,
+      detail: parsed.detail,
+      rawLength: result.raw.length,
     });
 
-    const validated = this.validator.validate({ a2ui: payload.a2ui });
-    let component = validated.component;
+    // A failed parse used to be wrapped anyway, as `children: [undefined]`.
+    // The validator then rejected the child, dropped the empty Column, and the
+    // user read a generic apology whose real cause was that the model had
+    // returned nothing at all. It is its own outcome, and it says so.
+    if (parsed.component === undefined) {
+      trace.error('a2ui.parseFailed', {
+        detail: parsed.detail,
+        rawLength: result.raw.length,
+        toolsRun: toolRuns.map((run) => run.name),
+      });
 
-    const metadata: MessageMetadata = {
-      contentType: 'a2ui',
-      model: payload.metadata.model,
-      latencyMs: payload.metadata.latencyMs,
-      a2ui: component,
-    };
+      await this._appendUi(userId, slug, thread.title, emptyReplyUi(), {
+        contentType: 'a2ui',
+        model: result.model,
+        latencyMs: result.latencyMs,
+        traceId: trace.id,
+        toolRuns: toolRuns.length > 0 ? toolRuns : undefined,
+        parseStrategy: parsed.strategy,
+      });
 
-    if (payload.pendingToolCall !== undefined) {
-      metadata.pendingToolCall = payload.pendingToolCall;
-      component = this._injectToolCallId(component, payload.pendingToolCall.id);
-      metadata.a2ui = component;
-      console.log('[threads._appendAgentReply] injected _toolCallId into confirmation UI', {
-        toolCallId: payload.pendingToolCall.id,
-        tool: payload.pendingToolCall.function.name,
+      await this._saveTrace(userId, slug, trace);
+      return;
+    }
+
+    const validated = this.validator.validate(
+      { component: 'Column', children: [parsed.component] },
+      { toolNames: tools.map((tool) => tool.name) },
+    );
+
+    if (!validated.clean) {
+      // Logged in full, because a reply that quietly lost a button looks fine
+      // on screen and is invisible without this line.
+      trace.warn('a2ui.repaired', {
+        issues: validated.issues,
+        strategy: parsed.strategy,
       });
     }
 
+    trace.log('a2ui.validated', {
+      clean: validated.clean,
+      issues: validated.issues.length,
+      components: countComponents(validated.component),
+    });
+
+    await this._appendUi(userId, slug, thread.title, validated.component, {
+      contentType: 'a2ui',
+      model: result.model,
+      latencyMs: result.latencyMs,
+      traceId: trace.id,
+      toolRuns: toolRuns.length > 0 ? toolRuns : undefined,
+      a2uiIssues: validated.issues.length > 0 ? validated.issues : undefined,
+      parseStrategy: parsed.strategy,
+    });
+
+    await this._saveTrace(userId, slug, trace);
+  }
+
+  private async _handleUnavailable(
+    userId: string,
+    slug: string,
+    title: string,
+    trace: Trace,
+    error: unknown,
+  ): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    trace.error('turn.unavailable', {
+      error: message,
+      kind: error instanceof AgentUnavailableError ? 'agent' : 'server',
+    });
+
+    await this._appendUi(userId, slug, title, unavailableUi(), {
+      contentType: 'a2ui',
+      traceId: trace.id,
+      model: 'unavailable',
+    });
+
+    await this._saveTrace(userId, slug, trace);
+  }
+
+  private async _appendUi(
+    userId: string,
+    slug: string,
+    title: string,
+    component: A2uiComponent,
+    metadata: MessageMetadata,
+  ): Promise<void> {
+    const createdAt = new Date();
+
     await this.store.append(userId, slug, title, [
-      message(
-        'agent',
-        JSON.stringify({ a2ui: component }),
-        new Date(),
-        metadata,
-      ),
+      {
+        id: messageId('agent', createdAt),
+        role: 'agent',
+        text: '',
+        createdAt,
+        metadata: { ...metadata, a2ui: component },
+      },
     ]);
   }
 
-  private _injectToolCallId(
-    component: A2uiComponent,
-    toolCallId: string,
-  ): A2uiComponent {
-    const action = component.action as
-      | { type: string; requiresConfirmation?: boolean; _toolCallId?: string }
-      | undefined;
-    if (
-      action?.type === 'tool' &&
-      action.requiresConfirmation === true &&
-      action._toolCallId === undefined
-    ) {
-      console.log('[threads._injectToolCallId] injecting _toolCallId into confirmation action', {
-        component: component.component,
-        tool: action,
-        toolCallId,
+  private async _saveTrace(
+    userId: string,
+    slug: string,
+    trace: Trace,
+  ): Promise<void> {
+    try {
+      await this.store.saveTrace(userId, slug, trace.id, {
+        traceId: trace.id,
+        slug,
+        totalMs: trace.elapsedMs,
+        events: trace.events,
       });
-      return {
-        ...component,
-        action: { ...action, _toolCallId: toolCallId },
-      };
+    } catch (error) {
+      // A trace that cannot be written must never cost the user their reply.
+      trace.warn('trace.saveFailed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    if (Array.isArray(component.children)) {
-      return {
-        ...component,
-        children: component.children.map((child) =>
-          this._injectToolCallId(child as A2uiComponent, toolCallId),
-        ),
-      };
-    }
-
-    return component;
   }
 
   /**
@@ -234,17 +319,19 @@ export class ThreadsService {
   }
 }
 
-function message(
-  role: Message['role'],
-  text: string,
-  createdAt: Date,
-  metadata?: MessageMetadata,
-): Message {
+function userMessage(text: string): Message {
+  const createdAt = new Date();
   return {
-    id: messageId(role, createdAt),
-    role,
+    id: messageId('user', createdAt),
+    role: 'user',
     text,
     createdAt,
-    metadata,
   };
+}
+
+function countComponents(component: A2uiComponent): number {
+  return 1 + (component.children ?? []).reduce(
+    (total, child) => total + countComponents(child),
+    0,
+  );
 }

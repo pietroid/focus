@@ -1,20 +1,24 @@
 import 'package:app_ui/app_ui.dart';
 
-/// Visual variants for [AppButton].
+/// How much weight a button carries.
 enum AppButtonVariant {
-  /// Accent fill. One per screen.
+  /// A filled button in the action's colour. The one thing to tap.
   primary,
 
-  /// A neutral fill on [AppColors.fill], for secondary actions.
+  /// An outlined button on the page background, for a real alternative.
   secondary,
 
-  /// No fill, for the lowest-emphasis action on a screen.
-  text,
+  /// Text only, for the action someone takes when they want none of the above.
+  tertiary,
 }
 
 /// {@template app_button}
-/// The app's button. Sizing, radius, and type come from the theme, so the
-/// three variants differ only in colour.
+/// The app's button.
+///
+/// Three tiers, and the difference between them is weight rather than hue: a
+/// primary button fills with its colour, a secondary outlines in it, a
+/// tertiary only tints its label. Put three of them side by side and the order
+/// to read them in is obvious before a single word has been.
 /// {@endtemplate}
 class AppButton extends StatelessWidget {
   /// {@macro app_button}
@@ -22,9 +26,11 @@ class AppButton extends StatelessWidget {
     required this.onPressed,
     required this.text,
     this.variant = AppButtonVariant.primary,
+    this.color = AppColors.accent,
     this.expand = false,
+    this.icon,
     super.key,
-  }) : icon = null;
+  });
 
   /// {@template app_button_icon}
   /// Button variant that displays an icon before the label, for sign-in
@@ -35,6 +41,7 @@ class AppButton extends StatelessWidget {
     required this.icon,
     required this.text,
     this.variant = AppButtonVariant.primary,
+    this.color = AppColors.accent,
     this.expand = false,
     super.key,
   });
@@ -45,10 +52,11 @@ class AppButton extends StatelessWidget {
   const AppButton.text({
     required this.onPressed,
     required this.text,
+    this.color = AppColors.accent,
     this.expand = false,
     super.key,
   }) : icon = null,
-       variant = AppButtonVariant.text;
+       variant = AppButtonVariant.tertiary;
 
   /// Called when the button is tapped. A null value disables the button.
   final VoidCallback? onPressed;
@@ -59,25 +67,38 @@ class AppButton extends StatelessWidget {
   /// Text content displayed inside the button.
   final String text;
 
-  /// The visual variant of the button.
+  /// How much weight the button carries.
   final AppButtonVariant variant;
+
+  /// The action's colour. Defaults to the accent.
+  final Color color;
 
   /// Whether the button stretches to the width of its parent.
   final bool expand;
 
   @override
   Widget build(BuildContext context) {
-    final (background, foreground) = switch (variant) {
-      AppButtonVariant.primary => (AppColors.accent, AppColors.onAccent),
-      AppButtonVariant.secondary => (AppColors.fill, AppColors.ink),
-      AppButtonVariant.text => (Colors.transparent, AppColors.ink2),
+    final enabled = onPressed != null;
+
+    // Disabled states drop to the neutral ramp rather than to a faded colour,
+    // so a greyed-out destructive button does not still read as red.
+    final (background, foreground, border) = switch (variant) {
+      AppButtonVariant.primary => enabled
+          ? (color, _onColor(color), Colors.transparent)
+          : (AppColors.fillStrong, AppColors.ink3, Colors.transparent),
+      AppButtonVariant.secondary => enabled
+          ? (Colors.transparent, color, color.withValues(alpha: 0.45))
+          : (Colors.transparent, AppColors.ink3, AppColors.line),
+      AppButtonVariant.tertiary => (
+        Colors.transparent,
+        enabled ? AppColors.ink2 : AppColors.ink3,
+        Colors.transparent,
+      ),
     };
 
     final label = Text(
       text,
-      style: AppTypography.body.copyWith(
-        color: onPressed == null ? AppColors.ink3 : foreground,
-      ),
+      style: AppTypography.body.copyWith(color: foreground),
     );
 
     final child = icon == null
@@ -90,26 +111,38 @@ class AppButton extends StatelessWidget {
                 data: IconThemeData(color: foreground, size: AppSpacing.s5),
                 child: icon!,
               ),
-              const SizedBox(width: AppSpacing.s3),
+              const SizedBox(width: AppSpacing.s2),
               label,
             ],
           );
 
     final style = FilledButton.styleFrom(
       backgroundColor: background,
-      disabledBackgroundColor: variant == AppButtonVariant.primary
-          ? AppColors.fillStrong
-          : Colors.transparent,
+      disabledBackgroundColor: background,
       minimumSize: Size(expand ? double.infinity : 0, AppSpacing.tapTarget),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
+      padding: EdgeInsets.symmetric(
+        horizontal: variant == AppButtonVariant.tertiary
+            ? AppSpacing.s4
+            : AppSpacing.s5,
+      ),
       elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.all(
           Radius.circular(AppSpacing.buttonRadius),
         ),
+        side: border == Colors.transparent
+            ? BorderSide.none
+            : BorderSide(color: border),
       ),
     );
 
     return FilledButton(onPressed: onPressed, style: style, child: child);
+  }
+
+  /// Black or white, whichever stays readable on [background].
+  static Color _onColor(Color background) {
+    return background.computeLuminance() > 0.5
+        ? AppColors.onAccent
+        : AppColors.ink;
   }
 }

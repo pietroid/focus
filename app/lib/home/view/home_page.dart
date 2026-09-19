@@ -70,7 +70,7 @@ class _Header extends StatelessWidget {
                     children: [
                       AppIcon(iconData: AppIcons.logout, size: AppSpacing.s5),
                       SizedBox(width: AppSpacing.s3),
-                      Text('Logout'),
+                      Text('Sair'),
                     ],
                   ),
                 ),

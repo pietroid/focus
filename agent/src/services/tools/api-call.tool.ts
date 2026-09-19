@@ -1,15 +1,43 @@
 import { ToolImplementation, UserContext } from './tool.interface.js';
+import { ToolDefinition } from '../../types.js';
 
 /**
  * Generic third-party API call tool.
  *
- * Requires confirmation by default. Read-only GET endpoints can be whitelisted
- * via the API_INTEGRATION_READONLY_WHITELIST environment variable as a
- * comma-separated list of `integration:endpoint` patterns.
+ * The last resort, for a service that has no tool of its own. Anything the
+ * calendar tools cover goes through them instead: they speak Google Calendar
+ * properly and they describe themselves in words a person recognises.
  */
 export class ApiCallTool implements ToolImplementation {
   readonly name = 'api_call';
-  readonly requiresConfirmation = true;
+
+  readonly definition: ToolDefinition = {
+    type: 'function',
+    function: {
+      name: 'api_call',
+      description: 'Call a configured third-party API on the user\'s behalf.',
+      parameters: {
+        type: 'object',
+        properties: {
+          integration: {
+            type: 'string',
+            description: 'The configured integration name',
+          },
+          endpoint: { type: 'string', description: 'Path to call' },
+          method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'DELETE'] },
+          payload: { type: 'object', description: 'Request body, if any' },
+        },
+        required: ['integration', 'endpoint', 'method'],
+      },
+    },
+  };
+
+  summarize(args: Record<string, unknown>): string {
+    const method = String(args.method ?? 'GET').toUpperCase();
+    const integration = String(args.integration ?? 'an integration');
+    const endpoint = String(args.endpoint ?? '');
+    return `Enviar uma requisição ${method} para ${integration}${endpoint}`;
+  }
 
   async execute(
     args: Record<string, unknown>,
@@ -32,12 +60,12 @@ export class ApiCallTool implements ToolImplementation {
     const baseUrl = process.env.API_INTEGRATION_BASE_URL;
 
     if (!apiKey || !baseUrl) {
-      return {
-        integration,
-        endpoint,
-        method,
-        note: 'API integration is not configured; returning a stub response.',
-      };
+      // A stub success used to be returned here, and the model believed it:
+      // it told the user an event had been deleted when nothing had been
+      // called at all. An unconfigured integration is a failure, loudly.
+      throw new Error(
+        `Integration "${integration}" is not configured on this deployment`,
+      );
     }
 
     const body = payload !== undefined ? JSON.stringify(payload) : undefined;
@@ -55,27 +83,5 @@ export class ApiCallTool implements ToolImplementation {
     }
 
     return response.json();
-  }
-
-  /**
-   * Returns true if the given integration/endpoint/method is read-only and
-   * does not require user confirmation.
-   */
-  isReadOnly(integration: string, endpoint: string, method: string): boolean {
-    if (method !== 'GET') return false;
-
-    const whitelist = process.env.API_INTEGRATION_READONLY_WHITELIST ?? '';
-    if (whitelist === '') return false;
-
-    const patterns = whitelist.split(',').map((p) => p.trim());
-    const key = `${integration}:${endpoint}`;
-
-    return patterns.some((pattern) => {
-      if (pattern === key) return true;
-      if (pattern.endsWith(':*') && key.startsWith(pattern.slice(0, -1))) {
-        return true;
-      }
-      return false;
-    });
   }
 }

@@ -38,11 +38,32 @@ class ThreadTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      thread.title,
-                      style: AppTypography.body,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        if (thread.solved) ...[
+                          const AppIcon(
+                            iconData: AppIcons.check,
+                            size: AppSpacing.s4,
+                            color: AppColors.success,
+                          ),
+                          const SizedBox(width: AppSpacing.s2),
+                        ],
+                        Expanded(
+                          child: Text(
+                            thread.title,
+                            style: AppTypography.body.copyWith(
+                              // A closed thread keeps its place in the list but
+                              // stops competing for attention with the open
+                              // ones above it.
+                              color: thread.solved
+                                  ? AppColors.ink2
+                                  : AppColors.ink,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                     if (thread.preview.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.s1),

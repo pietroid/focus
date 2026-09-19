@@ -1,121 +1,142 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { A2uiComponent, ToolCall } from './entities/message.entity';
+import { Trace } from '../common/trace';
 
-export interface ReplyContext {
-  userId: string;
-  slug: string;
-  message: string;
+/** What a tool is, as far as the server needs to know. */
+export interface ToolDescriptor {
+  name: string;
+  description: string;
 }
 
-export interface ExecuteToolContext {
-  userId: string;
-  slug: string;
-  toolCall: ToolCall;
+/** One message as the agent forwards it to the model. */
+export interface PromptMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
 }
 
-export interface AgentReplyPayload {
-  /** Always present. Root A2UI component tree. */
-  a2ui: A2uiComponent;
-  /** Present when the model requested a tool that requires confirmation. */
-  pendingToolCall?: ToolCall;
-  /** If true, the backend may mark the thread as solved. */
-  solved?: boolean;
-  metadata: {
-    model: string;
-    latencyMs: number;
-  };
+/** What a tool call did. */
+export interface ToolTraceEntry {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+  startedAt: string;
+  durationMs: number;
 }
+
+/** One generation. */
+export interface GenerateResult {
+  raw: string;
+  toolTrace: ToolTraceEntry[];
+  model: string;
+  latencyMs: number;
+  iterations: number;
+}
+
+/** Raised when the agent could not answer at all. */
+export class AgentUnavailableError extends Error {}
 
 /**
- * Client for the separate Focus agent service.
+ * The client for the agent container.
  *
- * The agent runs in its own container on the internal Docker network. It has
- * read-only access to the thread files and exposes private /reply and
- * /execute-tool endpoints. This service sends the thread reference and the new
- * user message; the agent reads the thread itself and returns an A2UI tree.
+ * The split: the agent knows how to get reliable data, the server knows how to
+ * present it. So this client sends a prompt the server wrote and gets back
+ * text and a record of what the tools did. Nothing about UI crosses the wire in
+ * either direction.
+ *
+ * Failures are raised, not swallowed. The caller owns what the user sees and
+ * can say something specific; a placeholder invented down here could only ever
+ * be vaguer.
  */
 @Injectable()
 export class AgentService {
+  private _tools?: ToolDescriptor[];
+  private _toolsFetchedAt = 0;
+
   constructor(private readonly _config: ConfigService) {}
 
-  async reply(context: ReplyContext): Promise<AgentReplyPayload> {
-    return this._post('/reply', context, 'AGENT_REPLY_TIMEOUT_MS', 60_000);
+  /**
+   * The tools the agent currently has, cached briefly.
+   *
+   * Asked for rather than hard-coded, so adding a tool to the agent changes
+   * the prompt on this side without a second edit. The short cache keeps a
+   * redeploy of the agent from needing one of the server.
+   */
+  async tools(trace: Trace): Promise<ToolDescriptor[]> {
+    const ttlMs = 60_000;
+    if (this._tools !== undefined && Date.now() - this._toolsFetchedAt < ttlMs) {
+      return this._tools;
+    }
+
+    try {
+      const response = await this._fetch('/tools', undefined, trace, 5_000, 'GET');
+      const data = response as { tools?: ToolDescriptor[] };
+      this._tools = data.tools ?? [];
+      this._toolsFetchedAt = Date.now();
+      trace.log('agent.tools', { count: this._tools.length });
+      return this._tools;
+    } catch (error) {
+      trace.warn('agent.tools.fail', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // A stale list beats no list: the turn can still run, it just may not
+      // know about a tool added in the last minute.
+      return this._tools ?? [];
+    }
   }
 
-  async executeTool(context: ExecuteToolContext): Promise<AgentReplyPayload> {
-    return this._post(
-      '/execute-tool',
-      context,
-      'AGENT_EXECUTE_TOOL_TIMEOUT_MS',
-      30_000,
+  /** Runs a prompt with tools and returns the model's text. */
+  async generate(
+    input: { userId: string; slug: string; messages: PromptMessage[] },
+    trace: Trace,
+  ): Promise<GenerateResult> {
+    const timeout = this._config.get<number>('AGENT_REPLY_TIMEOUT_MS') ?? 90_000;
+
+    return trace.span(
+      'agent.generate',
+      { messageCount: input.messages.length },
+      async () => (await this._fetch('/generate', input, trace, timeout)) as GenerateResult,
     );
   }
 
-  private async _post(
+  private async _fetch(
     path: string,
     body: unknown,
-    timeoutEnv: string,
-    defaultTimeout: number,
-  ): Promise<AgentReplyPayload> {
-    const agentUrl = this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
-    const timeout = this._config.get<number>(timeoutEnv) ?? defaultTimeout;
-    const slug = (body as { slug?: string }).slug;
-
-    console.log('[agent.service] POST', { path, slug, agentUrl, timeoutEnv });
+    trace: Trace,
+    timeoutMs: number,
+    method: 'GET' | 'POST' = 'POST',
+  ): Promise<unknown> {
+    const agentUrl =
+      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(`${agentUrl}${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+        method,
+        headers: { 'Content-Type': 'application/json', ...trace.headers },
+        body: method === 'GET' ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
 
       if (!response.ok) {
-        const errorBody = await response.text().catch(() => 'unknown error');
-        throw new Error(`Agent returned ${response.status}: ${errorBody}`);
+        const detail = await response.text().catch(() => '');
+        throw new AgentUnavailableError(
+          `Agent ${path} returned ${response.status}: ${detail.slice(0, 300)}`,
+        );
       }
 
-      const data = (await response.json()) as AgentReplyPayload;
-
-      if (data.a2ui === undefined) {
-        throw new Error('Agent reply is missing a2ui field');
-      }
-
-      console.log('[agent.service] POST success', { path, slug, model: data.metadata.model });
-      return data;
+      return await response.json();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const stack = error instanceof Error ? error.stack : undefined;
-      const toolCall = (body as { toolCall?: { id?: string; function?: { name?: string } } }).toolCall;
-      console.error('[agent.service] POST failed:', {
-        path,
-        slug,
-        tool: toolCall?.function?.name,
-        toolCallId: toolCall?.id,
-        error: message,
-        stack,
-      });
+      if (error instanceof AgentUnavailableError) throw error;
 
-      return fallbackPayload();
+      const message = error instanceof Error ? error.message : String(error);
+      throw new AgentUnavailableError(`Agent ${path} failed: ${message}`);
     } finally {
       clearTimeout(timeoutId);
     }
   }
-}
-
-function fallbackPayload(): AgentReplyPayload {
-  return {
-    a2ui: {
-      component: 'Text',
-      text: "I'm unable to reply right now. Please try again in a moment.",
-    },
-    metadata: { model: 'fallback', latencyMs: 0 },
-  };
 }
