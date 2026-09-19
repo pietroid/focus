@@ -26,6 +26,15 @@ export interface ToolCall {
   };
 }
 
+/**
+ * Whether running a tool changes anything the user owns.
+ *
+ * A `read` is free: the agent looks, and the answer is grounded. A `write`
+ * needs the user's confirmation first, and the executor enforces that rather
+ * than trusting the prompt.
+ */
+export type ToolEffect = 'read' | 'write';
+
 /** OpenRouter tool definition. */
 export interface ToolDefinition {
   type: 'function';
@@ -43,7 +52,24 @@ export interface ToolTraceEntry {
   name: string;
   /** Parsed arguments. Empty when the model emitted invalid JSON. */
   arguments: Record<string, unknown>;
+  /** The effect of this particular call. */
+  effect: ToolEffect;
+  /**
+   * The line a person would recognise, from the tool's own `summarize()`.
+   *
+   * Carried on the entry so the server can name what was attempted without
+   * knowing anything about the tool that attempted it.
+   */
+  summary: string;
   ok: boolean;
+  /**
+   * True when this was a write the user had not confirmed yet.
+   *
+   * Not a failure, though it shares `ok: false` with one: nothing was tried, so
+   * nothing broke. The server needs the distinction, because a blocked write is
+   * an ordinary proposal turn and a failed one is an apology.
+   */
+  blocked?: boolean;
   result?: unknown;
   error?: string;
   startedAt: string;
@@ -55,6 +81,13 @@ export interface UserContext {
   userId: string;
   slug: string;
   traceId: string;
+}
+
+/** Name, description and effect, as the server reads them off `GET /tools`. */
+export interface ToolDescriptor {
+  name: string;
+  description: string;
+  effect: ToolEffect;
 }
 
 /** What the agent hands back for one generation. */

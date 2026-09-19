@@ -2,7 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { A2uiParserService } from '../a2ui/a2ui-parser.service';
 import { A2uiPromptService } from '../a2ui/a2ui-prompt.service';
 import { A2uiValidationService } from '../a2ui/a2ui-validation.service';
-import { emptyReplyUi, unavailableUi } from '../a2ui/a2ui.builders';
+import {
+  containsConfirm,
+  emptyReplyUi,
+  unavailableUi,
+  writeFailedUi,
+} from '../a2ui/a2ui.builders';
 import { A2uiComponent } from '../a2ui/a2ui.types';
 import { Trace } from '../common/trace';
 import {
@@ -11,7 +16,7 @@ import {
   GenerateResult,
   ToolDescriptor,
 } from './agent.service';
-import { Message, MessageMetadata } from './entities/message.entity';
+import { Message, MessageMetadata, ToolRun } from './entities/message.entity';
 import { Thread, ThreadSummary } from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
 import { ThreadsStore } from './threads.store';
@@ -23,6 +28,10 @@ import { ThreadsStore } from './threads.store';
  * prompt, ask the agent, read what came back, write the answer. The agent runs
  * whatever tools it needs inside step three, so there is one place where a turn
  * can go wrong and one trace that describes it.
+ *
+ * Step three has one extra input: whether this turn may change anything. Reads
+ * always run. A write runs only when the user has just authorised it, and this
+ * is the only place that decides so.
  */
 @Injectable()
 export class ThreadsService {
@@ -66,28 +75,60 @@ export class ThreadsService {
     trace.attachSlug(slug);
     trace.log('thread.create', { slug });
 
-    await this.store.append(userId, slug, titleFrom(text), [
-      userMessage(text),
-    ]);
-    await this._answer(userId, slug, trace);
+    await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
+    // Nothing has been proposed yet, so the first turn of a thread can only
+    // read and propose.
+    await this._answer(userId, slug, trace, { allowWrites: false });
 
     return this.findOne(userId, slug);
   }
 
-  /** Appends a message to an existing thread and answers it. */
+  /**
+   * Appends a message to an existing thread and answers it.
+   *
+   * [armWrites] is true when the message came from a confirm action, which is
+   * the user saying yes to a change described in the previous message.
+   */
   async addMessage(
     userId: string,
     slug: string,
     text: string,
     trace: Trace,
+    armWrites = false,
   ): Promise<Thread> {
     const thread = await this.findOne(userId, slug);
-    trace.log('thread.message', { slug, length: text.length });
+    trace.log('thread.message', { slug, length: text.length, armWrites });
+
+    // Read before appending: the proposal is the message that was last on
+    // screen when the user answered.
+    const allowWrites =
+      armWrites || this._awaitingConfirmation(thread.messages);
 
     await this.store.append(userId, slug, thread.title, [userMessage(text)]);
-    await this._answer(userId, slug, trace);
+    await this._answer(userId, slug, trace, { allowWrites });
 
     return this.findOne(userId, slug);
+  }
+
+  /**
+   * Whether the last thing the assistant said was a proposal.
+   *
+   * A tapped button is not the only way to say yes. Someone who reads "posso
+   * agendar quinta às 10?" and types "pode" has confirmed it just as clearly,
+   * and being told to use the button instead would be the pedantry this whole
+   * flow exists to avoid. So the proposal arms the turn that answers it,
+   * however that answer arrives.
+   *
+   * It arms exactly one turn. The next message lands after a reply that is no
+   * longer a proposal, and the gate closes again.
+   */
+  private _awaitingConfirmation(messages: Message[]): boolean {
+    for (let index = messages.length - 1; index >= 0; index--) {
+      const message = messages[index];
+      if (message.role !== 'agent') continue;
+      return message.metadata?.proposedWrite === true;
+    }
+    return false;
   }
 
   /** Applies a thread-level change the app asked for. */
@@ -135,9 +176,11 @@ export class ThreadsService {
     slug: string,
     trace: Trace,
     options: {
+      /** Whether a tool may change the user's data on this turn. */
+      allowWrites: boolean;
       note?: string;
       toolRuns?: MessageMetadata['toolRuns'];
-    } = {},
+    },
   ): Promise<void> {
     const thread = await this.findOne(userId, slug);
 
@@ -150,6 +193,7 @@ export class ThreadsService {
         history: thread.messages,
         userMessage: '',
         tools,
+        allowWrites: options.allowWrites,
         note: options.note,
       });
 
@@ -157,23 +201,64 @@ export class ThreadsService {
         messageCount: messages.length,
         systemChars: messages[0]?.content.length ?? 0,
         tools: tools.map((tool) => tool.name),
+        allowWrites: options.allowWrites,
       });
 
-      result = await this.agent.generate({ userId, slug, messages }, trace);
+      result = await this.agent.generate(
+        { userId, slug, messages, allowWrites: options.allowWrites },
+        trace,
+      );
     } catch (error) {
       await this._handleUnavailable(userId, slug, thread.title, trace, error);
       return;
     }
 
-    const toolRuns = [
+    const toolRuns: ToolRun[] = [
       ...(options.toolRuns ?? []),
       ...result.toolTrace.map((entry) => ({
         name: entry.name,
+        effect: entry.effect,
         ok: entry.ok,
+        blocked: entry.blocked,
         durationMs: entry.durationMs,
         error: entry.error,
       })),
     ];
+
+    // The one case where the model does not get the last word. A write that
+    // was attempted and broke is where a reply is most likely to say "pronto,
+    // agendei" over a tool result that says nothing of the sort, and no amount
+    // of prompting makes that safe. The trace is the fact; the prose is not.
+    const failure = this._failedWrite(result);
+    if (failure !== undefined) {
+      trace.error('turn.writeFailed', {
+        tool: failure.name,
+        error: failure.error,
+        claimedLength: result.raw.length,
+      });
+
+      await this._appendUi(
+        userId,
+        slug,
+        thread.title,
+        writeFailedUi(failure.summary, failure.error ?? ''),
+        {
+          contentType: 'a2ui',
+          model: result.model,
+          latencyMs: result.latencyMs,
+          traceId: trace.id,
+          toolRuns,
+          // The retry button is a confirm, so the next turn is still allowed to
+          // run the write. Making the user re-approve something they already
+          // approved, because the calendar timed out, would be punishing them
+          // for an outage.
+          proposedWrite: true,
+        },
+      );
+
+      await this._saveTrace(userId, slug, trace);
+      return;
+    }
 
     const parsed = this.parser.parse(result.raw);
     trace.log('a2ui.parse', {
@@ -226,6 +311,11 @@ export class ThreadsService {
       components: countComponents(validated.component),
     });
 
+    // A proposal arms the next turn, so it is recorded on the message rather
+    // than inferred later from prose that no longer carries the action.
+    const proposedWrite = containsConfirm(validated.component);
+    if (proposedWrite) trace.log('turn.proposedWrite', {});
+
     await this._appendUi(userId, slug, thread.title, validated.component, {
       contentType: 'a2ui',
       model: result.model,
@@ -234,9 +324,26 @@ export class ThreadsService {
       toolRuns: toolRuns.length > 0 ? toolRuns : undefined,
       a2uiIssues: validated.issues.length > 0 ? validated.issues : undefined,
       parseStrategy: parsed.strategy,
+      proposedWrite: proposedWrite ? true : undefined,
     });
 
     await this._saveTrace(userId, slug, trace);
+  }
+
+  /**
+   * The write that was attempted and broke, if the turn has one.
+   *
+   * A blocked write does not count: nothing was tried, and the reply proposing
+   * it is exactly what should be shown. A write that failed and was then
+   * retried successfully does not count either, which is why the whole trace is
+   * weighed rather than the last entry.
+   */
+  private _failedWrite(
+    result: GenerateResult,
+  ): GenerateResult['toolTrace'][number] | undefined {
+    const writes = result.toolTrace.filter((entry) => entry.effect === 'write');
+    if (writes.some((entry) => entry.ok)) return undefined;
+    return writes.find((entry) => entry.blocked !== true);
   }
 
   private async _handleUnavailable(
@@ -330,8 +437,11 @@ function userMessage(text: string): Message {
 }
 
 function countComponents(component: A2uiComponent): number {
-  return 1 + (component.children ?? []).reduce(
-    (total, child) => total + countComponents(child),
-    0,
+  return (
+    1 +
+    (component.children ?? []).reduce(
+      (total, child) => total + countComponents(child),
+      0,
+    )
   );
 }

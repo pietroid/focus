@@ -99,14 +99,21 @@ export class A2uiValidationService {
     issues: A2uiIssue[],
   ): A2uiComponent | undefined {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      issues.push({ path, severity: 'reject', message: 'Not a component object' });
+      issues.push({
+        path,
+        severity: 'reject',
+        message: 'Not a component object',
+      });
       return undefined;
     }
 
     const raw = value as Record<string, unknown>;
     const name = raw.component;
 
-    if (typeof name !== 'string' || !COMPONENT_NAMES.includes(name as ComponentName)) {
+    if (
+      typeof name !== 'string' ||
+      !COMPONENT_NAMES.includes(name as ComponentName)
+    ) {
       issues.push({
         path,
         severity: 'reject',
@@ -132,7 +139,14 @@ export class A2uiValidationService {
         continue;
       }
 
-      const cleaned = this._prop(componentName, key, entry, path, options, issues);
+      const cleaned = this._prop(
+        componentName,
+        key,
+        entry,
+        path,
+        options,
+        issues,
+      );
       if (cleaned !== undefined) node[key] = cleaned;
     }
 
@@ -141,7 +155,12 @@ export class A2uiValidationService {
       const rawChildren = Array.isArray(raw.children) ? raw.children : [];
 
       rawChildren.forEach((child, index) => {
-        const built = this._node(child, `${path}.children[${index}]`, options, issues);
+        const built = this._node(
+          child,
+          `${path}.children[${index}]`,
+          options,
+          issues,
+        );
         if (built !== undefined) children.push(built);
       });
 
@@ -202,7 +221,8 @@ export class A2uiValidationService {
       case 'boolean':
         return value === true;
       case 'enum': {
-        if (typeof value === 'string' && spec.values?.includes(value)) return value;
+        if (typeof value === 'string' && spec.values?.includes(value))
+          return value;
         issues.push({
           path,
           severity: 'repair',
@@ -270,7 +290,10 @@ export class A2uiValidationService {
       });
     }
 
-    text = text.replace(/\s+\./g, '.').replace(/\s{2,}/g, ' ').trim();
+    text = text
+      .replace(/\s+\./g, '.')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
 
     if (text === '') {
       issues.push({
@@ -290,7 +313,9 @@ export class A2uiValidationService {
     if (/^"?[a-z_]+"?\s*:\s*[{["]/.test(text)) return true;
     // An ISO timestamp is fine inside a sentence, but a bare pair of them is a
     // busy interval the model forgot to put into words.
-    if (/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?\s*(-|to|,)\s*\d{4}-\d{2}-\d{2}T/.test(text)) {
+    if (
+      /^\d{4}-\d{2}-\d{2}T[\d:.]+Z?\s*(-|to|,)\s*\d{4}-\d{2}-\d{2}T/.test(text)
+    ) {
       return true;
     }
     return false;
@@ -303,14 +328,21 @@ export class A2uiValidationService {
     issues: A2uiIssue[],
   ): A2uiAction | undefined {
     if (value === null || typeof value !== 'object') {
-      issues.push({ path, severity: 'repair', message: 'Dropped a non-object action' });
+      issues.push({
+        path,
+        severity: 'repair',
+        message: 'Dropped a non-object action',
+      });
       return undefined;
     }
 
     const raw = value as Record<string, unknown>;
     const type = raw.type;
 
-    if (typeof type !== 'string' || !MODEL_ACTION_TYPES.includes(type as never)) {
+    if (
+      typeof type !== 'string' ||
+      !MODEL_ACTION_TYPES.includes(type as never)
+    ) {
       issues.push({
         path,
         severity: 'repair',
@@ -320,13 +352,29 @@ export class A2uiValidationService {
     }
 
     switch (type) {
-      case 'reply': {
+      case 'reply':
+      case 'confirm': {
         const text = typeof raw.text === 'string' ? raw.text.trim() : '';
         if (text === '') {
-          issues.push({ path, severity: 'repair', message: 'reply action has no text' });
+          issues.push({
+            path,
+            severity: 'repair',
+            message: `${type} action has no text`,
+          });
           return undefined;
         }
-        return { type: 'reply', text };
+        // A confirm is what authorises a write on the next turn, so it has to
+        // say enough to stand as the user's whole message. "Sim" arriving alone
+        // would authorise a turn that no longer knows what it is agreeing to.
+        if (type === 'confirm' && text.length < 8) {
+          issues.push({
+            path,
+            severity: 'repair',
+            message: `Dropped a confirm too vague to stand alone: "${text}"`,
+          });
+          return undefined;
+        }
+        return { type, text };
       }
       case 'openUrl': {
         const url = typeof raw.url === 'string' ? raw.url.trim() : '';
@@ -352,7 +400,8 @@ export class A2uiValidationService {
           });
           return undefined;
         }
-        const title = typeof raw.title === 'string' ? raw.title.trim() : undefined;
+        const title =
+          typeof raw.title === 'string' ? raw.title.trim() : undefined;
         if (op === 'rename' && (title === undefined || title === '')) {
           issues.push({
             path,
@@ -405,7 +454,8 @@ export class A2uiValidationService {
         }
         break;
       case 'AppIconButton':
-        if (missing('icon')) return drop('Dropped an AppIconButton with no icon');
+        if (missing('icon'))
+          return drop('Dropped an AppIconButton with no icon');
         if (node.action === undefined) {
           return drop('Dropped an AppIconButton with no action');
         }

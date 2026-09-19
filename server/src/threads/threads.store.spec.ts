@@ -124,7 +124,7 @@ describe('ThreadsStore', () => {
     expect((await store.read('u1', 'done'))?.solved).toBe(true);
   });
 
-  it('keeps a message\'s trace id across a round trip to disk', async () => {
+  it("keeps a message's trace id across a round trip to disk", async () => {
     const at = new Date(2026, 8, 15, 10, 0);
     await store.append('u1', 'traced', 'Traced', [
       message('agent', '', at, {

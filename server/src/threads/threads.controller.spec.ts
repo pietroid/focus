@@ -22,6 +22,7 @@ import {
   AgentService,
   GenerateResult,
   ToolDescriptor,
+  ToolTraceEntry,
 } from './agent.service';
 import { ThreadsController } from './threads.controller';
 import { ThreadsService } from './threads.service';
@@ -79,21 +80,53 @@ class StubAgentService {
     a2ui: { component: 'Text', text: 'Noted.' },
   });
 
+  /** Overridden per test to rehearse what the tools did. */
+  toolTrace: ToolTraceEntry[] = [];
+
+  /** What the server said this turn was allowed to do, per call. */
+  readonly allowWritesSeen: boolean[] = [];
+
   tools(): Promise<ToolDescriptor[]> {
     return Promise.resolve([
-      { name: 'calendar_create_event', description: 'Create an event' },
+      {
+        name: 'calendar_list_events',
+        description: 'List events',
+        effect: 'read',
+      },
+      {
+        name: 'calendar_create_event',
+        description: 'Create an event',
+        effect: 'write',
+      },
     ]);
   }
 
-  generate(): Promise<GenerateResult> {
+  generate(input: { allowWrites: boolean }): Promise<GenerateResult> {
+    this.allowWritesSeen.push(input.allowWrites);
+
     return Promise.resolve({
       raw: this.raw,
-      toolTrace: [],
+      toolTrace: this.toolTrace,
       model: 'stub',
       latencyMs: 0,
       iterations: 1,
     });
   }
+}
+
+/** One entry of a rehearsed tool trace, with the boring fields filled in. */
+function toolEntry(entry: Partial<ToolTraceEntry>): ToolTraceEntry {
+  return {
+    id: 'call_1',
+    name: 'calendar_create_event',
+    arguments: {},
+    effect: 'write',
+    summary: 'Adicionar "Standup" na sua agenda',
+    ok: false,
+    startedAt: new Date().toISOString(),
+    durationMs: 1,
+    ...entry,
+  };
 }
 
 describe('ThreadsController', () => {
@@ -122,7 +155,8 @@ describe('ThreadsController', () => {
       .useClass(StubAgentService)
       .compile();
 
-    agent = moduleRef.get(AgentService) as unknown as StubAgentService;
+    agent = moduleRef.get(AgentService);
+    agent.toolTrace = [];
 
     app = moduleRef.createNestApplication();
     await app.init();
@@ -295,6 +329,230 @@ describe('ThreadsController', () => {
     const reply = thread(created).messages[1];
     expect(reply.metadata?.parseStrategy).toBe('fenced');
     expect(visibleText(reply)).toContain('On it.');
+  });
+
+  describe('the write gate', () => {
+    /** A reply that proposes a change and offers the confirm that runs it. */
+    const proposal = JSON.stringify({
+      a2ui: {
+        component: 'Column',
+        children: [
+          { component: 'Text', text: 'Posso deixar assim:' },
+          {
+            component: 'AppButton',
+            text: 'Agendar',
+            action: {
+              type: 'confirm',
+              text: 'Agendar "Standup" na quinta, 25/09, das 10:00 às 11:00',
+            },
+          },
+        ],
+      },
+    });
+
+    it('does not arm the first turn of a thread', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda um standup quinta' })
+        .expect(201);
+
+      expect(agent.allowWritesSeen).toEqual([false]);
+    });
+
+    it('keeps a confirm button and remembers that it proposed', async () => {
+      agent.raw = proposal;
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda um standup quinta' })
+        .expect(201);
+
+      const reply = thread(created).messages[1];
+      expect(reply.metadata?.proposedWrite).toBe(true);
+      expect(JSON.stringify(reply.metadata?.a2ui)).toContain(
+        '"type":"confirm"',
+      );
+      expect(visibleText(reply)).toContain('Agendar');
+    });
+
+    it('arms the turn a confirm action starts', async () => {
+      agent.raw = proposal;
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda um standup quinta' })
+        .expect(201);
+
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Agendado.' },
+      });
+
+      await request(app.getHttpServer())
+        .post('/threads/agenda-um-standup-quinta/actions')
+        .send({
+          action: {
+            type: 'confirm',
+            text: 'Agendar "Standup" na quinta, 25/09, das 10:00 às 11:00',
+          },
+        })
+        .expect(201);
+
+      expect(agent.allowWritesSeen).toEqual([false, true]);
+    });
+
+    it('arms a typed answer to a proposal too', async () => {
+      agent.raw = proposal;
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda um standup quinta' })
+        .expect(201);
+
+      // Someone who reads a proposal and types "pode" has said yes as clearly
+      // as someone who tapped it.
+      await request(app.getHttpServer())
+        .post('/threads/agenda-um-standup-quinta/messages')
+        .send({ message: 'pode agendar' })
+        .expect(201);
+
+      expect(agent.allowWritesSeen).toEqual([false, true]);
+    });
+
+    it('closes the gate again once the reply is no longer a proposal', async () => {
+      agent.raw = proposal;
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda um standup quinta' })
+        .expect(201);
+
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Agendado.' },
+      });
+      await request(app.getHttpServer())
+        .post('/threads/agenda-um-standup-quinta/messages')
+        .send({ message: 'pode agendar' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/threads/agenda-um-standup-quinta/messages')
+        .send({ message: 'e na sexta?' })
+        .expect(201);
+
+      expect(agent.allowWritesSeen).toEqual([false, true, false]);
+    });
+
+    it('drops a confirm too vague to stand as its own message', async () => {
+      agent.raw = JSON.stringify({
+        a2ui: {
+          component: 'Column',
+          children: [
+            { component: 'Text', text: 'Posso agendar?' },
+            {
+              component: 'AppButton',
+              text: 'Sim',
+              action: { type: 'confirm', text: 'Sim' },
+            },
+          ],
+        },
+      });
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda alguma coisa' })
+        .expect(201);
+
+      const reply = thread(created).messages[1];
+      expect(JSON.stringify(reply.metadata?.a2ui)).not.toContain('confirm');
+      expect(reply.metadata?.proposedWrite).toBeUndefined();
+    });
+  });
+
+  describe('a write that failed', () => {
+    it('overrules a reply claiming a failed write succeeded', async () => {
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Pronto, agendei para quinta!' },
+      });
+      agent.toolTrace = [
+        toolEntry({ ok: false, error: 'Calendar event creation failed: 500' }),
+      ];
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda o standup' })
+        .expect(201);
+
+      const rendered = visibleText(thread(created).messages[1]).join(' ');
+      expect(rendered).not.toContain('agendei');
+      expect(rendered).toContain('Não consegui fazer isso');
+      expect(rendered).toContain('Adicionar "Standup" na sua agenda');
+    });
+
+    it('leaves the retry armed, so an outage is not re-approved', async () => {
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Pronto!' },
+      });
+      agent.toolTrace = [toolEntry({ ok: false, error: 'ETIMEDOUT' })];
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda o standup' })
+        .expect(201);
+
+      expect(thread(created).messages[1].metadata?.proposedWrite).toBe(true);
+    });
+
+    it('says nothing about a write that was merely blocked', async () => {
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Posso agendar quinta às 10?' },
+      });
+      agent.toolTrace = [
+        toolEntry({ ok: false, blocked: true, error: 'NOT EXECUTED' }),
+      ];
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda o standup' })
+        .expect(201);
+
+      // Nothing was attempted, so the proposal is the right thing to show.
+      const rendered = visibleText(thread(created).messages[1]).join(' ');
+      expect(rendered).toContain('Posso agendar quinta');
+      expect(rendered).not.toContain('Não consegui');
+    });
+
+    it('lets the model speak when a retry inside the turn worked', async () => {
+      agent.raw = JSON.stringify({
+        a2ui: { component: 'Text', text: 'Agendado para quinta.' },
+      });
+      agent.toolTrace = [
+        toolEntry({ id: 'call_1', ok: false, error: 'transient' }),
+        toolEntry({ id: 'call_2', ok: true }),
+      ];
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda o standup' })
+        .expect(201);
+
+      expect(visibleText(thread(created).messages[1]).join(' ')).toContain(
+        'Agendado para quinta.',
+      );
+    });
+
+    it('records what each tool did, effect and all', async () => {
+      agent.toolTrace = [
+        toolEntry({ name: 'calendar_list_events', effect: 'read', ok: true }),
+        toolEntry({ ok: true }),
+      ];
+
+      const created = await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Agenda o standup' })
+        .expect(201);
+
+      expect(thread(created).messages[1].metadata?.toolRuns).toMatchObject([
+        { name: 'calendar_list_events', effect: 'read', ok: true },
+        { name: 'calendar_create_event', effect: 'write', ok: true },
+      ]);
+    });
   });
 
   it('marks a thread solved without calling the agent', async () => {

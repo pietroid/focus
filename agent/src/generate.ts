@@ -15,6 +15,14 @@ export interface GenerateRequest {
   context: UserContext;
   /** The full prompt the server built. The agent does not add to it. */
   messages: OpenRouterMessage[];
+  /**
+   * Whether a tool that changes the user's data may run on this turn.
+   *
+   * The server decides it, because only the server knows whether the user just
+   * confirmed something. It defaults to false everywhere: a turn that forgets
+   * to say so cannot write.
+   */
+  allowWrites: boolean;
   trace: Trace;
 }
 
@@ -39,6 +47,9 @@ export function toolRegistry(): ToolRegistryService {
 /**
  * Runs one turn: model, tools, model again, until there is an answer.
  *
+ * Writes are gated by `allowWrites` rather than by anything the model says
+ * about its own intent.
+ *
  * Failures are raised rather than papered over with a placeholder. The server
  * owns what the user sees, and it can say something far more useful than the
  * agent can from in here.
@@ -61,16 +72,26 @@ export async function generate(
   request.trace.log('generate.start', {
     model,
     messageCount: request.messages.length,
+    allowWrites: request.allowWrites,
   });
 
   try {
-    const result = await loop.run([...request.messages], request.context);
+    const result = await loop.run(
+      [...request.messages],
+      request.context,
+      request.allowWrites,
+    );
 
     request.trace.log('generate.ok', {
       model: result.model,
       iterations: result.iterations,
       latencyMs: result.latencyMs,
-      toolCalls: result.toolTrace.map((entry) => entry.name),
+      toolCalls: result.toolTrace.map((entry) => ({
+        name: entry.name,
+        effect: entry.effect,
+        ok: entry.ok,
+        blocked: entry.blocked === true,
+      })),
       rawLength: result.raw.length,
     });
 

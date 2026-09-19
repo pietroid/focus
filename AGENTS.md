@@ -12,7 +12,7 @@ Focus is a personal productivity system with three parts:
 ### Language
 
 Everything the user reads is in Brazilian Portuguese: app strings, the trees
-the server builds, the tool summaries the approval card shows, and the model's
+the server builds, the tool summaries a proposal reads back, and the model's
 own replies. Code, comments, commits and this file stay in English. A new
 user-facing string in English is a bug.
 
@@ -275,11 +275,46 @@ reads the thread files. It exposes two routes on the private Docker network:
 - `POST /generate` — runs the prompt the server built, executing every tool the
   model calls inline and returning `{ raw, toolTrace }`.
 
-There is no approval step. A tool runs the moment the model asks for it, and
-the model writes the sentence about it with the result already in hand, so the
-user reads what happened rather than what was proposed. Each tool in
-`agent/src/services/tools/` carries its own OpenRouter definition and its own
-`summarize()`, which is the line a trace reads back in plain Portuguese.
+Each tool in `agent/src/services/tools/` carries its own OpenRouter definition,
+its own `summarize()` (the line a proposal, a trace and a failure card all read
+back in plain Portuguese), and its own `effect`.
+
+### Reads run, writes are proposed
+
+`effect` is the whole contract, and it is two rules rather than one:
+
+- A **read** runs the moment the model asks for it. The agent can see the
+  calendar, so making the user grant permission to look at it costs a turn and
+  buys nothing. It looks, then answers with what it found.
+- A **write** does not run until the user has authorised that specific change.
+  The model describes it in full and offers one button carrying a `confirm`
+  action; the turn that button starts is allowed to execute, once, without
+  asking again.
+
+`ToolExecutorService` enforces this, not the prompt. A write arriving on an
+unconfirmed turn is refused before the tool is touched, and the model is handed
+an instruction to propose instead. `api_call` decides per call, via `effectFor`:
+a GET reads, everything else writes.
+
+There is still no approval dialog. A proposal is an ordinary reply that the
+model composes itself, and the app knows nothing about any of this: it posts the
+action it was given, as it does for every other action.
+
+### A turn cannot claim what it did not do
+
+Two things stop the old failure, where the model announced an event that was
+never created.
+
+The gate is one: a write that never ran comes back as a refusal the model has to
+answer. The other is in `ThreadsService`. If a turn attempted a write and none
+succeeded, the server discards the model's prose and renders `writeFailedUi`
+from the trace: what was attempted, in the tool's own words, why it broke, and a
+retry that is still armed. A failed write is exactly where a model is most
+tempted to write "pronto, agendei", so that is the one place its sentence does
+not reach the user.
+
+A blocked write is not a failed one. Nothing was attempted, so the proposal the
+model wrote is exactly right and is shown as is.
 
 ### Actions
 
@@ -291,11 +326,16 @@ neither needs the server.
 | Action | Who handles it |
 |--------|----------------|
 | `reply` | Server: appends the text as a user message and answers it. |
+| `confirm` | Server: the same, and the turn it starts may run writes. |
 | `thread` (`solve`/`reopen`/`rename`/`delete`) | Server alone. No agent call. |
 | `dismiss`, `openUrl` | App only. The server 400s if one arrives. |
 
 An action type outside the catalog is dropped by the validator, taking its
 component with it, so a button a model invented cannot fire anything.
+
+A `confirm` arms exactly one turn. The server also arms the turn that answers a
+proposal by typed message, because someone who reads "posso agendar quinta às
+10?" and types "pode" has said yes as clearly as someone who tapped it.
 
 Only the last turn's actions are live. The app disables buttons on every
 message above it: they belong to a moment the conversation has already moved
@@ -317,9 +357,11 @@ The turn is also written to
 itself and logged by the app, so a screenshot is enough to find the turn
 behind it.
 
-Events worth knowing: `prompt.built`, `agent.generate.start/ok/fail`,
-`tool.start/ok/fail`, `tool.awaitingApproval`, `a2ui.parse`, `a2ui.repaired`
-(every repair and rejection, in full), `a2ui.validated`, `turn.unavailable`.
+Events worth knowing: `prompt.built` (with `allowWrites`),
+`agent.generate.start/ok/fail`, `tool.start/ok/fail`, `tool.blocked` (a write on
+an unconfirmed turn), `a2ui.parse`, `a2ui.repaired` (every repair and rejection,
+in full), `a2ui.validated`, `turn.proposedWrite`, `turn.writeFailed`,
+`turn.unavailable`.
 
 ### Integrations
 

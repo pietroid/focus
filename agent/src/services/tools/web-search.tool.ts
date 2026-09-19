@@ -1,5 +1,5 @@
 import { ToolImplementation, UserContext } from './tool.interface.js';
-import { ToolDefinition } from '../../types.js';
+import { ToolDefinition, ToolEffect } from '../../types.js';
 
 interface SearchResult {
   title: string;
@@ -22,6 +22,8 @@ interface SearchResult {
  */
 export class WebSearchTool implements ToolImplementation {
   readonly name = 'web_search';
+
+  readonly effect: ToolEffect = 'read';
 
   readonly definition: ToolDefinition = {
     type: 'function',

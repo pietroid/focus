@@ -51,7 +51,12 @@ export const MAIN_AXIS_ALIGNMENTS = [
 ] as const;
 
 /** Layout alignment across the main axis. */
-export const CROSS_AXIS_ALIGNMENTS = ['start', 'end', 'center', 'stretch'] as const;
+export const CROSS_AXIS_ALIGNMENTS = [
+  'start',
+  'end',
+  'center',
+  'stretch',
+] as const;
 
 /** How an image fills its box. */
 export const IMAGE_FITS = [
@@ -75,25 +80,78 @@ export const GAPS = ['none', 'tight', 'normal', 'loose'] as const;
  */
 export const ICON_NAMES = [
   // time
-  'calendar', 'calendarPlus', 'calendarCheck', 'calendarX', 'clock', 'alarm',
-  'timer', 'hourglass',
+  'calendar',
+  'calendarPlus',
+  'calendarCheck',
+  'calendarX',
+  'clock',
+  'alarm',
+  'timer',
+  'hourglass',
   // status
-  'check', 'checkCircle', 'x', 'xCircle', 'warning', 'info', 'question',
-  'prohibit', 'spinner',
+  'check',
+  'checkCircle',
+  'x',
+  'xCircle',
+  'warning',
+  'info',
+  'question',
+  'prohibit',
+  'spinner',
   // work
-  'target', 'flag', 'listChecks', 'checkSquare', 'note', 'notebook', 'file',
-  'folder', 'briefcase', 'chartLine', 'trophy',
+  'target',
+  'flag',
+  'listChecks',
+  'checkSquare',
+  'note',
+  'notebook',
+  'file',
+  'folder',
+  'briefcase',
+  'chartLine',
+  'trophy',
   // objects
-  'lightbulb', 'sparkle', 'star', 'heart', 'fire', 'rocket', 'bell',
-  'bookmark', 'gift', 'coffee', 'barbell', 'moon', 'sun', 'cloud',
+  'lightbulb',
+  'sparkle',
+  'star',
+  'heart',
+  'fire',
+  'rocket',
+  'bell',
+  'bookmark',
+  'gift',
+  'coffee',
+  'barbell',
+  'moon',
+  'sun',
+  'cloud',
   // people and places
-  'user', 'users', 'mapPin', 'house', 'globe', 'envelope', 'chat', 'phone',
+  'user',
+  'users',
+  'mapPin',
+  'house',
+  'globe',
+  'envelope',
+  'chat',
+  'phone',
   'video',
   // commerce
-  'shoppingCart', 'currency', 'creditCard',
+  'shoppingCart',
+  'currency',
+  'creditCard',
   // controls
-  'plus', 'minus', 'pencil', 'trash', 'link', 'magnifyingGlass', 'gear',
-  'arrowRight', 'arrowLeft', 'arrowUp', 'caretRight', 'dotsThree',
+  'plus',
+  'minus',
+  'pencil',
+  'trash',
+  'link',
+  'magnifyingGlass',
+  'gear',
+  'arrowRight',
+  'arrowLeft',
+  'arrowUp',
+  'caretRight',
+  'dotsThree',
 ] as const;
 
 /** The component catalog. This is the contract the app renders. */
@@ -101,18 +159,42 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
   Column: {
     doc: 'Stacks children vertically. The usual root.',
     props: {
-      mainAxisAlignment: { kind: 'enum', values: MAIN_AXIS_ALIGNMENTS, doc: 'Vertical distribution' },
-      crossAxisAlignment: { kind: 'enum', values: CROSS_AXIS_ALIGNMENTS, doc: 'Horizontal alignment' },
-      gap: { kind: 'enum', values: GAPS, doc: 'Space between children; defaults to normal' },
+      mainAxisAlignment: {
+        kind: 'enum',
+        values: MAIN_AXIS_ALIGNMENTS,
+        doc: 'Vertical distribution',
+      },
+      crossAxisAlignment: {
+        kind: 'enum',
+        values: CROSS_AXIS_ALIGNMENTS,
+        doc: 'Horizontal alignment',
+      },
+      gap: {
+        kind: 'enum',
+        values: GAPS,
+        doc: 'Space between children; defaults to normal',
+      },
     },
     children: true,
   },
   Row: {
     doc: 'Lays children out horizontally. Keep to three or fewer.',
     props: {
-      mainAxisAlignment: { kind: 'enum', values: MAIN_AXIS_ALIGNMENTS, doc: 'Horizontal distribution' },
-      crossAxisAlignment: { kind: 'enum', values: CROSS_AXIS_ALIGNMENTS, doc: 'Vertical alignment' },
-      gap: { kind: 'enum', values: GAPS, doc: 'Space between children; defaults to normal' },
+      mainAxisAlignment: {
+        kind: 'enum',
+        values: MAIN_AXIS_ALIGNMENTS,
+        doc: 'Horizontal distribution',
+      },
+      crossAxisAlignment: {
+        kind: 'enum',
+        values: CROSS_AXIS_ALIGNMENTS,
+        doc: 'Vertical alignment',
+      },
+      gap: {
+        kind: 'enum',
+        values: GAPS,
+        doc: 'Space between children; defaults to normal',
+      },
     },
     children: true,
   },
@@ -133,8 +215,16 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
     doc: 'A run of text. Every string shown to the user is inside one.',
     props: {
       text: { kind: 'string', doc: 'Required. What to show' },
-      variant: { kind: 'enum', values: TEXT_VARIANTS, doc: 'Type size; defaults to body' },
-      color: { kind: 'enum', values: COLOR_ROLES, doc: 'Colour role; use on captions that carry status' },
+      variant: {
+        kind: 'enum',
+        values: TEXT_VARIANTS,
+        doc: 'Type size; defaults to body',
+      },
+      color: {
+        kind: 'enum',
+        values: COLOR_ROLES,
+        doc: 'Colour role; use on captions that carry status',
+      },
     },
     children: false,
   },
@@ -160,7 +250,11 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
   Card: {
     doc: 'A padded surface grouping related content. Use for one result or one proposal.',
     props: {
-      color: { kind: 'enum', values: COLOR_ROLES, doc: 'Tints the border and wash; use when the card carries a status' },
+      color: {
+        kind: 'enum',
+        values: COLOR_ROLES,
+        doc: 'Tints the border and wash; use when the card carries a status',
+      },
     },
     children: true,
   },
@@ -168,7 +262,11 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
     doc: 'A small pill for a status or a tag.',
     props: {
       text: { kind: 'string', doc: 'Required. Two or three words at most' },
-      color: { kind: 'enum', values: COLOR_ROLES, doc: 'Colour role; defaults to accent' },
+      color: {
+        kind: 'enum',
+        values: COLOR_ROLES,
+        doc: 'Colour role; defaults to accent',
+      },
       icon: { kind: 'enum', values: ICON_NAMES, doc: 'Optional leading icon' },
     },
     children: false,
@@ -177,7 +275,11 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
     doc: 'One row of a list: icon, title, optional supporting line.',
     props: {
       icon: { kind: 'enum', values: ICON_NAMES, doc: 'Leading icon' },
-      color: { kind: 'enum', values: COLOR_ROLES, doc: 'Colour role for the icon' },
+      color: {
+        kind: 'enum',
+        values: COLOR_ROLES,
+        doc: 'Colour role for the icon',
+      },
       title: { kind: 'string', doc: 'Required. The line that is read first' },
       subtitle: { kind: 'string', doc: 'Optional supporting line' },
       action: { kind: 'action', doc: 'Makes the whole row tappable' },
@@ -188,9 +290,17 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
     doc: 'A labelled action. One primary per message at most.',
     props: {
       text: { kind: 'string', doc: 'Required. Verb first, e.g. "Schedule it"' },
-      variant: { kind: 'enum', values: BUTTON_VARIANTS, doc: 'Emphasis; defaults to secondary' },
+      variant: {
+        kind: 'enum',
+        values: BUTTON_VARIANTS,
+        doc: 'Emphasis; defaults to secondary',
+      },
       icon: { kind: 'enum', values: ICON_NAMES, doc: 'Optional leading icon' },
-      color: { kind: 'enum', values: COLOR_ROLES, doc: 'Colour role; defaults to accent' },
+      color: {
+        kind: 'enum',
+        values: COLOR_ROLES,
+        doc: 'Colour role; defaults to accent',
+      },
       expand: { kind: 'boolean', doc: 'Stretch to the full width' },
       action: { kind: 'action', doc: 'Required. What tapping it does' },
     },
@@ -202,7 +312,10 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
       icon: { kind: 'enum', values: ICON_NAMES, doc: 'Required. Icon name' },
       size: { kind: 'number', doc: 'Size in logical pixels' },
       color: { kind: 'enum', values: COLOR_ROLES, doc: 'Colour role' },
-      accessibilityLabel: { kind: 'string', doc: 'Required. What the button does, for screen readers' },
+      accessibilityLabel: {
+        kind: 'string',
+        doc: 'Required. What the button does, for screen readers',
+      },
       action: { kind: 'action', doc: 'Required. What tapping it does' },
     },
     children: false,
@@ -213,7 +326,13 @@ export const A2UI_CATALOG: Record<ComponentName, ComponentSchema> = {
 export const COMPONENT_NAMES = Object.keys(A2UI_CATALOG) as ComponentName[];
 
 /** Action types a model is allowed to emit. Anything else is dropped. */
-export const MODEL_ACTION_TYPES = ['reply', 'openUrl', 'dismiss', 'thread'] as const;
+export const MODEL_ACTION_TYPES = [
+  'reply',
+  'confirm',
+  'openUrl',
+  'dismiss',
+  'thread',
+] as const;
 
 /** Thread operations a `thread` action may carry. */
 export const THREAD_OPS = ['solve', 'reopen', 'rename', 'delete'] as const;
@@ -267,11 +386,16 @@ export function buildActionPrompt(): string {
   return [
     '## Actions',
     '',
-    'An action is an object on a component. Only these four exist:',
+    'An action is an object on a component. Only these five exist:',
     '',
     '- {"type":"reply","text":"..."} sends that text as the user\'s next message.',
     '  This is how you offer a follow-up: the button text is what the user sees,',
     '  the action text is what they end up saying.',
+    '- {"type":"confirm","text":"..."} is a reply that also authorises the change',
+    "  you just described. It is the only way a tool that alters the user's data",
+    '  ever runs. Put exactly one on a proposal, on the primary button, and make',
+    '  its text restate the whole action. Never put one on a message that is not',
+    '  proposing a specific change.',
     '- {"type":"openUrl","url":"https://..."} opens a link.',
     '- {"type":"dismiss"} closes the component without sending anything.',
     `- {"type":"thread","op":"${THREAD_OPS.join('|')}"} changes this thread.`,
@@ -285,8 +409,9 @@ export function buildActionPrompt(): string {
     'what you did. Never put a tool name, a call id or raw arguments in an',
     'action.',
     '',
-    'A reply action has to stand on its own. Its text becomes the user\'s next',
-    'message, and that message is all you get: "Agendar reunião com cliente',
-    'amanhã, 19/09, das 09:00 às 15:00" works, "Sim" and "Pode agendar" do not.',
+    'A reply or confirm action has to stand on its own. Its text becomes the',
+    'user\'s next message, and that message is all you get: "Agendar reunião com',
+    'cliente amanhã, 19/09, das 09:00 às 15:00" works, "Sim" and "Pode agendar"',
+    'do not.',
   ].join('\n');
 }

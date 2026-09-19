@@ -2,10 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Trace } from '../common/trace';
 
+/** Whether running a tool changes anything the user owns. */
+export type ToolEffect = 'read' | 'write';
+
 /** What a tool is, as far as the server needs to know. */
 export interface ToolDescriptor {
   name: string;
   description: string;
+  /**
+   * Reported by the agent rather than decided here.
+   *
+   * The tool knows what it does; the server only needs to know which half of
+   * the contract it falls under so the prompt can say so.
+   */
+  effect: ToolEffect;
 }
 
 /** One message as the agent forwards it to the model. */
@@ -19,7 +29,12 @@ export interface ToolTraceEntry {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  effect: ToolEffect;
+  /** The tool's own plain-Portuguese line for this call. */
+  summary: string;
   ok: boolean;
+  /** True when it was a write the user had not confirmed, so nothing ran. */
+  blocked?: boolean;
   result?: unknown;
   error?: string;
   startedAt: string;
@@ -66,14 +81,28 @@ export class AgentService {
    */
   async tools(trace: Trace): Promise<ToolDescriptor[]> {
     const ttlMs = 60_000;
-    if (this._tools !== undefined && Date.now() - this._toolsFetchedAt < ttlMs) {
+    if (
+      this._tools !== undefined &&
+      Date.now() - this._toolsFetchedAt < ttlMs
+    ) {
       return this._tools;
     }
 
     try {
-      const response = await this._fetch('/tools', undefined, trace, 5_000, 'GET');
+      const response = await this._fetch(
+        '/tools',
+        undefined,
+        trace,
+        5_000,
+        'GET',
+      );
       const data = response as { tools?: ToolDescriptor[] };
-      this._tools = data.tools ?? [];
+      // An agent too old to report effects would otherwise leave every tool
+      // undefined, and an undefined effect is not a read.
+      this._tools = (data.tools ?? []).map((tool) => ({
+        ...tool,
+        effect: tool.effect === 'read' ? 'read' : 'write',
+      }));
       this._toolsFetchedAt = Date.now();
       trace.log('agent.tools', { count: this._tools.length });
       return this._tools;
@@ -87,17 +116,35 @@ export class AgentService {
     }
   }
 
-  /** Runs a prompt with tools and returns the model's text. */
+  /**
+   * Runs a prompt with tools and returns the model's text.
+   *
+   * `allowWrites` is the server's answer to a question only it can answer: has
+   * the user authorised a change on this turn. It is passed explicitly on every
+   * call, because a default here would be a default about someone's calendar.
+   */
   async generate(
-    input: { userId: string; slug: string; messages: PromptMessage[] },
+    input: {
+      userId: string;
+      slug: string;
+      messages: PromptMessage[];
+      allowWrites: boolean;
+    },
     trace: Trace,
   ): Promise<GenerateResult> {
-    const timeout = this._config.get<number>('AGENT_REPLY_TIMEOUT_MS') ?? 90_000;
+    const timeout =
+      this._config.get<number>('AGENT_REPLY_TIMEOUT_MS') ?? 90_000;
 
     return trace.span(
       'agent.generate',
-      { messageCount: input.messages.length },
-      async () => (await this._fetch('/generate', input, trace, timeout)) as GenerateResult,
+      { messageCount: input.messages.length, allowWrites: input.allowWrites },
+      async () =>
+        (await this._fetch(
+          '/generate',
+          input,
+          trace,
+          timeout,
+        )) as GenerateResult,
     );
   }
 

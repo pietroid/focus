@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { google, calendar_v3 } from 'googleapis';
-import { ToolDefinition } from '../../types.js';
+import { ToolDefinition, ToolEffect } from '../../types.js';
 import { ToolImplementation, UserContext } from './tool.interface.js';
 
 /**
@@ -104,9 +104,9 @@ function toEventDateTime(value: string): calendar_v3.Schema$EventDateTime {
 /**
  * Formats an ISO date-time the way a person would read it back.
  *
- * The confirmation dialog is the last thing between the model and the user's
- * real calendar, so it says "sex., 20 de set., 10:00" rather than echoing the
- * ISO string the model produced.
+ * The proposal is the last thing between the model and the user's real
+ * calendar, so it says "sex., 20 de set., 10:00" rather than echoing the ISO
+ * string the model produced.
  */
 function humanDateTime(value: string): string {
   const parsed = new Date(value);
@@ -143,6 +143,8 @@ function humanTime(value: string): string {
  */
 export class CalendarCheckAvailabilityTool implements ToolImplementation {
   readonly name = 'calendar_check_availability';
+
+  readonly effect: ToolEffect = 'read';
 
   readonly definition: ToolDefinition = {
     type: 'function',
@@ -239,18 +241,21 @@ export class CalendarCheckAvailabilityTool implements ToolImplementation {
 /**
  * Calendar create event tool backed by Google Calendar.
  *
- * Requires user confirmation before executing.
+ * A write: the executor refuses it until the user has confirmed the turn.
  */
 export class CalendarCreateEventTool implements ToolImplementation {
   readonly name = 'calendar_create_event';
+
+  readonly effect: ToolEffect = 'write';
 
   readonly definition: ToolDefinition = {
     type: 'function',
     function: {
       name: 'calendar_create_event',
       description:
-        'Create a calendar event. Call this once you know the title, start ' +
-        'and end. The user is asked to approve it before it runs.',
+        'Create a calendar event. This changes the calendar, so it only runs ' +
+        'on a turn the user has confirmed. On any other turn it is refused ' +
+        'and you must propose it instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -349,6 +354,8 @@ export class CalendarCreateEventTool implements ToolImplementation {
 export class CalendarListEventsTool implements ToolImplementation {
   readonly name = 'calendar_list_events';
 
+  readonly effect: ToolEffect = 'read';
+
   readonly definition: ToolDefinition = {
     type: 'function',
     function: {
@@ -436,10 +443,13 @@ export class CalendarListEventsTool implements ToolImplementation {
  * Calendar update event tool backed by Google Calendar.
  *
  * Patches only the fields that were given, so moving an event by half an hour
- * does not quietly blank its title. Requires user confirmation before running.
+ * does not quietly blank its title. A write: the executor refuses it until the
+ * user has confirmed the turn.
  */
 export class CalendarUpdateEventTool implements ToolImplementation {
   readonly name = 'calendar_update_event';
+
+  readonly effect: ToolEffect = 'write';
 
   readonly definition: ToolDefinition = {
     type: 'function',
@@ -448,8 +458,8 @@ export class CalendarUpdateEventTool implements ToolImplementation {
       description:
         'Move, reschedule, or rename an existing calendar event. Get the ' +
         'eventId from calendar_list_events first. Only pass the fields that ' +
-        'change; everything else is left as it is. The user is asked to ' +
-        'approve it before it runs.',
+        'change; everything else is left as it is. This changes the calendar, ' +
+        'so it only runs on a turn the user has confirmed.',
       parameters: {
         type: 'object',
         properties: {
@@ -565,10 +575,12 @@ export class CalendarUpdateEventTool implements ToolImplementation {
 /**
  * Calendar delete event tool backed by Google Calendar.
  *
- * Requires user confirmation before executing.
+ * A write: the executor refuses it until the user has confirmed the turn.
  */
 export class CalendarDeleteEventTool implements ToolImplementation {
   readonly name = 'calendar_delete_event';
+
+  readonly effect: ToolEffect = 'write';
 
   readonly definition: ToolDefinition = {
     type: 'function',
@@ -576,8 +588,8 @@ export class CalendarDeleteEventTool implements ToolImplementation {
       name: 'calendar_delete_event',
       description:
         'Delete an event from the calendar. Get the eventId from ' +
-        'calendar_list_events first. The user is asked to approve it before ' +
-        'it runs.',
+        'calendar_list_events first. This changes the calendar, so it only ' +
+        'runs on a turn the user has confirmed.',
       parameters: {
         type: 'object',
         properties: {

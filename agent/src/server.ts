@@ -14,6 +14,8 @@ interface GenerateBody {
   userId?: string;
   slug?: string;
   messages?: OpenRouterMessage[];
+  /** Absent means no. A write needs the server to say yes out loud. */
+  allowWrites?: boolean;
 }
 
 /**
@@ -53,7 +55,12 @@ export function createServer(): express.Express {
     }
 
     try {
-      const result = await generate({ context, messages: body.messages, trace });
+      const result = await generate({
+        context,
+        messages: body.messages,
+        allowWrites: body.allowWrites === true,
+        trace,
+      });
       res.json(result);
     } catch (error) {
       respondWithFailure(res, trace, error);

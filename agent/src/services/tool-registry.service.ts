@@ -1,4 +1,4 @@
-import { ToolDefinition } from '../types.js';
+import { ToolDefinition, ToolDescriptor, ToolEffect } from '../types.js';
 import { ToolImplementation } from './tools/tool.interface.js';
 import { ApiCallTool } from './tools/api-call.tool.js';
 import {
@@ -9,12 +9,6 @@ import {
   CalendarUpdateEventTool,
 } from './tools/calendar.tool.js';
 import { WebSearchTool } from './tools/web-search.tool.js';
-
-/** What the server needs to know about a tool without owning it. */
-export interface ToolDescriptor {
-  name: string;
-  description: string;
-}
 
 /**
  * Every tool the agent can run.
@@ -56,7 +50,20 @@ export class ToolRegistryService {
     return [...this._tools.values()].map((tool) => ({
       name: tool.name,
       description: tool.definition.function.description,
+      effect: tool.effect,
     }));
+  }
+
+  /**
+   * The effect of one specific call.
+   *
+   * An unregistered name is treated as a write. It cannot run either way, but
+   * the stricter answer is the right default for a question about permission.
+   */
+  effectOf(name: string, args: Record<string, unknown>): ToolEffect {
+    const tool = this._tools.get(name);
+    if (tool === undefined) return 'write';
+    return tool.effectFor?.(args) ?? tool.effect;
   }
 
   /**

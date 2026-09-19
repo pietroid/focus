@@ -218,7 +218,10 @@ export class ThreadsStore {
 
   /** Removes a thread and everything in it. */
   async remove(userId: string, slug: string): Promise<void> {
-    await fs.rm(this._threadDir(userId, slug), { recursive: true, force: true });
+    await fs.rm(this._threadDir(userId, slug), {
+      recursive: true,
+      force: true,
+    });
   }
 }
 

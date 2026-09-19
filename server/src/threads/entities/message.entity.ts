@@ -9,7 +9,11 @@ export type MessageContentType = 'text' | 'a2ui';
 /** What a tool did, kept for observability rather than for display. */
 export interface ToolRun {
   name: string;
+  /** Whether it changed anything, or only looked. */
+  effect: 'read' | 'write';
   ok: boolean;
+  /** True when it was a write the user had not confirmed, so nothing ran. */
+  blocked?: boolean;
   durationMs: number;
   error?: string;
 }
@@ -28,6 +32,14 @@ export interface MessageMetadata {
   a2uiIssues?: A2uiIssue[];
   /** How the raw model output was read: direct, fenced, salvaged, wrapped. */
   parseStrategy?: string;
+  /**
+   * True when this message proposed a change and is waiting on an answer.
+   *
+   * It is what lets the next turn run a write. A typed "pode agendar" counts as
+   * the answer just as much as tapping the button does, which is the whole
+   * reason the flag lives on the message rather than on the action.
+   */
+  proposedWrite?: boolean;
 }
 
 /** A single turn in a thread. */

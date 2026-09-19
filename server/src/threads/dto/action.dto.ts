@@ -9,7 +9,7 @@ export class ActionDto {
   /** The action object, verbatim from the rendered component. */
   action?: {
     type?: string;
-    /** `reply` */
+    /** `reply` and `confirm` */
     text?: string;
     /** `thread` */
     op?: string;

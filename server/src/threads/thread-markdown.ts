@@ -221,7 +221,7 @@ function firstTextInTree(component: A2uiComponent): string | undefined {
 
   if (Array.isArray(component.children)) {
     for (const child of component.children) {
-      const found = firstTextInTree(child as A2uiComponent);
+      const found = firstTextInTree(child);
       if (found !== undefined) return found;
     }
   }

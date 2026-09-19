@@ -10,7 +10,7 @@
     "build": "tsc",
     "start": "NODE_ENV=production node dist/main.js",
     "start:dev": "tsx --env-file=.env.local src/main.ts",
-    "test": "node --test dist/**/*.test.js"
+    "test": "node --test \"dist/**/*.test.js\""
   },
   "dependencies": {
     "express": "^4.21.2",

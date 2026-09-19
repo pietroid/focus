@@ -63,7 +63,11 @@ export class ThreadsController {
     const trace = Trace.start(user.uid);
     trace.log('turn.begin', { kind: 'create' });
 
-    return this.threadsService.create(user.uid, requireMessage(dto.message), trace);
+    return this.threadsService.create(
+      user.uid,
+      requireMessage(dto.message),
+      trace,
+    );
   }
 
   @Post(':slug/messages')
@@ -101,13 +105,18 @@ export class ThreadsController {
     trace.log('action.received', { type: action.type, op: action.op });
 
     switch (action.type) {
-      case 'reply': {
+      // Both land as a message from the user. The difference is that a confirm
+      // also says "and yes, do the thing you just described", which is the only
+      // way a tool that changes their data is ever allowed to run.
+      case 'reply':
+      case 'confirm': {
         return {
           thread: await this.threadsService.addMessage(
             user.uid,
             slug,
             requireMessage(action.text),
             trace,
+            action.type === 'confirm',
           ),
           traceId: trace.id,
         };

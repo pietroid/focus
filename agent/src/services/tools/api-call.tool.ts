@@ -1,5 +1,5 @@
 import { ToolImplementation, UserContext } from './tool.interface.js';
-import { ToolDefinition } from '../../types.js';
+import { ToolDefinition, ToolEffect } from '../../types.js';
 
 /**
  * Generic third-party API call tool.
@@ -11,11 +11,23 @@ import { ToolDefinition } from '../../types.js';
 export class ApiCallTool implements ToolImplementation {
   readonly name = 'api_call';
 
+  /**
+   * Declared as a write, narrowed per call by [effectFor].
+   *
+   * The prompt groups tools by this constant and has to describe the tool
+   * honestly to a model that has not chosen a method yet. Calling it a read
+   * would advertise free rein over a tool that can also DELETE.
+   */
+  readonly effect: ToolEffect = 'write';
+
   readonly definition: ToolDefinition = {
     type: 'function',
     function: {
       name: 'api_call',
-      description: 'Call a configured third-party API on the user\'s behalf.',
+      description:
+        'Call a configured third-party API on the user\'s behalf. A GET runs ' +
+        'freely; any other method changes something and only runs on a turn ' +
+        'the user has confirmed.',
       parameters: {
         type: 'object',
         properties: {
@@ -31,6 +43,11 @@ export class ApiCallTool implements ToolImplementation {
       },
     },
   };
+
+  /** A GET only looks; every other method changes something. */
+  effectFor(args: Record<string, unknown>): ToolEffect {
+    return String(args.method ?? '').toUpperCase() === 'GET' ? 'read' : 'write';
+  }
 
   summarize(args: Record<string, unknown>): string {
     const method = String(args.method ?? 'GET').toUpperCase();

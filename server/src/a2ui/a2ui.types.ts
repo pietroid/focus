@@ -50,14 +50,25 @@ export interface A2uiComponent {
 
 /** Everything a component can ask the app to do. */
 export type A2uiAction =
-  | ReplyAction
-  | DismissAction
-  | OpenUrlAction
-  | ThreadAction;
+  ReplyAction | ConfirmAction | DismissAction | OpenUrlAction | ThreadAction;
 
 /** Send a message back into the thread, as if the user typed it. */
 export interface ReplyAction {
   type: 'reply';
+  text: string;
+}
+
+/**
+ * The same as a reply, plus the user's permission to change something.
+ *
+ * This is the only way a write ever runs. The model proposes, describing the
+ * change in full; the user taps; the turn that follows is allowed to execute,
+ * once, without being asked again. The app needs to know nothing about it: it
+ * posts the action like any other and the server does the rest.
+ */
+export interface ConfirmAction {
+  type: 'confirm';
+  /** Restates the whole action, because it becomes the user's next message. */
   text: string;
 }
 
