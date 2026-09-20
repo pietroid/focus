@@ -40,4 +40,21 @@ class AppIcons {
   static const chevronRight = AppIconData.phosphor(
     PhosphorIconsRegular.caretRight,
   );
+
+  /// Timeline, the day as it happened and as it is still going to happen.
+  static const timeline = AppIconData.phosphor(PhosphorIconsRegular.clock);
+
+  /// Projects, the things that outlive a single day.
+  static const projects = AppIconData.phosphor(PhosphorIconsRegular.folders);
+
+  /// Recommendations, what the agent puts forward on its own.
+  static const recommendations = AppIconData.phosphor(
+    PhosphorIconsRegular.lightbulb,
+  );
+
+  /// Menu, everything that is not one of the three lists.
+  static const menu = AppIconData.phosphor(PhosphorIconsRegular.list);
+
+  /// Archive, for what has been put away rather than finished.
+  static const archive = AppIconData.phosphor(PhosphorIconsRegular.archive);
 }

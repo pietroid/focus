@@ -342,8 +342,8 @@ class _ThreadsSectionState extends State<ThreadsSection> {
                     AppSpacing.s6,
                     0,
                     AppSpacing.s6,
-                    // Room under the last card so the orb never covers it.
-                    AppSpacing.s16 + AppSpacing.s8,
+                    // Room under the last card so the bar never covers it.
+                    AppSpacing.s16 + AppSpacing.s12,
                   ),
                   children: [
                     for (final bucket in ThreadBucket.values)

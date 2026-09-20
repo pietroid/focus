@@ -5,57 +5,32 @@ import 'package:focus/app/app.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template home_page}
-/// The home screen: who you are and what time it is at the top, the three
-/// lists below it, and one orb at the foot to start something new.
+/// The timeline: who you are and what time it is at the top, and the three
+/// lists below it.
 ///
-/// There is no field on this screen. Typing is a deliberate act that opens a
-/// sheet, which keeps the home screen about what is already there rather than
-/// about the next thing to add to it.
+/// There is no field on this screen, and no orb either. Typing is a
+/// deliberate act that starts from the bar at the foot of the app, which
+/// keeps this screen about what is already there rather than about the next
+/// thing to add to it.
 /// {@endtemplate}
 class HomePage extends StatelessWidget {
   /// {@macro home_page}
   const HomePage({super.key});
 
-  Future<void> _compose(BuildContext context) async {
-    final text = await AppPromptSheet.show(context);
-    if (text == null || !context.mounted) return;
-
-    // A new thread lands at the end of "Em breve"; the server places it. The
-    // list is refetched on the way back so the card is there when the chat
-    // closes.
-    await context.push<void>('/chat', extra: text);
-    if (context.mounted) {
-      context.read<ThreadsBloc>().add(const ThreadsRequested());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppSpacing.maxContentWidth,
-            ),
-            child: Stack(
-              children: [
-                const Column(
-                  children: [
-                    _Header(),
-                    Expanded(child: _Threads()),
-                  ],
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: AppSpacing.s6,
-                  child: Center(
-                    child: AppOrb(onTap: () => _compose(context)),
-                  ),
-                ),
-              ],
-            ),
+    return SafeArea(
+      bottom: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppSpacing.maxContentWidth,
+          ),
+          child: const Column(
+            children: [
+              _Header(),
+              Expanded(child: _Threads()),
+            ],
           ),
         ),
       ),

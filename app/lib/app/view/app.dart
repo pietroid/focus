@@ -3,8 +3,8 @@ import 'package:auth/auth.dart';
 import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
-import 'package:focus/home/home.dart';
 import 'package:focus/l10n/l10n.dart';
+import 'package:focus/shell/shell.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template app}
@@ -19,7 +19,7 @@ class App extends StatelessWidget {
   }) : _router = GoRouter(
          initialLocation: initialLocation,
          routes: [
-           GoRoute(path: '/', builder: (context, state) => const HomePage()),
+           GoRoute(path: '/', builder: (context, state) => const ShellPage()),
            // A new thread and an existing one are the same screen. The new one
            // carries its first message as `extra` and has no slug until the
            // server has given it one.

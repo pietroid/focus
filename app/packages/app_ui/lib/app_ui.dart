@@ -15,6 +15,7 @@ export 'src/theme/app_theme.dart';
 export 'src/theme/app_typography.dart';
 export 'src/widgets/app_badge.dart';
 export 'src/widgets/app_bar_default.dart';
+export 'src/widgets/app_bottom_bar.dart';
 export 'src/widgets/app_button.dart';
 export 'src/widgets/app_card.dart';
 export 'src/widgets/app_day_clock.dart';

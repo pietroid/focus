@@ -107,11 +107,19 @@ class _AppOrbState extends State<AppOrb> with SingleTickerProviderStateMixin {
                     colors: colors,
                     stops: _stops,
                   ),
+                  // Two shadows rather than one: a tight halo that reads as
+                  // the sphere being lit, and a wide, faint one that puts a
+                  // little of its colour on the black around it.
                   boxShadow: [
                     BoxShadow(
-                      color: colors[1].withValues(alpha: 0.3),
-                      blurRadius: widget.diameter * 0.7,
-                      spreadRadius: widget.diameter * 0.04,
+                      color: colors[0].withValues(alpha: 0.28),
+                      blurRadius: widget.diameter * 0.5,
+                      spreadRadius: widget.diameter * 0.02,
+                    ),
+                    BoxShadow(
+                      color: colors[1].withValues(alpha: 0.16),
+                      blurRadius: widget.diameter * 1.1,
+                      spreadRadius: widget.diameter * 0.06,
                     ),
                   ],
                 ),
