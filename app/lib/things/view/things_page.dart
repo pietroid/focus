@@ -1,12 +1,12 @@
 import 'package:app_ui/app_ui.dart';
 
-/// {@template projects_page}
-/// Projetos. The screen is not built yet; the destination is, so the bar has
+/// {@template things_page}
+/// Coisas. The screen is not built yet; the destination is, so the bar has
 /// somewhere to go.
 /// {@endtemplate}
-class ProjectsPage extends StatelessWidget {
-  /// {@macro projects_page}
-  const ProjectsPage({super.key});
+class ThingsPage extends StatelessWidget {
+  /// {@macro things_page}
+  const ThingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +22,7 @@ class ProjectsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Projetos', style: AppTypography.headline),
+            Text('Coisas', style: AppTypography.headline),
             const SizedBox(height: AppSpacing.s5),
             Text('Em breve.', style: AppTypography.label),
           ],

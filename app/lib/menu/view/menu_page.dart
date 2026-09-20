@@ -1,8 +1,9 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:go_router/go_router.dart';
 
 /// {@template menu_page}
 /// Everything that is not one of the three lists: for now, the things that
-/// have been put away.
+/// have been solved.
 /// {@endtemplate}
 class MenuPage extends StatelessWidget {
   /// {@macro menu_page}
@@ -28,9 +29,10 @@ class MenuPage extends StatelessWidget {
             children: [
               Text('Menu', style: AppTypography.headline),
               const SizedBox(height: AppSpacing.s5),
-              const AppListItem(
-                title: 'Itens arquivados',
-                iconData: AppIcons.archive,
+              AppListItem(
+                title: 'Itens concluídos',
+                iconData: AppIcons.check,
+                onTap: () => context.push<void>('/concluidos'),
               ),
             ],
           ),

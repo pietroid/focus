@@ -17,6 +17,7 @@ import { ActionDto } from './dto/action.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { PlacementsDto } from './dto/placements.dto';
+import { SolvedDto } from './dto/solved.dto';
 import {
   isThreadBucket,
   Thread,
@@ -79,6 +80,28 @@ export class ThreadsController {
       (dto.placements ?? []).map(requirePlacement),
       trace,
     );
+  }
+
+  /**
+   * Marks a thread solved, or puts a solved one back on the timeline.
+   *
+   * Separate from the placement route because it is a different question:
+   * placement is where something sits, this is whether it is still there at
+   * all.
+   */
+  @Post(':slug/solved')
+  async setSolved(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('slug') slug: string,
+    @Body() dto: SolvedDto,
+  ): Promise<ThreadSummary[]> {
+    if (typeof dto.solved !== 'boolean') {
+      throw new BadRequestException('solved must be a boolean');
+    }
+
+    const trace = Trace.start(user.uid, slug);
+
+    return this.threadsService.setSolved(user.uid, slug, dto.solved, trace);
   }
 
   @Post()

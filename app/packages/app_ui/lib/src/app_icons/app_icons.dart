@@ -34,6 +34,9 @@ class AppIcons {
   static const back = AppIconData.phosphor(PhosphorIconsRegular.arrowLeft);
 
   /// Check, for something that has been closed out.
+  ///
+  /// The bare mark, not a check in a circle: the disc is a second shape doing
+  /// no work, and on a screen this quiet it reads as a button that is not one.
   static const check = AppIconData.phosphor(PhosphorIconsBold.check);
 
   /// Chevron, for a row that opens something.
@@ -41,11 +44,11 @@ class AppIcons {
     PhosphorIconsRegular.caretRight,
   );
 
-  /// Timeline, the day as it happened and as it is still going to happen.
-  static const timeline = AppIconData.phosphor(PhosphorIconsRegular.clock);
+  /// Time, the day as it happened and as it is still going to happen.
+  static const time = AppIconData.phosphor(PhosphorIconsRegular.clock);
 
-  /// Projects, the things that outlive a single day.
-  static const projects = AppIconData.phosphor(PhosphorIconsRegular.folders);
+  /// Things, what outlives a single day.
+  static const things = AppIconData.phosphor(PhosphorIconsRegular.folders);
 
   /// Recommendations, what the agent puts forward on its own.
   static const recommendations = AppIconData.phosphor(
@@ -57,4 +60,9 @@ class AppIcons {
 
   /// Archive, for what has been put away rather than finished.
   static const archive = AppIconData.phosphor(PhosphorIconsRegular.archive);
+
+  /// Undo, for taking a finished thread back out of the concluded list.
+  static const undo = AppIconData.phosphor(
+    PhosphorIconsRegular.arrowCounterClockwise,
+  );
 }

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/l10n/l10n.dart';
 import 'package:focus/shell/shell.dart';
+import 'package:focus/solved/solved.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template app}
@@ -32,6 +33,11 @@ class App extends StatelessWidget {
              path: '/chat/:slug',
              builder: (context, state) =>
                  ChatPage(slug: state.pathParameters['slug']),
+           ),
+           // The solved threads, which the timeline no longer shows.
+           GoRoute(
+             path: '/concluidos',
+             builder: (context, state) => const SolvedPage(),
            ),
            GoRoute(
              path: '/auth',

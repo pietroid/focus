@@ -7,6 +7,11 @@ import 'package:app_ui/app_ui.dart';
 /// something and a fixed column of its own. Titles then start at the same x
 /// whether or not the row above had a subtitle, and the eye runs straight down
 /// them.
+///
+/// A row with two lines hangs its icon from the top, beside the title it
+/// belongs to. A row with one line centres it instead: on a single line the
+/// top and the middle are almost the same place, and hanging the glyph there
+/// leaves it sitting visibly high of the text it is paired with.
 /// {@endtemplate}
 class AppListItem extends StatelessWidget {
   /// {@macro app_list_item}
@@ -38,15 +43,19 @@ class AppListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final icon = iconData;
     final supporting = subtitle;
+    final oneLine = supporting == null || supporting.isEmpty;
 
     final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: oneLine
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start,
       children: [
         if (icon != null) ...[
           Padding(
-            // Nudged down so the glyph sits on the title's optical centre
-            // rather than on its ascender line.
-            padding: const EdgeInsets.only(top: 2),
+            // On a two-line row the glyph is nudged down onto the title's
+            // optical centre rather than left on its ascender line. A one-line
+            // row is already centred, so the nudge would push it back off.
+            padding: EdgeInsets.only(top: oneLine ? 0 : 2),
             child: AppIcon(iconData: icon, size: AppSpacing.s5, color: color),
           ),
           const SizedBox(width: AppSpacing.s3),
@@ -56,7 +65,7 @@ class AppListItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: AppTypography.bodyStrong),
-              if (supporting != null && supporting.isNotEmpty) ...[
+              if (!oneLine) ...[
                 const SizedBox(height: AppSpacing.s1),
                 Text(
                   supporting,
@@ -67,9 +76,12 @@ class AppListItem extends StatelessWidget {
           ),
         ),
         if (onTap != null)
-          const Padding(
-            padding: EdgeInsets.only(left: AppSpacing.s2, top: 2),
-            child: AppIcon(
+          Padding(
+            padding: EdgeInsets.only(
+              left: AppSpacing.s2,
+              top: oneLine ? 0 : 2,
+            ),
+            child: const AppIcon(
               iconData: AppIcons.chevronRight,
               size: AppSpacing.s4,
               color: AppColors.ink3,

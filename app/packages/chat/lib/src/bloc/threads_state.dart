@@ -32,8 +32,20 @@ final class ThreadsState extends Equatable {
   final List<ThreadSummary> threads;
 
   /// The threads in [bucket], in the order they are drawn.
+  ///
+  /// Solved threads are not in any bucket. They keep the bucket they were in,
+  /// so recovering one puts it back where it was, but the timeline is about
+  /// what is still to happen and a solved thread is no longer that.
   List<ThreadSummary> inBucket(ThreadBucket bucket) {
-    return threads.where((thread) => thread.bucket == bucket).toList();
+    return threads
+        .where((thread) => thread.bucket == bucket && !thread.solved)
+        .toList();
+  }
+
+  /// The threads that have been solved, newest first.
+  List<ThreadSummary> get solved {
+    return threads.where((thread) => thread.solved).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
   /// The thread with [slug], or null if the list does not have it.

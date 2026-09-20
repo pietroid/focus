@@ -373,6 +373,69 @@ describe('ThreadsController', () => {
     expect(visibleText(reply)).toContain('On it.');
   });
 
+  describe('solving a thread', () => {
+    it('marks it solved and keeps the bucket it was in', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Buy milk' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/threads/placements')
+        .send({
+          placements: [{ slug: 'buy-milk', bucket: 'agora', index: 0 }],
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/threads/buy-milk/solved')
+        .send({ solved: true })
+        .expect(201);
+
+      expect(response.body).toMatchObject([
+        { slug: 'buy-milk', solved: true, bucket: 'agora', order: 0 },
+      ]);
+    });
+
+    it('puts a solved thread back', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Buy milk' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/threads/buy-milk/solved')
+        .send({ solved: true })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/threads/buy-milk/solved')
+        .send({ solved: false })
+        .expect(201);
+
+      expect(response.body).toMatchObject([
+        { slug: 'buy-milk', solved: false },
+      ]);
+    });
+
+    it('refuses a body without a solved flag', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Buy milk' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/threads/buy-milk/solved')
+        .send({})
+        .expect(400);
+    });
+
+    it('404s for a thread that is not there', async () => {
+      await request(app.getHttpServer())
+        .post('/threads/nope/solved')
+        .send({ solved: true })
+        .expect(404);
+    });
+  });
+
   describe('the write gate', () => {
     /** A reply that proposes a change and offers the confirm that runs it. */
     const proposal = JSON.stringify({

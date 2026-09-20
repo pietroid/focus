@@ -34,6 +34,9 @@ void main() {
     repository = _MockChatRepository();
     when(repository.fetchThreads).thenAnswer((_) async => _threads);
     when(() => repository.savePlacements(any())).thenAnswer((_) async => []);
+    when(
+      () => repository.setSolved(any(), solved: any(named: 'solved')),
+    ).thenAnswer((_) async => []);
   });
 
   ThreadsBloc build() => ThreadsBloc(chatRepository: repository);
@@ -148,6 +151,94 @@ void main() {
           ['d', 'a'],
         );
         expect(bloc.state.status, ThreadsStatus.failure);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'takes a solved thread off the timeline and into the solved list',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadSolved('b', solved: true));
+      },
+      wait: const Duration(milliseconds: 20),
+      verify: (bloc) {
+        expect(
+          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
+          ['c'],
+        );
+        expect(bloc.state.solved.map((t) => t.slug), ['b']);
+        verify(() => repository.setSolved('b', solved: true)).called(1);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'puts a recovered thread back in the list it left',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadSolved('b', solved: true));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadSolved('b', solved: false));
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (bloc) {
+        expect(
+          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
+          ['b', 'c'],
+        );
+        expect(bloc.state.solved, isEmpty);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'puts the card back when solving it cannot be written',
+      build: () {
+        when(
+          () => repository.setSolved(any(), solved: any(named: 'solved')),
+        ).thenThrow(Exception('no'));
+        return build();
+      },
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadSolved('b', solved: true));
+      },
+      wait: const Duration(milliseconds: 20),
+      verify: (bloc) {
+        expect(bloc.state.solved, isEmpty);
+        expect(
+          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
+          ['b', 'c'],
+        );
+        expect(bloc.state.status, ThreadsStatus.failure);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'leaves a solved thread out of the placement a later drag writes',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadSolved('b', solved: true));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(
+          const ThreadMoved(slug: 'd', bucket: ThreadBucket.emBreve, index: 0),
+        );
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (bloc) {
+        verify(
+          () => repository.savePlacements({
+            ThreadBucket.agora: ['a'],
+            ThreadBucket.emBreve: ['d', 'c'],
+            ThreadBucket.depois: <String>[],
+          }),
+        ).called(1);
+        expect(bloc.state.solved.map((t) => t.slug), ['b']);
       },
     );
   });

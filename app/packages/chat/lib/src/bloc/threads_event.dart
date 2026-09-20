@@ -44,3 +44,27 @@ final class ThreadMoved extends ThreadsEvent {
   @override
   List<Object?> get props => [slug, bucket, index];
 }
+
+/// Marks a thread solved, or puts a solved one back on the timeline.
+///
+/// Solved is the one word for this in the app, the API, and the store: a
+/// thread dragged aside on the timeline, one closed out from the chat, and
+/// one the agent closed are the same thing, and giving them separate names
+/// was how three ways of solving the same thread stopped agreeing.
+///
+/// Like [ThreadMoved] this lands on screen first and is written after. The
+/// card has already flown off by the time the request goes out, and a failure
+/// puts it back rather than leaving a thread the user thinks is solved.
+final class ThreadSolved extends ThreadsEvent {
+  /// {@macro threads_event}
+  const ThreadSolved(this.slug, {required this.solved});
+
+  /// The thread that was dragged aside, or recovered.
+  final String slug;
+
+  /// Whether it is now solved.
+  final bool solved;
+
+  @override
+  List<Object?> get props => [slug, solved];
+}

@@ -144,7 +144,11 @@ class ThreadSummary extends Equatable {
   /// How many messages the thread holds.
   final int messageCount;
 
-  /// Whether the user has marked this thread closed.
+  /// Whether the thread is solved.
+  ///
+  /// A solved thread leaves the timeline altogether. It is still there, under
+  /// the concluded items in the menu, and coming back out of that list is the
+  /// only way it returns to a bucket.
   final bool solved;
 
   /// Which of the home screen's lists it sits in.
@@ -157,13 +161,13 @@ class ThreadSummary extends Equatable {
   final DateTime updatedAt;
 
   /// Returns a copy with the given fields replaced.
-  ThreadSummary copyWith({ThreadBucket? bucket}) {
+  ThreadSummary copyWith({ThreadBucket? bucket, bool? solved}) {
     return ThreadSummary(
       slug: slug,
       title: title,
       preview: preview,
       messageCount: messageCount,
-      solved: solved,
+      solved: solved ?? this.solved,
       bucket: bucket ?? this.bucket,
       createdAt: createdAt,
       updatedAt: updatedAt,

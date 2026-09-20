@@ -175,6 +175,27 @@ export class ThreadsService {
   }
 
   /**
+   * Marks a thread solved, or puts an already solved one back.
+   *
+   * Solving does not touch the bucket or the order: they are what the
+   * thread goes back to when it is recovered, and losing them would mean a
+   * recovered thread landing somewhere the user never put it.
+   */
+  async setSolved(
+    userId: string,
+    slug: string,
+    solved: boolean,
+    trace: Trace,
+  ): Promise<ThreadSummary[]> {
+    await this.findOne(userId, slug);
+    trace.log('thread.solved', { slug, solved });
+
+    await this.store.updateState(userId, slug, { solved });
+
+    return this.findAll(userId);
+  }
+
+  /**
    * One past the last order in [bucket], so a new thread lands at the end.
    *
    * [exclude] is the thread being placed. Its messages are already on disk by

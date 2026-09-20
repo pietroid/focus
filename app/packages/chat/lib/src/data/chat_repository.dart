@@ -49,6 +49,24 @@ class ChatRepository {
         .toList();
   }
 
+  /// Marks a thread solved, or puts a solved one back on the timeline.
+  ///
+  /// Returns the whole list, because solving a thread changes which threads
+  /// the timeline has in it and not only the one that was dragged.
+  Future<List<ThreadSummary>> setSolved(
+    String slug, {
+    required bool solved,
+  }) async {
+    final response = await apiClient.post<List<dynamic>>(
+      '/threads/$slug/solved',
+      data: {'solved': solved},
+    );
+
+    return (response.data ?? <dynamic>[])
+        .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+        .toList();
+  }
+
   /// One thread, with every message it holds.
   Future<Thread> fetchThread(String slug) async {
     final response = await apiClient.get<Map<String, dynamic>>(

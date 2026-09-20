@@ -14,6 +14,7 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   ThreadsBloc({required this._chatRepository}) : super(const ThreadsState()) {
     on<ThreadsRequested>(_onRequested);
     on<ThreadMoved>(_onMoved);
+    on<ThreadSolved>(_onSolved);
   }
 
   final ChatRepository _chatRepository;
@@ -43,8 +44,9 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
     // list it was in, and put it back at the index it was dropped on.
     final buckets = <ThreadBucket, List<ThreadSummary>>{
       for (final bucket in ThreadBucket.values)
-        bucket: state.threads
-            .where((t) => t.bucket == bucket && t.slug != event.slug)
+        bucket: state
+            .inBucket(bucket)
+            .where((t) => t.slug != event.slug)
             .toList(),
     };
 
@@ -54,8 +56,12 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
       moved.copyWith(bucket: event.bucket),
     );
 
+    // Solved threads are not in any list on screen, so they are not part of the
+    // placement either. They are kept on the end so they are still there to be
+    // recovered.
     final reordered = [
       for (final bucket in ThreadBucket.values) ...buckets[bucket]!,
+      ...state.threads.where((t) => t.solved),
     ];
 
     emit(state.copyWith(threads: reordered));
@@ -69,6 +75,28 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
       // The drop stays on screen. A reload is what puts it back, and that is
       // better than yanking a card out from under the finger that moved it.
       emit(state.copyWith(status: ThreadsStatus.failure));
+    }
+  }
+
+  /// Flips one thread's solved flag on screen, then writes it.
+  ///
+  /// A thread that changes this flag moves between two screens rather than
+  /// between two places on one, so a failed write is put back: leaving a card
+  /// off the timeline because the request never landed is the one outcome the
+  /// user cannot see and cannot undo.
+  Future<void> _onSolved(ThreadSolved event, Emitter<ThreadsState> emit) async {
+    final before = state.threads;
+    final index = before.indexWhere((t) => t.slug == event.slug);
+    if (index == -1 || before[index].solved == event.solved) return;
+
+    final threads = [...before];
+    threads[index] = threads[index].copyWith(solved: event.solved);
+    emit(state.copyWith(threads: threads));
+
+    try {
+      await _chatRepository.setSolved(event.slug, solved: event.solved);
+    } on Exception catch (_) {
+      emit(state.copyWith(status: ThreadsStatus.failure, threads: before));
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/bloc/threads_bloc.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:chat/src/widgets/widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Where a card is about to land: a list, and a place in it.
@@ -15,6 +16,14 @@ typedef _Slot = ({ThreadBucket bucket, int index});
 /// A place a card can land, and where it is on the screen.
 typedef _Anchor = ({_Slot slot, double y});
 
+/// A solved card on its way off the screen, frozen as it was let go.
+typedef _Flying = ({
+  ThreadSummary thread,
+  double top,
+  double height,
+  double dx,
+});
+
 /// {@template threads_section}
 /// The home screen's three lists: Agora, Em breve, and Depois.
 ///
@@ -23,6 +32,12 @@ typedef _Anchor = ({_Slot slot, double y});
 /// follows the finger while the rest of the lists open a place for it. The
 /// place is whichever one is nearest, so the card lands wherever it is let
 /// go rather than only on something it managed to hit.
+///
+/// A drag picks an axis as soon as it starts moving and keeps it. Up and down
+/// reorders; left and right carries the card out of the timeline and solves
+/// it. Nothing does both at once, because a card that slid sideways while
+/// being reordered would be asking which of the two the finger meant, and the
+/// finger has already said.
 ///
 /// The lists do not re-lay-out while a card is up. The cards that move are
 /// moved by a transform over a layout that was measured once, when the card
@@ -47,6 +62,13 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   /// Moving further than this before the hold fires means the list is being
   /// scrolled, not a card picked up.
   static const _slop = 8.0;
+
+  /// How far a card has to move before the drag picks its axis.
+  static const _axisSlop = 12.0;
+
+  /// How far sideways a card has to be carried before letting it go solves
+  /// the thread rather than dropping it back into a list.
+  static const _solveTravel = 96.0;
 
   /// The section itself, for turning the pointer into local coordinates.
   final GlobalKey _sectionKey = GlobalKey();
@@ -87,6 +109,13 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   _Slot? _target;
   Offset _travel = Offset.zero;
 
+  /// Which way this drag is going, decided once and then kept.
+  Axis? _axis;
+
+  /// The card thrown off the timeline after being solved, still on screen
+  /// while it plays out.
+  _Flying? _flight;
+
   @override
   void dispose() {
     _hold?.cancel();
@@ -94,6 +123,19 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   }
 
   ThreadsState get _state => context.read<ThreadsBloc>().state;
+
+  /// How far the card in the air has come towards being solved, 0 to 1.
+  ///
+  /// Always zero on a drag that went up or down, so a reorder never shows the
+  /// check and never has to be read as anything but a reorder.
+  double get _solveProgress {
+    if (_dragging == null || _axis != Axis.horizontal) return 0;
+
+    return (_travel.dx.abs() / _solveTravel).clamp(0.0, 1.0);
+  }
+
+  /// Whether letting go now would solve the thread instead of dropping it.
+  bool get _armedSolve => _solveProgress == 1;
 
   GlobalKey _cardKey(String slug) => _cardKeys.putIfAbsent(slug, GlobalKey.new);
 
@@ -244,6 +286,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
     setState(() {
       _dragging = slug;
+      _axis = null;
       _originPos = (_before[origin.bucket] ?? 0) + origin.index;
       _originRect = rect;
       _slotHeight = rect.height + AppSpacing.s1;
@@ -258,10 +301,26 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     if (down == null) return;
 
     if (_dragging != null) {
+      final wasArmed = _armedSolve;
+      final travel = event.position - down;
+
       setState(() {
-        _travel = event.position - down;
-        _target = _nearest(event.position);
+        _axis = _axisFor(travel);
+        // The card moves along the axis the drag chose and not a pixel along
+        // the other one, so a reorder cannot drift sideways into solving the
+        // thread and a card being carried out cannot drift into a list.
+        _travel = _axis == Axis.horizontal
+            ? Offset(travel.dx, 0)
+            : Offset(0, travel.dy);
+        // A card on its way out of the timeline is not aiming at a list, so
+        // nothing opens a place for it: the lists stay where they are and the
+        // only thing left to read is the check.
+        _target = _axis == Axis.horizontal ? null : _nearest(event.position);
       });
+
+      // One tick as the gesture changes what letting go will do, and only on
+      // the change.
+      if (_armedSolve != wasArmed) unawaited(HapticFeedback.selectionClick());
       return;
     }
 
@@ -270,18 +329,44 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     if ((event.position - down).distance > _slop) _cancel();
   }
 
+  /// The axis this drag is on: whichever way it went first, and then that one
+  /// for the rest of the drag.
+  ///
+  /// Undecided counts as vertical, so the card is already following the finger
+  /// up the list before the gesture has travelled far enough to be sure. A
+  /// reorder is much the commoner of the two, and guessing it costs nothing
+  /// when it is wrong: the first twelve pixels of a sideways drag simply do
+  /// not move the card.
+  Axis? _axisFor(Offset travel) {
+    if (_axis != null || travel.distance < _axisSlop) return _axis;
+
+    return travel.dx.abs() > travel.dy.abs() ? Axis.horizontal : Axis.vertical;
+  }
+
   void _onUp(PointerUpEvent event) {
     final slug = _dragging;
     final target = _target;
     final pressed = _pressed;
+    final solving = _armedSolve;
+    final travel = _travel;
+    final rect = _originRect;
     // A timer still ticking means the hold never fired, so this was a tap.
     final tapped = _hold?.isActive ?? false;
+    final thread = slug == null ? null : _state.bySlug(slug);
     _cancel();
 
     if (slug == null) {
       if (tapped && pressed != null) widget.onThreadTap(pressed);
       return;
     }
+
+    // Let go out to the side and the thread is solved: it leaves the timeline
+    // for the concluded items, and the card is thrown after it.
+    if (solving && thread != null && rect != null) {
+      _solve(slug, thread, rect, travel);
+      return;
+    }
+
     if (target == null) return;
 
     // A card put back exactly where it came from is not a move, and does not
@@ -295,6 +380,31 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     );
   }
 
+  /// Sends a thread to the concluded items, and throws its card off screen.
+  ///
+  /// This is the moment the thread is solved: everything before it was the
+  /// gesture saying what it was about to do. The card is drawn from what was
+  /// captured here rather than from the list, because the list has already
+  /// let go of it by the time this runs, and everything below it closes up
+  /// while the card is still on its way out.
+  void _solve(String slug, ThreadSummary thread, Rect rect, Offset travel) {
+    final box = _sectionKey.currentContext?.findRenderObject() as RenderBox?;
+    unawaited(HapticFeedback.mediumImpact());
+
+    if (box != null) {
+      setState(() {
+        _flight = (
+          thread: thread,
+          top: box.globalToLocal(rect.topLeft).dy + travel.dy,
+          height: rect.height,
+          dx: travel.dx,
+        );
+      });
+    }
+
+    context.read<ThreadsBloc>().add(ThreadSolved(slug, solved: true));
+  }
+
   void _cancel() {
     _hold?.cancel();
     _hold = null;
@@ -302,6 +412,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     setState(() {
       _pressed = null;
       _dragging = null;
+      _axis = null;
       _originRect = null;
       _anchors = const [];
       _target = null;
@@ -367,6 +478,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
             // them, so it passes over the cards it is moving between instead
             // of sliding under them.
             if (dragging != null) _lifted(state, dragging),
+            if (_flight != null) _flying(_flight!),
           ],
         );
       },
@@ -387,7 +499,197 @@ class _ThreadsSectionState extends State<ThreadsSection> {
       left: AppSpacing.s6,
       right: AppSpacing.s6,
       top: top,
-      child: IgnorePointer(child: ThreadTile(thread: thread, lifted: true)),
+      height: rect.height,
+      child: IgnorePointer(
+        child: _Lifted(
+          thread: thread,
+          dx: _travel.dx,
+          progress: _solveProgress,
+        ),
+      ),
+    );
+  }
+
+  /// The card that has just been solved, playing itself out.
+  Widget _flying(_Flying flight) {
+    return Positioned(
+      left: AppSpacing.s6,
+      right: AppSpacing.s6,
+      top: flight.top,
+      height: flight.height,
+      child: IgnorePointer(
+        child: _Flight(
+          key: ValueKey(flight.thread.slug),
+          thread: flight.thread,
+          dx: flight.dx,
+          onEnd: () {
+            if (mounted) setState(() => _flight = null);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// The card in the air: the tile itself, and the check it is being carried
+/// towards.
+class _Lifted extends StatelessWidget {
+  const _Lifted({
+    required this.thread,
+    required this.dx,
+    required this.progress,
+  });
+
+  final ThreadSummary thread;
+
+  /// How far sideways the finger has taken it.
+  final double dx;
+
+  /// How far along the way to being solved it is, 0 to 1.
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // The check sits in the room the card opened as it left, so it is
+        // read beside the card rather than through it.
+        Positioned.fill(
+          child: Align(
+            alignment: dx.isNegative
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+              child: _SolveMark(progress: progress),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Transform.translate(
+            offset: Offset(dx, 0),
+            child: ThreadTile(thread: thread, lifted: true),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The check beside a card being carried out of the timeline.
+///
+/// It fades up with the drag and goes from grey to white once the card has
+/// gone far enough, so the gesture says what letting go will do before it
+/// does it. It never turns green here: green is the thread being solved, and
+/// that does not happen until the finger comes off.
+class _SolveMark extends StatelessWidget {
+  const _SolveMark({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final armed = progress == 1;
+
+    return Opacity(
+      opacity: 0.4 + 0.6 * progress,
+      child: Transform.scale(
+        scale: 0.8 + 0.2 * progress,
+        child: AppIcon(
+          iconData: AppIcons.check,
+          color: armed ? AppColors.ink : AppColors.ink3,
+        ),
+      ),
+    );
+  }
+}
+
+/// The last quarter second of a solved card.
+///
+/// The card carries on the way it was going and fades out while the check
+/// swells behind it. It is drawn over lists that have already closed the gap,
+/// so by the time it is gone there is nothing left to tidy up.
+class _Flight extends StatefulWidget {
+  const _Flight({
+    required this.thread,
+    required this.dx,
+    required this.onEnd,
+    super.key,
+  });
+
+  final ThreadSummary thread;
+
+  /// Where the card was when it was let go, and which way it was headed.
+  final double dx;
+
+  /// Called once there is nothing left to draw.
+  final VoidCallback onEnd;
+
+  @override
+  State<_Flight> createState() => _FlightState();
+}
+
+class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
+  /// How far past the release point the card carries on.
+  static const _throw = 140.0;
+
+  late final AnimationController _controller = AnimationController(
+    duration: const Duration(milliseconds: 260),
+    vsync: this,
+  )..forward().whenComplete(widget.onEnd);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sign = widget.dx.isNegative ? -1.0 : 1.0;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      child: ThreadTile(thread: widget.thread, lifted: true),
+      builder: (context, child) {
+        final t = Curves.easeIn.transform(_controller.value);
+
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Align(
+                alignment: sign.isNegative
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s4,
+                  ),
+                  child: Transform.scale(
+                    scale: 1 + 0.5 * t,
+                    child: Opacity(
+                      opacity: 1 - t,
+                      child: const AppIcon(
+                        iconData: AppIcons.check,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Transform.translate(
+                offset: Offset(widget.dx + sign * _throw * t, 0),
+                child: Opacity(
+                  opacity: 1 - t,
+                  child: Transform.scale(scale: 1 - 0.08 * t, child: child),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -3,8 +3,8 @@ import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/home/home.dart';
 import 'package:focus/menu/menu.dart';
-import 'package:focus/projects/projects.dart';
 import 'package:focus/recommendations/recommendations.dart';
+import 'package:focus/things/things.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template shell_page}
@@ -14,7 +14,7 @@ import 'package:go_router/go_router.dart';
 /// rebuilt on every tap: moving between them is not navigation, it is looking
 /// somewhere else, and a list should be where it was left.
 ///
-/// The orb lives here rather than on the timeline because it is the app's one
+/// The orb lives here rather than on Tempo because it is the app's one
 /// action from anywhere, not that screen's action.
 /// {@endtemplate}
 class ShellPage extends StatefulWidget {
@@ -50,7 +50,7 @@ class _ShellPageState extends State<ShellPage> {
         index: _index,
         children: const [
           HomePage(),
-          ProjectsPage(),
+          ThingsPage(),
           RecommendationsPage(),
           MenuPage(),
         ],
@@ -60,8 +60,8 @@ class _ShellPageState extends State<ShellPage> {
         onSelected: (index) => setState(() => _index = index),
         center: AppOrb(onTap: _compose),
         items: const [
-          AppBottomBarItem(iconData: AppIcons.timeline, label: 'Timeline'),
-          AppBottomBarItem(iconData: AppIcons.projects, label: 'Projetos'),
+          AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
+          AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
           // "Sugestões" rather than "Recomendações": the longer word does
           // not fit a quarter of a phone's width at this size without being
           // cut, and a cut label is worse than a shorter one.
