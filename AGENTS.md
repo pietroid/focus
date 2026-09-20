@@ -274,6 +274,9 @@ reads the thread files. It exposes two routes on the private Docker network:
   than keeping a copy, so adding a tool is a one-file change.
 - `POST /generate` — runs the prompt the server built, executing every tool the
   model calls inline and returning `{ raw, toolTrace }`.
+- `GET /calendar/window`, `POST|PATCH|DELETE /calendar/events` — the calendar,
+  with no model in the loop. They exist because the credentials do: the server
+  owns the rules about time and the agent owns the connection to Google.
 
 Each tool in `agent/src/services/tools/` carries its own OpenRouter definition,
 its own `summarize()` (the line a proposal, a trace and a failure card all read
@@ -318,20 +321,100 @@ model wrote is exactly right and is shown as is.
 
 ### The home screen's three lists
 
-A thread sits in one of three buckets — `agora`, `em_breve`, `depois` — and
-holds a place inside it. Both live in the thread's `state.json` next to
-`solved`, and both mean exactly one thing: what the user decided when they
-dragged the card.
+A card sits in one of three buckets — `agora`, `em_breve`, `depois` — and
+holds a place inside it. Which of the two decides depends on whether the card
+has a time on it.
 
-Nothing derives a bucket. The agent does not set one, no date implies one, and
-a thread that has never been touched reports `em_breve` ordered by when it was
-created. A new thread is placed at the end of `em_breve` the moment it is
-created, because something just written is next but not now.
+**Untimed threads** work exactly as they always have. The bucket and the order
+live in the thread's `state.json` next to `solved`, and both mean one thing:
+what the user decided when they dragged the card. Nothing derives them, the
+agent never sets them, and a thread that has never been touched reports
+`em_breve` ordered by when it was created. A new thread is placed at the end of
+`em_breve` the moment it is created, because something just written is next but
+not now.
+
+**Timed cards** are filed by the clock. `derivedBucket` in
+`threads/thread-timing.ts` is the whole rule: running now is `agora`, starting
+later today is `em_breve`, another day is `depois`, and already finished is
+`em_breve` again, because the thing you meant to do and did not is next rather
+than later. The stored bucket is still kept underneath, and it is where the
+card goes back to on the day its time is taken away.
 
 `POST /threads/placements` takes the whole placement of every list a drag
 touched, not the one thread that moved. One drop shifts the index of
 everything below it in two lists at once, so sending the result is the only
-version of this that cannot disagree with what is on screen.
+version of this that cannot disagree with what is on screen. It answers
+`{ cards, guard? }`: a guard means nothing was applied.
+
+### The time system
+
+Three files hold every rule about when things happen, and all three are on the
+server.
+
+- `time/work-hours.ts` — the working day runs **07:00 to 22:00** and blocks are
+  spaced **5 minutes** apart. Both are constants here and nowhere else, along
+  with slot-finding, conflict detection and the way a duration is written.
+- `threads/thread-timing.ts` — what a thread's timing is, and which list it
+  puts the card in.
+- `threads/timing.service.ts` — the guards, and what answering one does to the
+  rest of the day.
+
+#### Two sources, one list
+
+The calendar is the source of truth for anything with a time. An event with no
+thread behind it is drawn as a **read-only card**: it cannot be dragged,
+opened or solved, because it is a picture of the event and the only way to
+change it is to change the event. Where a thread *is* an event — a guard
+booked it — only the thread is drawn, so the same hour never appears twice.
+
+The agent holds the credentials and the server asks for what it needs.
+`CalendarReaderService` pulls `GET /calendar/window` when it builds a timeline
+or prices a slot, caches the answer for thirty seconds, and falls back to the
+last good read when the agent is unreachable: a timeline half a minute stale
+is a small lie, one that says the afternoon is free because Google timed out
+is a large one. Guards write through `POST|PATCH|DELETE /calendar/events` on
+the same surface.
+
+**Every call runs server to agent.** The agent never calls back, holds no
+address for the server and no key: these routes are reached exactly the way
+`/generate` is, on the private Docker network, and nothing about the calendar
+is exposed through nginx. The routine the spec asks for is the derivation
+itself — buckets are computed from the clock on every read, and the home
+screen refetches on the minute, so a card moves into Agora when its hour
+arrives without anything having pushed it there.
+
+None of these routes run a model. A guard is arithmetic, not a turn.
+
+#### Guards
+
+A card cannot sit in `agora` or `em_breve` without a duration, and a booking
+cannot land on top of something else without being asked about. Each thing the
+user has not answered yet is a guard, asked in order:
+
+| Guard | When | Answers |
+|-------|------|---------|
+| duration | an untimed thread moves up | one of 15 min … 2 h |
+| schedule | it now has a duration | `schedule`, or `manual` to keep it untimed |
+| conflict | the slot is taken | `postpone` (the default) or `force` |
+| unschedule | a booked thread is dragged to `depois` | `unschedule` |
+
+`agora` proposes *this minute*, conflicts and all, because someone dragging a
+card to the top of the screen is saying they are starting it. `em_breve`
+proposes the next slot that actually fits. Declining a booking still keeps the
+duration: a thread is a pre-calendar thing, and the chaos of life sometimes
+does not allow the rest of it.
+
+Guards are A2UI trees built by `a2ui/a2ui.guards.ts` and drawn by the renderer
+that draws replies. The app knows none of the rules; it draws the buttons and
+posts the one that was tapped to `POST /threads/timing`. Every button carries
+the whole move plus one `decision`, so no pending state exists on either side
+and a guard abandoned halfway leaves nothing behind. Reordering inside a list
+never asks anything: timed cards are drawn in clock order wherever they are
+dropped, so a reorder can only change the hand-made order of untimed ones.
+
+The `timing` action type is deliberately absent from `MODEL_ACTION_TYPES`. A
+model cannot emit one, and the validator drops it out of a reply along with the
+button carrying it.
 
 ### Actions
 
@@ -345,6 +428,7 @@ neither needs the server.
 | `reply` | Server: appends the text as a user message and answers it. |
 | `confirm` | Server: the same, and the turn it starts may run writes. |
 | `thread` (`solve`/`reopen`/`rename`/`delete`) | Server alone. No agent call. |
+| `timing` | Server alone, on `POST /threads/timing`. Guards only; a model may not emit one. |
 | `dismiss`, `openUrl` | App only. The server 400s if one arrives. |
 
 An action type outside the catalog is dropped by the validator, taking its

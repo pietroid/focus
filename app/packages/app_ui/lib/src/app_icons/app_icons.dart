@@ -61,6 +61,12 @@ class AppIcons {
   /// Archive, for what has been put away rather than finished.
   static const archive = AppIconData.phosphor(PhosphorIconsRegular.archive);
 
+  /// Calendar, for a card that came off the calendar rather than out of a
+  /// conversation.
+  static const calendar = AppIconData.phosphor(
+    PhosphorIconsRegular.calendarBlank,
+  );
+
   /// Undo, for taking a finished thread back out of the concluded list.
   static const undo = AppIconData.phosphor(
     PhosphorIconsRegular.arrowCounterClockwise,

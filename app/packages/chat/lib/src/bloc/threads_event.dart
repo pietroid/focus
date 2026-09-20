@@ -45,6 +45,32 @@ final class ThreadMoved extends ThreadsEvent {
   List<Object?> get props => [slug, bucket, index];
 }
 
+/// Sends back the button the user tapped on a guard.
+///
+/// The action is the server's own object, posted verbatim. The app never
+/// reads it: a guard's buttons are drawn from what the server sent and
+/// answered with what it sent, which is what keeps the rules about the
+/// working day in one place.
+final class GuardAnswered extends ThreadsEvent {
+  /// {@macro threads_event}
+  const GuardAnswered(this.action);
+
+  /// The action the tapped component carried.
+  final Map<String, dynamic> action;
+
+  @override
+  List<Object?> get props => [action];
+}
+
+/// Closes a guard without answering it.
+///
+/// Nothing was applied while it was open, so there is nothing to undo: the
+/// card is already back where it started.
+final class GuardDismissed extends ThreadsEvent {
+  /// {@macro threads_event}
+  const GuardDismissed();
+}
+
 /// Marks a thread solved, or puts a solved one back on the timeline.
 ///
 /// Solved is the one word for this in the app, the API, and the store: a

@@ -26,7 +26,11 @@ class ChatRepository {
   /// [buckets] is the whole placement, not the one thread that moved: a drop
   /// shifts everything below it in two lists at once, and sending the result
   /// is the only version of this that cannot disagree with what is on screen.
-  Future<List<ThreadSummary>> savePlacements(
+  ///
+  /// The answer is not always the new lists. A move that needs something
+  /// decided first comes back with a guard instead, and nothing has changed
+  /// on the server until that guard is answered.
+  Future<TimelineOutcome> savePlacements(
     Map<ThreadBucket, List<String>> buckets,
   ) async {
     final placements = <Map<String, dynamic>>[
@@ -39,14 +43,27 @@ class ChatRepository {
           },
     ];
 
-    final response = await apiClient.post<List<dynamic>>(
+    final response = await apiClient.post<Map<String, dynamic>>(
       '/threads/placements',
       data: {'placements': placements},
     );
 
-    return (response.data ?? <dynamic>[])
-        .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
-        .toList();
+    return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+  }
+
+  /// Answers a guard with the button the user tapped.
+  ///
+  /// The action object goes back exactly as it arrived, for the same reason
+  /// [runAction] posts one verbatim: what a guard's answer means, and what it
+  /// does to the rest of the day, is the server's to know. The app's whole
+  /// part in it is drawing the buttons and saying which one was pressed.
+  Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async {
+    final response = await apiClient.post<Map<String, dynamic>>(
+      '/threads/timing',
+      data: {'action': action},
+    );
+
+    return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
   }
 
   /// Marks a thread solved, or puts a solved one back on the timeline.

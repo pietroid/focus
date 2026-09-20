@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { ThreadsModule } from './threads/threads.module';
 import { UsersModule } from './users/users.module';
 
@@ -17,6 +18,7 @@ import { UsersModule } from './users/users.module';
       ],
     }),
     AuthModule,
+    CalendarModule,
     ThreadsModule,
     UsersModule,
   ],

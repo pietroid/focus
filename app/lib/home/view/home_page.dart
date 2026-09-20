@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -170,15 +172,97 @@ class _Threads extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ThreadsSection(
-      onThreadTap: (slug) async {
-        await context.push<void>('/chat/$slug');
-        // The thread's preview and position both change while it is open, so
-        // the list is refetched on the way back rather than left stale.
-        if (context.mounted) {
-          context.read<ThreadsBloc>().add(const ThreadsRequested());
-        }
-      },
+    final guard = context.select<ThreadsBloc, A2uiComponent?>(
+      (bloc) => bloc.state.guard,
+    );
+    final busy = context.select<ThreadsBloc, bool>(
+      (bloc) => bloc.state.guardBusy,
+    );
+
+    return Stack(
+      children: [
+        const _MinuteRefresh(),
+        ThreadsSection(
+          onThreadTap: (slug) async {
+            await context.push<void>('/chat/$slug');
+            // The thread's preview and position both change while it is open,
+            // so the list is refetched on the way back rather than left stale.
+            if (context.mounted) {
+              context.read<ThreadsBloc>().add(const ThreadsRequested());
+            }
+          },
+        ),
+        // The guard is drawn over the timeline rather than pushed as a route:
+        // the question is about a card that is still on screen, and the
+        // answer puts it somewhere the user can see from here.
+        if (guard != null) GuardSheet(guard: guard, busy: busy),
+      ],
     );
   }
+}
+
+
+/// Refetches the timeline on the minute, and draws nothing.
+///
+/// Which list a timed card is in is worked out from the clock, on the server,
+/// when the list is read. So a card only walks into Agora as its hour comes
+/// round if somebody asks for the list again: this is the asking, and it is
+/// the whole of the minute-by-minute routine the timeline needs.
+///
+/// It is a widget with its own timer rather than a rebuild hook, because the
+/// fetch has to happen on the tick and not on the rebuild. Asking from inside
+/// a build would ask again for every state the answer produced.
+class _MinuteRefresh extends StatefulWidget {
+  const _MinuteRefresh();
+
+  @override
+  State<_MinuteRefresh> createState() => _MinuteRefreshState();
+}
+
+class _MinuteRefreshState extends State<_MinuteRefresh> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  /// Wakes on the next minute boundary, not a minute from now, so the list
+  /// turns over at the same moment the clock above it does.
+  void _schedule() {
+    final now = DateTime.now();
+    final next = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      now.hour,
+    ).add(Duration(minutes: now.minute + 1));
+
+    _timer = Timer(next.difference(now), () {
+      if (!mounted) return;
+      _refresh();
+      _schedule();
+    });
+  }
+
+  void _refresh() {
+    final bloc = context.read<ThreadsBloc>();
+
+    // Not while a guard is up. The lists behind it are the ones from before
+    // the drag, and replacing them under an open question would be the screen
+    // answering it.
+    if (bloc.state.guard != null) return;
+
+    bloc.add(const ThreadsRequested());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

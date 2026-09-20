@@ -9,6 +9,7 @@ import {
   Thread,
   ThreadState,
   ThreadSummary,
+  ThreadTiming,
 } from './entities/thread.entity';
 import {
   dayFolder,
@@ -17,6 +18,7 @@ import {
   serializeThreadDay,
   titleFrom,
 } from './thread-markdown';
+import { derivedBucket, intervalOf } from './thread-timing';
 
 /**
  * The thread store: a directory of markdown files.
@@ -99,17 +101,23 @@ export class ThreadsStore {
     }
 
     const createdAt = messages[0]?.createdAt ?? new Date();
+    const timing = state.timing ?? {};
 
     return {
       slug,
       title,
       messages,
       solved: state.solved,
-      bucket: state.bucket ?? DEFAULT_BUCKET,
+      // A thread with a time on it is filed by the clock, and one without is
+      // filed where it was dragged. The stored bucket is kept either way, so
+      // a thread that loses its time goes back where the user last put it.
+      bucket:
+        derivedBucket(new Date(), timing) ?? state.bucket ?? DEFAULT_BUCKET,
       // A thread that has never been dragged sorts by when it started, so an
       // account that has never touched the lists still reads oldest-first
       // rather than in whatever order the filesystem handed them over.
       order: state.order ?? createdAt.getTime(),
+      timing,
       createdAt,
       updatedAt: messages[messages.length - 1]?.createdAt ?? new Date(),
     };
@@ -125,11 +133,7 @@ export class ThreadsStore {
     return threads
       .filter((thread): thread is Thread => thread !== null)
       .map(toSummary)
-      .sort(
-        (a, b) =>
-          THREAD_BUCKETS.indexOf(a.bucket) - THREAD_BUCKETS.indexOf(b.bucket) ||
-          a.order - b.order,
-      );
+      .sort(compareCards);
   }
 
   /**
@@ -180,6 +184,7 @@ export class ThreadsStore {
         title: parsed.title,
         bucket: isThreadBucket(parsed.bucket) ? parsed.bucket : undefined,
         order: typeof parsed.order === 'number' ? parsed.order : undefined,
+        timing: readTiming(parsed.timing),
       };
     } catch {
       return { solved: false };
@@ -248,10 +253,60 @@ export class ThreadsStore {
   }
 }
 
+/**
+ * The order cards are drawn in: by list, then by clock, then by hand.
+ *
+ * Within one list everything with a time comes first and runs in time order,
+ * because a list where three o'clock sat under five o'clock would be asking
+ * to be read twice. Everything untimed keeps the place it was dragged to,
+ * under them.
+ */
+export function compareCards(a: ThreadSummary, b: ThreadSummary): number {
+  const byBucket =
+    THREAD_BUCKETS.indexOf(a.bucket) - THREAD_BUCKETS.indexOf(b.bucket);
+  if (byBucket !== 0) return byBucket;
+
+  const aStart =
+    a.startTime === undefined ? undefined : Date.parse(a.startTime);
+  const bStart =
+    b.startTime === undefined ? undefined : Date.parse(b.startTime);
+
+  if (aStart !== undefined && bStart !== undefined) return aStart - bStart;
+  if (aStart !== undefined) return -1;
+  if (bStart !== undefined) return 1;
+
+  return a.order - b.order;
+}
+
+/** The stored timing, with anything unreadable dropped. */
+function readTiming(value: unknown): ThreadTiming | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+
+  const raw = value as Record<string, unknown>;
+  const timing: ThreadTiming = {
+    durationMinutes:
+      typeof raw.durationMinutes === 'number' ? raw.durationMinutes : undefined,
+    startTime: typeof raw.startTime === 'string' ? raw.startTime : undefined,
+    endTime: typeof raw.endTime === 'string' ? raw.endTime : undefined,
+    calendarEventId:
+      typeof raw.calendarEventId === 'string' ? raw.calendarEventId : undefined,
+  };
+
+  // Half a span is no span: a start with no end would put a card in a list the
+  // clock could never take it out of again.
+  if (intervalOf(timing) === undefined) {
+    timing.startTime = undefined;
+    timing.endTime = undefined;
+  }
+
+  return timing;
+}
+
 function toSummary(thread: Thread): ThreadSummary {
   const last = thread.messages[thread.messages.length - 1];
 
   return {
+    kind: 'thread',
     slug: thread.slug,
     title: thread.title,
     preview: last === undefined ? '' : previewFrom(last),
@@ -259,6 +314,9 @@ function toSummary(thread: Thread): ThreadSummary {
     solved: thread.solved,
     bucket: thread.bucket,
     order: thread.order,
+    startTime: thread.timing.startTime,
+    endTime: thread.timing.endTime,
+    durationMinutes: thread.timing.durationMinutes,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
   };

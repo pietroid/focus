@@ -4,6 +4,12 @@ import {
   generate,
   toolRegistry,
 } from './generate.js';
+import {
+  deleteEvent,
+  insertEvent,
+  listEventsBetween,
+  patchEventTime,
+} from './services/google-calendar.js';
 import { Trace, newTraceId } from './trace.js';
 import { OpenRouterMessage, UserContext } from './types.js';
 
@@ -19,11 +25,21 @@ interface GenerateBody {
 }
 
 /**
- * The agent's HTTP surface.
+ * The agent's HTTP surface, all private to the Docker network.
  *
- * Two routes, all private to the Docker network:
- *   - `GET  /tools`    what this agent can do, so the server never guesses
- *   - `POST /generate` run a prompt the server built, tools and all
+ *   - `GET  /tools`            what this agent can do, so the server never guesses
+ *   - `POST /generate`         run a prompt the server built, tools and all
+ *   - `GET  /calendar/window`  what is on the calendar between two moments
+ *   - `/calendar/events`       book, move and cancel
+ *
+ * The calendar routes exist because the credentials live here and nowhere
+ * else. They run no prompt and cost no generation: the server's guards do the
+ * arithmetic and call these to make it true.
+ *
+ * Every call arrives from the server. The agent never calls out to it, has no
+ * idea where it is, and holds no key for it: the one direction is what keeps
+ * this a service the server uses rather than two processes with opinions
+ * about each other.
  *
  * The agent has no opinion about UI and no access to the thread files. Every
  * byte of context arrives in the request.
@@ -67,7 +83,91 @@ export function createServer(): express.Express {
     }
   });
 
+  app.get('/calendar/window', async (req: Request, res: Response) => {
+    const from = new Date(String(req.query.from ?? ''));
+    const to = new Date(String(req.query.to ?? ''));
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      res.status(400).json({ error: 'from and to must be ISO 8601 date-times' });
+      return;
+    }
+
+    try {
+      res.json({ events: await listEventsBetween(from, to) });
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
+  app.post('/calendar/events', async (req: Request, res: Response) => {
+    const body = req.body as {
+      title?: string;
+      startTime?: string;
+      endTime?: string;
+    };
+
+    if (
+      typeof body.title !== 'string' ||
+      typeof body.startTime !== 'string' ||
+      typeof body.endTime !== 'string'
+    ) {
+      res.status(400).json({ error: 'title, startTime and endTime are required' });
+      return;
+    }
+
+    try {
+      res.json(
+        await insertEvent({
+          title: body.title,
+          startTime: body.startTime,
+          endTime: body.endTime,
+        }),
+      );
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
+  app.patch('/calendar/events/:id', async (req: Request, res: Response) => {
+    const body = req.body as { startTime?: string; endTime?: string };
+    if (typeof body.startTime !== 'string' || typeof body.endTime !== 'string') {
+      res.status(400).json({ error: 'startTime and endTime are required' });
+      return;
+    }
+
+    try {
+      res.json(
+        await patchEventTime(eventId(req), {
+          startTime: body.startTime,
+          endTime: body.endTime,
+        }),
+      );
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
+  app.delete('/calendar/events/:id', async (req: Request, res: Response) => {
+    try {
+      const id = eventId(req);
+      await deleteEvent(id);
+      res.json({ id, deleted: true });
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
   return app;
+}
+
+/** The `:id` segment, which Express types as possibly repeated. */
+function eventId(req: Request): string {
+  const raw = req.params.id;
+  return Array.isArray(raw) ? (raw[0] ?? '') : raw;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function traceFrom(req: Request): Trace {

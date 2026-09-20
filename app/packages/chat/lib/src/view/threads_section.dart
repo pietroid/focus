@@ -150,23 +150,41 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  /// The slug of the card under [global], if there is one.
+  /// The slug of the card under [global], if there is one that can be touched.
+  ///
+  /// A calendar card is drawn in the lists and is not in them: it comes from
+  /// the event, it goes where the event says, and there is no conversation
+  /// under it to open. The gesture passes straight through it, so a finger on
+  /// one scrolls the list the way a finger on the background does.
   String? _cardAt(Offset global) {
     for (final entry in _cardKeys.entries) {
-      if (_rectOf(entry.value)?.contains(global) ?? false) return entry.key;
+      if (_rectOf(entry.value)?.contains(global) ?? false) {
+        return (_state.bySlug(entry.key)?.isInteractive ?? false)
+            ? entry.key
+            : null;
+      }
     }
 
     return null;
   }
 
-  /// Where [slug] sits right now.
+  /// Where [slug] sits right now, counted among the cards a drag can move.
+  ///
+  /// Calendar cards are left out of the count on purpose: the index that
+  /// travels to the server is a place in the placement, and the placement is
+  /// only ever the threads.
   _Slot? _slotOf(String slug) {
     for (final bucket in ThreadBucket.values) {
-      final index = _state.inBucket(bucket).indexWhere((t) => t.slug == slug);
+      final index = _movable(bucket).indexWhere((t) => t.slug == slug);
       if (index != -1) return (bucket: bucket, index: index);
     }
 
     return null;
+  }
+
+  /// The cards in [bucket] a drag is allowed to rearrange.
+  List<ThreadSummary> _movable(ThreadBucket bucket) {
+    return _state.inBucket(bucket).where((t) => t.isInteractive).toList();
   }
 
   /// Measures every place [slug] could go, in the layout as it stands.
@@ -181,7 +199,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
     for (final bucket in ThreadBucket.values) {
       final rects = <Rect>[];
-      for (final thread in _state.inBucket(bucket)) {
+      for (final thread in _movable(bucket)) {
         if (thread.slug == slug) continue;
         final rect = _rectOf(_cardKey(thread.slug));
         if (rect != null) rects.add(rect);
@@ -279,7 +297,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     for (final bucket in ThreadBucket.values) {
       _before[bucket] = counted;
       _beforeWithout[bucket] = countedWithout;
-      final threads = _state.inBucket(bucket);
+      final threads = _movable(bucket);
       counted += threads.length;
       countedWithout += threads.where((t) => t.slug != slug).length;
     }
@@ -741,6 +759,27 @@ class _Bucket extends StatelessWidget {
     return _Slid(dy: dy, child: child);
   }
 
+  /// The cards to draw, each with its place among the ones a drag can move.
+  ///
+  /// The two indices are different the moment a calendar card is in the list,
+  /// and it is the movable one the drag arithmetic is counted in.
+  List<({ThreadSummary thread, int? movableIndex, bool first})> _rows() {
+    final rows = <({ThreadSummary thread, int? movableIndex, bool first})>[];
+    var movable = 0;
+
+    for (var index = 0; index < threads.length; index++) {
+      final thread = threads[index];
+      rows.add((
+        thread: thread,
+        movableIndex: thread.isInteractive ? movable : null,
+        first: index == 0,
+      ));
+      if (thread.isInteractive) movable++;
+    }
+
+    return rows;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -766,18 +805,23 @@ class _Bucket extends StatelessWidget {
             shiftHeading,
             _Empty(key: emptyKey, active: dragging != null && landing),
           ),
-        for (var index = 0; index < threads.length; index++)
+        for (final entry in _rows())
           _row(
-            shiftCard(before + index),
+            // A calendar card holds still while a drag goes on around it. It
+            // is not one of the places a card can land, so opening a gap at
+            // it would be offering something that is not on offer.
+            entry.movableIndex == null
+                ? 0
+                : shiftCard(before + entry.movableIndex!),
             Padding(
-              padding: EdgeInsets.only(top: index > 0 ? AppSpacing.s1 : 0),
+              padding: EdgeInsets.only(top: entry.first ? 0 : AppSpacing.s1),
               child: ThreadTile(
-                key: cardKey(threads[index].slug),
-                thread: threads[index],
-                pressed: threads[index].slug == pressed,
+                key: cardKey(entry.thread.slug),
+                thread: entry.thread,
+                pressed: entry.thread.slug == pressed,
                 // The card in the air is drawn over the list, so the one
                 // left behind only holds its place open.
-                hidden: threads[index].slug == dragging,
+                hidden: entry.thread.slug == dragging,
               ),
             ),
           ),

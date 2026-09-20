@@ -36,9 +36,13 @@ class _FakeChatRepository implements ChatRepository {
   Future<List<ThreadSummary>> fetchThreads() async => _threads;
 
   @override
-  Future<List<ThreadSummary>> savePlacements(
+  Future<TimelineOutcome> savePlacements(
     Map<ThreadBucket, List<String>> buckets,
-  ) async => _threads;
+  ) async => TimelineOutcome(cards: _threads);
+
+  @override
+  Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async =>
+      TimelineOutcome(cards: _threads);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

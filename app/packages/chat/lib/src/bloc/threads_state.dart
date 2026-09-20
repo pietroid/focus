@@ -23,6 +23,8 @@ final class ThreadsState extends Equatable {
   const ThreadsState({
     this.status = ThreadsStatus.initial,
     this.threads = const [],
+    this.guard,
+    this.guardBusy = false,
   });
 
   /// The status of the list.
@@ -30,6 +32,19 @@ final class ThreadsState extends Equatable {
 
   /// The threads, most recently updated first.
   final List<ThreadSummary> threads;
+
+  /// The question a move raised, if one is still open.
+  ///
+  /// While this is set, nothing about the move has happened on the server:
+  /// the lists in [threads] are the ones that were there before the drag.
+  final A2uiComponent? guard;
+
+  /// Whether the guard's last answer is still in flight.
+  ///
+  /// The rules live on the server, so answering a guard is a round trip. The
+  /// buttons go quiet for it rather than letting the same answer be sent
+  /// twice.
+  final bool guardBusy;
 
   /// The threads in [bucket], in the order they are drawn.
   ///
@@ -65,16 +80,24 @@ final class ThreadsState extends Equatable {
   bool get isInitialLoad => status == ThreadsStatus.loading && threads.isEmpty;
 
   /// Returns a copy with the given fields replaced.
+  ///
+  /// [clearGuard] takes the guard away, which a null [guard] cannot: the
+  /// whole point of most of these copies is to leave it exactly as it is.
   ThreadsState copyWith({
     ThreadsStatus? status,
     List<ThreadSummary>? threads,
+    A2uiComponent? guard,
+    bool? guardBusy,
+    bool clearGuard = false,
   }) {
     return ThreadsState(
       status: status ?? this.status,
       threads: threads ?? this.threads,
+      guard: clearGuard ? null : guard ?? this.guard,
+      guardBusy: guardBusy ?? this.guardBusy,
     );
   }
 
   @override
-  List<Object?> get props => [status, threads];
+  List<Object?> get props => [status, threads, guard, guardBusy];
 }

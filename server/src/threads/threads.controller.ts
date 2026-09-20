@@ -11,13 +11,19 @@ import * as adminAuth from 'firebase-admin/auth';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { THREAD_OPS } from '../a2ui/a2ui.catalog';
-import { ThreadOp } from '../a2ui/a2ui.types';
+import {
+  ThreadOp,
+  TimingAction,
+  TimingDecision,
+  TIMING_DECISIONS,
+} from '../a2ui/a2ui.types';
 import { Trace } from '../common/trace';
 import { ActionDto } from './dto/action.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
 import { PlacementsDto } from './dto/placements.dto';
 import { SolvedDto } from './dto/solved.dto';
+import { TimingDto } from './dto/timing.dto';
 import {
   isThreadBucket,
   Thread,
@@ -25,6 +31,7 @@ import {
   ThreadSummary,
 } from './entities/thread.entity';
 import { ThreadsService } from './threads.service';
+import { TimingOutcome } from './timing.service';
 
 type DecodedIdToken = adminAuth.DecodedIdToken;
 
@@ -72,7 +79,7 @@ export class ThreadsController {
   async setPlacements(
     @CurrentUser() user: DecodedIdToken,
     @Body() dto: PlacementsDto,
-  ): Promise<ThreadSummary[]> {
+  ): Promise<TimingOutcome> {
     const trace = Trace.start(user.uid);
 
     return this.threadsService.setPlacements(
@@ -80,6 +87,31 @@ export class ThreadsController {
       (dto.placements ?? []).map(requirePlacement),
       trace,
     );
+  }
+
+  /**
+   * Answers a guard.
+   *
+   * Its own route rather than an action on a thread, because a guard is about
+   * where a card goes and not about what a conversation said. Nothing here
+   * reaches the agent: the answer is arithmetic over the calendar, and the
+   * only thing that crosses to the other container is the booking itself.
+   *
+   * Declared before the `:slug` routes for the same reason `placements` is.
+   */
+  @Post('timing')
+  async applyTiming(
+    @CurrentUser() user: DecodedIdToken,
+    @Body() dto: TimingDto,
+  ): Promise<TimingOutcome> {
+    const action = requireTiming(dto.action ?? {});
+    const trace = Trace.start(user.uid, action.slug);
+    trace.log('timing.received', {
+      bucket: action.bucket,
+      decision: action.decision,
+    });
+
+    return this.threadsService.applyTiming(user.uid, action, trace);
   }
 
   /**
@@ -221,6 +253,59 @@ function requirePlacement(placement: {
   }
 
   return { slug, bucket: placement.bucket, index };
+}
+
+/** Reads a guard's answer off the wire, refusing anything it cannot trust. */
+function requireTiming(action: {
+  slug?: string;
+  bucket?: string;
+  index?: number;
+  durationMinutes?: number;
+  startTime?: string;
+  decision?: string;
+}): TimingAction {
+  const slug = action.slug?.trim() ?? '';
+  if (slug === '') throw new BadRequestException('slug is required');
+
+  if (!isThreadBucket(action.bucket)) {
+    throw new BadRequestException(`Unknown bucket "${String(action.bucket)}"`);
+  }
+
+  const index = action.index ?? 0;
+  if (!Number.isInteger(index) || index < 0) {
+    throw new BadRequestException('index must be a non-negative integer');
+  }
+
+  const decision = action.decision;
+  if (
+    decision !== undefined &&
+    !TIMING_DECISIONS.includes(decision as TimingDecision)
+  ) {
+    throw new BadRequestException(`Unknown decision "${decision}"`);
+  }
+
+  const durationMinutes = action.durationMinutes;
+  if (
+    durationMinutes !== undefined &&
+    (!Number.isFinite(durationMinutes) || durationMinutes <= 0)
+  ) {
+    throw new BadRequestException('durationMinutes must be positive');
+  }
+
+  const startTime = action.startTime;
+  if (startTime !== undefined && Number.isNaN(Date.parse(startTime))) {
+    throw new BadRequestException('startTime must be an ISO 8601 date-time');
+  }
+
+  return {
+    type: 'timing',
+    slug,
+    bucket: action.bucket,
+    index,
+    durationMinutes,
+    startTime,
+    decision: decision as TimingDecision | undefined,
+  };
 }
 
 function requireMessage(message: string | undefined): string {

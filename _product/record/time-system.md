@@ -56,3 +56,5 @@ Google Calendar information should match 100% in the UI.
 - For now section, we should create a minute by minute routine by the agent to check what are the current tasks and move them as needed to the right filesystem.
 - The confirmation is done via a communication between the server and the UI. The rules are in the server not in the UI. This can introduce some loading while reordering stuff by I think that's acceptable.
 - The confirmation modals show have a very similar ui to what we have when using calendar tools, asking about time, etc. But we should have no access to AI, just best guessing based on the current information and a very clear ui for the user.
+- Consider working hours (7h - 22h), this should be universal for our project
+- Consider intervals between tasks of 5 min.

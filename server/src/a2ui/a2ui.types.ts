@@ -1,3 +1,5 @@
+import { ThreadBucket } from '../threads/entities/thread.entity';
+
 /**
  * A2UI: the component tree the server sends the app.
  *
@@ -50,7 +52,12 @@ export interface A2uiComponent {
 
 /** Everything a component can ask the app to do. */
 export type A2uiAction =
-  ReplyAction | ConfirmAction | DismissAction | OpenUrlAction | ThreadAction;
+  | ReplyAction
+  | ConfirmAction
+  | DismissAction
+  | OpenUrlAction
+  | ThreadAction
+  | TimingAction;
 
 /** Send a message back into the thread, as if the user typed it. */
 export interface ReplyAction {
@@ -93,6 +100,57 @@ export interface ThreadAction {
 
 /** What a [ThreadAction] can do. */
 export type ThreadOp = 'solve' | 'reopen' | 'rename' | 'delete';
+
+/**
+ * Answers a guard: the move the user asked for, plus what they just decided
+ * about it.
+ *
+ * The whole intent travels on every one of these, so a guard that asks two
+ * questions is two round trips over the same object rather than a
+ * conversation the server has to remember. There is no pending state on
+ * either side, which means a guard abandoned halfway leaves nothing behind.
+ *
+ * A model never writes one of these: the type is not in [MODEL_ACTION_TYPES],
+ * so the validator drops it out of a reply along with the button carrying it.
+ * Guards are built by the server, from the calendar, with no model in the
+ * loop at all.
+ */
+export interface TimingAction {
+  type: 'timing';
+  /** The thread being moved. */
+  slug: string;
+  /** The list it is being moved to. */
+  bucket: ThreadBucket;
+  /** Its place in that list, as the drop left it. */
+  index: number;
+  /** How long it takes, once a guard has asked. */
+  durationMinutes?: number;
+  /** The start being proposed, carried back so both sides agree on it. */
+  startTime?: string;
+  /** What the user decided. Absent means they have not been asked yet. */
+  decision?: TimingDecision;
+}
+
+/**
+ * What a guard's buttons say.
+ *
+ * - `schedule` books the proposed time on the calendar.
+ * - `manual` keeps the move without a time, having learned the duration.
+ * - `postpone` books it and pushes whatever it ran into later. The default.
+ * - `force` books it on top of what is already there.
+ * - `unschedule` takes it off the calendar and leaves it untimed.
+ */
+export type TimingDecision =
+  'schedule' | 'manual' | 'postpone' | 'force' | 'unschedule';
+
+/** Every decision, for validating one off the wire. */
+export const TIMING_DECISIONS: TimingDecision[] = [
+  'schedule',
+  'manual',
+  'postpone',
+  'force',
+  'unschedule',
+];
 
 /** What went wrong, or was quietly fixed, while validating a tree. */
 export interface A2uiIssue {

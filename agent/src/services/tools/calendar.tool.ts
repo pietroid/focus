@@ -1,105 +1,11 @@
-import { promises as fs } from 'fs';
-import { google, calendar_v3 } from 'googleapis';
+import { calendar_v3 } from 'googleapis';
 import { ToolDefinition, ToolEffect } from '../../types.js';
+import {
+  getCalendarClient,
+  getCalendarId,
+  toEventDateTime,
+} from '../google-calendar.js';
 import { ToolImplementation, UserContext } from './tool.interface.js';
-
-/**
- * Builds an authenticated Google Calendar client from environment variables.
- *
- * Supports two authentication methods:
- *   1. Service account: set GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON to the raw
- *      JSON key or GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY to a file path.
- *   2. OAuth2 refresh token: set GOOGLE_CALENDAR_REFRESH_TOKEN,
- *      GOOGLE_CALENDAR_CLIENT_ID, and GOOGLE_CALENDAR_CLIENT_SECRET.
- */
-async function getCalendarClient(): Promise<calendar_v3.Calendar> {
-  const serviceAccountJson = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
-  const serviceAccountKeyPath = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY;
-  const refreshToken = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
-
-  console.log('[calendar] auth method check', {
-    hasServiceAccountJson: serviceAccountJson !== undefined && serviceAccountJson !== '',
-    hasServiceAccountKeyPath: serviceAccountKeyPath !== undefined && serviceAccountKeyPath !== '',
-    hasRefreshToken: refreshToken !== undefined && refreshToken !== '',
-  });
-
-  if (serviceAccountJson !== undefined && serviceAccountJson !== '') {
-    try {
-      const credentials = JSON.parse(serviceAccountJson) as Record<string, unknown>;
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-      console.log('[calendar] using service account JSON auth');
-      return google.calendar({ version: 'v3', auth });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON: ${message}`);
-    }
-  }
-
-  if (serviceAccountKeyPath !== undefined && serviceAccountKeyPath !== '') {
-    let content: string;
-    try {
-      content = await fs.readFile(serviceAccountKeyPath, 'utf8');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to read service account key file "${serviceAccountKeyPath}": ${message}`);
-    }
-    try {
-      const credentials = JSON.parse(content) as Record<string, unknown>;
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-      console.log('[calendar] using service account key file auth');
-      return google.calendar({ version: 'v3', auth });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse service account key file "${serviceAccountKeyPath}": ${message}`);
-    }
-  }
-
-  if (refreshToken !== undefined && refreshToken !== '') {
-    const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID ?? '';
-    const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET ?? '';
-
-    if (clientId === '' || clientSecret === '') {
-      throw new Error(
-        'GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET are required when using refresh token auth',
-      );
-    }
-
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    console.log('[calendar] using OAuth2 refresh token auth');
-    return google.calendar({ version: 'v3', auth: oauth2Client });
-  }
-
-  throw new Error(
-    'Google Calendar credentials are not configured. Set GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON, GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY, or GOOGLE_CALENDAR_REFRESH_TOKEN.',
-  );
-}
-
-function getCalendarId(): string {
-  const calendarId = process.env.GOOGLE_CALENDAR_ID ?? 'primary';
-  console.log('[calendar] using calendar ID', calendarId);
-  return calendarId;
-}
-
-/**
- * Parses an ISO date/time string and returns a date-time or date value
- * suitable for the Google Calendar API.
- */
-function toEventDateTime(value: string): calendar_v3.Schema$EventDateTime {
-  // If the value contains a time separator, treat it as a date-time;
-  // otherwise treat it as an all-day date.
-  if (value.includes('T')) {
-    return { dateTime: value, timeZone: process.env.TZ ?? 'UTC' };
-  }
-  return { date: value };
-}
-
 
 /**
  * Formats an ISO date-time the way a person would read it back.

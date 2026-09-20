@@ -11,6 +11,7 @@ import {
   ExecutionContext,
   INestApplication,
 } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -24,9 +25,14 @@ import {
   ToolDescriptor,
   ToolTraceEntry,
 } from './agent.service';
+import { CalendarReaderService } from '../calendar/calendar-reader.service';
+import { CalendarEvent } from '../calendar/calendar.types';
+import { CalendarWriterService } from '../calendar/calendar-writer.service';
 import { ThreadsController } from './threads.controller';
 import { ThreadsService } from './threads.service';
 import { ThreadsStore } from './threads.store';
+import { TimelineService } from './timeline.service';
+import { TimingService } from './timing.service';
 import { Thread, ThreadSummary } from './entities/thread.entity';
 
 /** supertest types `body` as `any`; these keep the assertions typed. */
@@ -36,6 +42,17 @@ function thread(response: { body: unknown }): Thread {
 
 function summaries(response: { body: unknown }): ThreadSummary[] {
   return response.body as ThreadSummary[];
+}
+
+/** A move or a guard's answer returns the timeline beside the open question. */
+function outcome(response: { body: unknown }): {
+  cards: ThreadSummary[];
+  guard?: { component: string; children?: unknown[] };
+} {
+  return response.body as {
+    cards: ThreadSummary[];
+    guard?: { component: string; children?: unknown[] };
+  };
 }
 
 /** Every string the user would actually read in a rendered message. */
@@ -129,6 +146,36 @@ function toolEntry(entry: Partial<ToolTraceEntry>): ToolTraceEntry {
   };
 }
 
+/**
+ * The calendar, standing still.
+ *
+ * Overridden so no test reaches for the agent that is not running: the real
+ * reader would spend every timeline on a connection refused and fall back to
+ * the same empty list this returns outright.
+ */
+class StubCalendarReader {
+  private _events: CalendarEvent[] = [];
+
+  events(): Promise<CalendarEvent[]> {
+    return Promise.resolve(this._events);
+  }
+
+  replace(events: CalendarEvent[]): Promise<void> {
+    this._events = events;
+    return Promise.resolve();
+  }
+
+  upsert(event: CalendarEvent): Promise<void> {
+    this._events = [...this._events.filter((it) => it.id !== event.id), event];
+    return Promise.resolve();
+  }
+
+  remove(eventId: string): Promise<void> {
+    this._events = this._events.filter((it) => it.id !== eventId);
+    return Promise.resolve();
+  }
+}
+
 describe('ThreadsController', () => {
   let app: INestApplication<App>;
   let root: string;
@@ -139,6 +186,9 @@ describe('ThreadsController', () => {
     process.env.FOCUS_DATA_DIR = root;
 
     const moduleRef = await Test.createTestingModule({
+      // The calendar writer reads AGENT_URL and the internal key from config.
+      // Nothing in these tests reaches it, but it still has to be constructed.
+      imports: [ConfigModule.forRoot({ ignoreEnvFile: true })],
       controllers: [ThreadsController],
       providers: [
         ThreadsService,
@@ -147,12 +197,18 @@ describe('ThreadsController', () => {
         A2uiPromptService,
         A2uiParserService,
         A2uiValidationService,
+        TimelineService,
+        TimingService,
+        CalendarReaderService,
+        CalendarWriterService,
       ],
     })
       .overrideGuard(FirebaseAuthGuard)
       .useClass(StubAuthGuard)
       .overrideProvider(AgentService)
       .useClass(StubAgentService)
+      .overrideProvider(CalendarReaderService)
+      .useClass(StubCalendarReader)
       .compile();
 
     agent = moduleRef.get(AgentService);
@@ -276,15 +332,16 @@ describe('ThreadsController', () => {
       .post('/threads/placements')
       .send({
         placements: [
-          { slug: 'second', bucket: 'agora', index: 0 },
           { slug: 'first', bucket: 'em_breve', index: 0 },
+          { slug: 'second', bucket: 'depois', index: 0 },
         ],
       })
       .expect(201);
 
-    expect(summaries(moved).map((t) => [t.slug, t.bucket])).toEqual([
-      ['second', 'agora'],
+    expect(outcome(moved).guard).toBeUndefined();
+    expect(outcome(moved).cards.map((t) => [t.slug, t.bucket])).toEqual([
       ['first', 'em_breve'],
+      ['second', 'depois'],
     ]);
   });
 
@@ -382,7 +439,7 @@ describe('ThreadsController', () => {
       await request(app.getHttpServer())
         .post('/threads/placements')
         .send({
-          placements: [{ slug: 'buy-milk', bucket: 'agora', index: 0 }],
+          placements: [{ slug: 'buy-milk', bucket: 'depois', index: 0 }],
         })
         .expect(201);
 
@@ -392,7 +449,7 @@ describe('ThreadsController', () => {
         .expect(201);
 
       expect(response.body).toMatchObject([
-        { slug: 'buy-milk', solved: true, bucket: 'agora', order: 0 },
+        { slug: 'buy-milk', solved: true, bucket: 'depois', order: 0 },
       ]);
     });
 

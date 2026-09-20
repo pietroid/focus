@@ -8,7 +8,8 @@ import {
   unavailableUi,
   writeFailedUi,
 } from '../a2ui/a2ui.builders';
-import { A2uiComponent } from '../a2ui/a2ui.types';
+import { A2uiComponent, TimingAction } from '../a2ui/a2ui.types';
+import { isCalendarSlug } from '../calendar/calendar.types';
 import { Trace } from '../common/trace';
 import {
   AgentUnavailableError,
@@ -25,6 +26,8 @@ import {
 } from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
 import { ThreadsStore } from './threads.store';
+import { TimelineService } from './timeline.service';
+import { TimingOutcome, TimingService } from './timing.service';
 
 /**
  * A thread, end to end.
@@ -46,10 +49,13 @@ export class ThreadsService {
     private readonly prompt: A2uiPromptService,
     private readonly parser: A2uiParserService,
     private readonly validator: A2uiValidationService,
+    private readonly timeline: TimelineService,
+    private readonly timing: TimingService,
   ) {}
 
+  /** Every card the timeline draws: the threads, and the calendar beside them. */
   async findAll(userId: string): Promise<ThreadSummary[]> {
-    return this.store.readAllSummaries(userId);
+    return this.timeline.cards(userId);
   }
 
   async findOne(userId: string, slug: string): Promise<Thread> {
@@ -150,28 +156,74 @@ export class ThreadsService {
    * one drag changes the index of every thread below it in both the list it
    * left and the list it joined. Sending the result is the only version of
    * this that cannot drift from what is on screen.
+   *
+   * A drop is not always a move. Anything that changes which list a card is
+   * in goes through the guards first, and if one of them has a question the
+   * whole placement is refused and the question comes back instead: the
+   * screen that asked has not changed, so there is nothing to put back when
+   * the user cancels.
+   *
+   * Reordering inside a list never asks anything. Timed cards are drawn in
+   * clock order regardless of where they are dropped, so the only thing a
+   * reorder can actually change is the hand-made order of untimed ones, and
+   * that cannot collide with anything.
    */
   async setPlacements(
     userId: string,
     placements: { slug: string; bucket: ThreadBucket; index: number }[],
     trace: Trace,
-  ): Promise<ThreadSummary[]> {
+  ): Promise<TimingOutcome> {
     trace.log('thread.placements', { count: placements.length });
 
-    for (const placement of placements) {
+    // A calendar card is not the user's to move. It is drawn from the event
+    // and changes when the event does.
+    const movable = placements.filter(
+      (placement) => !isCalendarSlug(placement.slug),
+    );
+
+    for (const placement of movable) {
       if (!(await this.store.exists(userId, placement.slug))) {
         throw new NotFoundException(`No thread "${placement.slug}"`);
       }
     }
 
-    for (const placement of placements) {
+    for (const placement of movable) {
+      const thread = await this.store.read(userId, placement.slug);
+      if (thread === null || thread.bucket === placement.bucket) continue;
+
+      const outcome = await this.timing.resolve(
+        userId,
+        { type: 'timing', ...placement },
+        trace,
+      );
+
+      // A guard is a question, and a question leaves the day alone.
+      if (outcome.guard !== undefined) return outcome;
+    }
+
+    for (const placement of movable) {
       await this.store.updateState(userId, placement.slug, {
         bucket: placement.bucket,
         order: placement.index,
       });
     }
 
-    return this.findAll(userId);
+    return { cards: await this.timeline.cards(userId) };
+  }
+
+  /**
+   * Answers a guard, which is the same call as the drag that raised it.
+   *
+   * The button carries the whole move plus the one thing it just decided, so
+   * this needs no memory of the guard it is answering. A guard left on screen
+   * and never answered expires by being forgotten.
+   */
+  async applyTiming(
+    userId: string,
+    action: TimingAction,
+    trace: Trace,
+  ): Promise<TimingOutcome> {
+    return this.timing.resolve(userId, action, trace);
   }
 
   /**
