@@ -9,10 +9,7 @@ export class TimingDto {
   action?: {
     type?: string;
     slug?: string;
-    bucket?: string;
     index?: number;
-    durationMinutes?: number;
-    startTime?: string;
     decision?: string;
   };
 }

@@ -1,12 +1,11 @@
+import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
 import { Message } from './entities/message.entity';
 import {
-  DEFAULT_BUCKET,
-  isThreadBucket,
-  THREAD_BUCKETS,
   Thread,
+  ThreadItem,
   ThreadState,
   ThreadSummary,
   ThreadTiming,
@@ -18,7 +17,7 @@ import {
   serializeThreadDay,
   titleFrom,
 } from './thread-markdown';
-import { derivedBucket, intervalOf } from './thread-timing';
+import { intervalOf, sectionOf } from './thread-timing';
 
 /**
  * The thread store: a directory of markdown files.
@@ -40,6 +39,9 @@ export class ThreadsStore {
   /** Overridable so a deployment can point at a mounted volume. */
   private readonly _root =
     process.env.FOCUS_DATA_DIR ?? path.join(process.cwd(), 'data', 'threads');
+
+  /** The newest queued write per thread, so two never interleave. */
+  private readonly _writes = new Map<string, Promise<void>>();
 
   private _userDir(userId: string): string {
     return path.join(this._root, sanitizeSegment(userId));
@@ -101,39 +103,42 @@ export class ThreadsStore {
     }
 
     const createdAt = messages[0]?.createdAt ?? new Date();
-    const timing = state.timing ?? {};
 
     return {
       slug,
       title,
       messages,
       solved: state.solved,
-      // A thread with a time on it is filed by the clock, and one without is
-      // filed where it was dragged. The stored bucket is kept either way, so
-      // a thread that loses its time goes back where the user last put it.
-      bucket:
-        derivedBucket(new Date(), timing) ?? state.bucket ?? DEFAULT_BUCKET,
-      // A thread that has never been dragged sorts by when it started, so an
-      // account that has never touched the lists still reads oldest-first
-      // rather than in whatever order the filesystem handed them over.
-      order: state.order ?? createdAt.getTime(),
-      timing,
+      timing: state.timing,
       createdAt,
       updatedAt: messages[messages.length - 1]?.createdAt ?? new Date(),
     };
   }
 
-  /** Every thread the user owns, by bucket and then by place within it. */
-  async readAllSummaries(userId: string): Promise<ThreadSummary[]> {
+  /** Every thread the user owns, whether or not it happens at an hour. */
+  async readAll(userId: string): Promise<Thread[]> {
     const slugs = await this.listSlugs(userId);
     const threads = await Promise.all(
       slugs.map((slug) => this.read(userId, slug)),
     );
 
-    return threads
-      .filter((thread): thread is Thread => thread !== null)
-      .map(toSummary)
-      .sort(compareCards);
+    return threads.filter((thread): thread is Thread => thread !== null);
+  }
+
+  /**
+   * Every thread that is on the timeline, earliest first.
+   *
+   * A thread with no timing is left out. It exists, it is in Coisas, and it
+   * is simply not a thing that happens at an hour yet.
+   */
+  async readAllSummaries(
+    userId: string,
+    now = new Date(),
+  ): Promise<ThreadSummary[]> {
+    return (await this.readAll(userId))
+      .map((thread) => toSummary(thread, now))
+      .filter((summary): summary is ThreadSummary => summary !== null)
+      .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
   }
 
   /**
@@ -164,10 +169,9 @@ export class ThreadsStore {
       const previous =
         existing === null ? [] : parseThreadDay(existing).messages;
 
-      await fs.writeFile(
+      await writeAtomic(
         file,
         serializeThreadDay(title, [...previous, ...dayMessages]),
-        'utf8',
       );
     }
   }
@@ -182,8 +186,6 @@ export class ThreadsStore {
       return {
         solved: parsed.solved === true,
         title: parsed.title,
-        bucket: isThreadBucket(parsed.bucket) ? parsed.bucket : undefined,
-        order: typeof parsed.order === 'number' ? parsed.order : undefined,
         timing: readTiming(parsed.timing),
       };
     } catch {
@@ -191,18 +193,61 @@ export class ThreadsStore {
     }
   }
 
-  /** Merges [changes] into the thread's state. */
+  /**
+   * Merges [changes] into the thread's state.
+   *
+   * Read, merge, write — and one thread at a time, because that sequence is
+   * not atomic and no longer has the luxury of being the only thing running.
+   * A request laying the day out and a calendar job writing back the event id
+   * it was just given are two of these on the same file, and interleaved they
+   * lose whichever change read first: the id lands on top of the old hour, or
+   * the hour lands on top of the missing id, and the thread ends up pointing
+   * at an event that is somewhere else.
+   *
+   * Serialising per thread rather than globally, so one slow thread does not
+   * hold up the rest of the day. One process holds the lock, which is all
+   * there is: the store is a directory on a Pi with a single backend on it.
+   */
   async updateState(
+    userId: string,
+    slug: string,
+    changes: Partial<ThreadState>,
+  ): Promise<ThreadState> {
+    const key = `${sanitizeSegment(userId)}/${sanitizeSegment(slug)}`;
+    const previous = this._writes.get(key) ?? Promise.resolve();
+
+    const next = previous
+      .catch(() => undefined)
+      .then(() => this._writeState(userId, slug, changes));
+
+    // The tail swallows failures: one write that throws must not take the
+    // writes queued behind it with it.
+    const tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    this._writes.set(key, tail);
+
+    try {
+      return await next;
+    } finally {
+      // Only the last write for a thread clears the entry. One that is still
+      // holding a queue keeps its place, and the map stays the size of what
+      // is actually in flight.
+      if (this._writes.get(key) === tail) this._writes.delete(key);
+    }
+  }
+
+  private async _writeState(
     userId: string,
     slug: string,
     changes: Partial<ThreadState>,
   ): Promise<ThreadState> {
     const next = { ...(await this.readState(userId, slug)), ...changes };
     await fs.mkdir(this._threadDir(userId, slug), { recursive: true });
-    await fs.writeFile(
+    await writeAtomic(
       this._stateFile(userId, slug),
       JSON.stringify(next, null, 2),
-      'utf8',
     );
     return next;
   }
@@ -254,55 +299,46 @@ export class ThreadsStore {
 }
 
 /**
- * The order cards are drawn in: by list, then by clock, then by hand.
+ * The stored timing, or undefined when it is not all there.
  *
- * Within one list everything with a time comes first and runs in time order,
- * because a list where three o'clock sat under five o'clock would be asking
- * to be read twice. Everything untimed keeps the place it was dragged to,
- * under them.
+ * Timing is all or nothing on purpose. Half a span was the old half-planned
+ * state, and it is what let a card sit under a heading that was not true of
+ * it.
  */
-export function compareCards(a: ThreadSummary, b: ThreadSummary): number {
-  const byBucket =
-    THREAD_BUCKETS.indexOf(a.bucket) - THREAD_BUCKETS.indexOf(b.bucket);
-  if (byBucket !== 0) return byBucket;
-
-  const aStart =
-    a.startTime === undefined ? undefined : Date.parse(a.startTime);
-  const bStart =
-    b.startTime === undefined ? undefined : Date.parse(b.startTime);
-
-  if (aStart !== undefined && bStart !== undefined) return aStart - bStart;
-  if (aStart !== undefined) return -1;
-  if (bStart !== undefined) return 1;
-
-  return a.order - b.order;
-}
-
-/** The stored timing, with anything unreadable dropped. */
 function readTiming(value: unknown): ThreadTiming | undefined {
   if (value === null || typeof value !== 'object') return undefined;
 
   const raw = value as Record<string, unknown>;
+  if (
+    typeof raw.durationMinutes !== 'number' ||
+    raw.durationMinutes <= 0 ||
+    typeof raw.startTime !== 'string' ||
+    typeof raw.endTime !== 'string'
+  ) {
+    return undefined;
+  }
+
   const timing: ThreadTiming = {
-    durationMinutes:
-      typeof raw.durationMinutes === 'number' ? raw.durationMinutes : undefined,
-    startTime: typeof raw.startTime === 'string' ? raw.startTime : undefined,
-    endTime: typeof raw.endTime === 'string' ? raw.endTime : undefined,
+    durationMinutes: raw.durationMinutes,
+    startTime: raw.startTime,
+    endTime: raw.endTime,
+    fixed: raw.fixed === true,
     calendarEventId:
       typeof raw.calendarEventId === 'string' ? raw.calendarEventId : undefined,
   };
 
-  // Half a span is no span: a start with no end would put a card in a list the
-  // clock could never take it out of again.
-  if (intervalOf(timing) === undefined) {
-    timing.startTime = undefined;
-    timing.endTime = undefined;
-  }
-
-  return timing;
+  return intervalOf(timing) === undefined ? undefined : timing;
 }
 
-function toSummary(thread: Thread): ThreadSummary {
+/** [thread] as a card, or null when it has no hour to be drawn at. */
+function toSummary(thread: Thread, now: Date): ThreadSummary | null {
+  const interval = intervalOf(thread.timing);
+  if (thread.timing === undefined || interval === undefined) return null;
+
+  // Out past tomorrow the timeline draws nothing, which the caller decides by
+  // asking the same question. Here it only has to be some section, so the
+  // furthest one stands in.
+  const section = sectionOf(now, interval) ?? 'amanha';
   const last = thread.messages[thread.messages.length - 1];
 
   return {
@@ -312,11 +348,29 @@ function toSummary(thread: Thread): ThreadSummary {
     preview: last === undefined ? '' : previewFrom(last),
     messageCount: thread.messages.length,
     solved: thread.solved,
-    bucket: thread.bucket,
-    order: thread.order,
+    section,
     startTime: thread.timing.startTime,
     endTime: thread.timing.endTime,
     durationMinutes: thread.timing.durationMinutes,
+    fixed: thread.timing.fixed,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+  };
+}
+
+/** [thread] in a plain list, hour or no hour. */
+export function toItem(thread: Thread): ThreadItem {
+  const last = thread.messages[thread.messages.length - 1];
+
+  return {
+    slug: thread.slug,
+    title: thread.title,
+    preview: last === undefined ? '' : previewFrom(last),
+    messageCount: thread.messages.length,
+    solved: thread.solved,
+    startTime: thread.timing?.startTime,
+    endTime: thread.timing?.endTime,
+    durationMinutes: thread.timing?.durationMinutes,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
   };
@@ -332,6 +386,29 @@ function sanitizeSegment(value: string): string {
   const cleaned = value.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^\.+/, '');
   if (cleaned === '') throw new Error('Invalid path segment');
   return cleaned;
+}
+
+/**
+ * Writes [contents] to [file] in one step, as far as any reader can tell.
+ *
+ * Through a temporary file and a rename, because a plain write is not one
+ * step: it truncates and then fills, and anything reading in between gets
+ * half a file. That used to be impossible here, when every write was awaited
+ * by the only thing running. Now the calendar queue writes while requests
+ * read, and a torn `state.json` parses as a thread with no hour, which is a
+ * card silently dropping off the timeline. Rename is atomic on the same
+ * filesystem, so a reader sees either the old file whole or the new one.
+ */
+async function writeAtomic(file: string, contents: string): Promise<void> {
+  const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+
+  try {
+    await fs.writeFile(temp, contents, 'utf8');
+    await fs.rename(temp, file);
+  } catch (error) {
+    await fs.rm(temp, { force: true });
+    throw error;
+  }
 }
 
 async function exists(target: string): Promise<boolean> {

@@ -1,18 +1,11 @@
-import { Interval, workWindowFor } from '../time/work-hours';
-import { ThreadBucket, ThreadTiming } from './entities/thread.entity';
+import { Interval } from '../time/work-hours';
+import { ThreadTiming, TimelineSection } from './entities/thread.entity';
 
-/** Whether [timing] says when this happens, and not merely how long it takes. */
-export function isTimed(timing: ThreadTiming | undefined): boolean {
-  return intervalOf(timing) !== undefined;
-}
-
-/** [timing] as an interval, when it has both ends. */
+/** [timing] as an interval, when it has one. */
 export function intervalOf(
   timing: ThreadTiming | undefined,
 ): Interval | undefined {
-  if (timing?.startTime === undefined || timing.endTime === undefined) {
-    return undefined;
-  }
+  if (timing === undefined) return undefined;
 
   const start = new Date(timing.startTime);
   const end = new Date(timing.endTime);
@@ -23,32 +16,41 @@ export function intervalOf(
   return { start, end };
 }
 
+/** Whether [a] and [b] are the same calendar day. */
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** The day after [at], at the same time. */
+function tomorrow(at: Date): Date {
+  const next = new Date(at);
+  next.setDate(next.getDate() + 1);
+  return next;
+}
+
 /**
- * The list a timed thing belongs in at [now], or undefined when it has no
- * time at all.
+ * The section [interval] falls in at [now], or undefined when it is further
+ * out than the timeline draws.
  *
- * This is the one exception to the rule that nothing derives a bucket. A
- * thread with a time on it is no longer answering the question the buckets
- * ask: the clock has already answered it, and a card that stayed in "em
- * breve" while the meeting on it was running would be the screen disagreeing
- * with the calendar it came from.
+ * Nothing else in the app decides this. A heading says what time it is, so it
+ * has to be worked out from the clock every time the list is read, and this
+ * is the one place that does it.
  *
- * An untimed thread keeps the old rule entirely: it sits where it was
- * dragged, and nothing moves it.
+ * Something whose hour has already passed and which nobody has closed is
+ * still owed, and the only honest place for it is "Agora": that is when it
+ * would be done if it were done.
  */
-export function derivedBucket(
+export function sectionOf(
   now: Date,
-  timing: ThreadTiming | undefined,
-): ThreadBucket | undefined {
-  const interval = intervalOf(timing);
-  if (interval === undefined) return undefined;
+  interval: Interval,
+): TimelineSection | undefined {
+  if (interval.start <= now) return 'agora';
+  if (sameDay(interval.start, now)) return 'hoje';
+  if (sameDay(interval.start, tomorrow(now))) return 'amanha';
 
-  if (now >= interval.start && now < interval.end) return 'agora';
-
-  // Something whose window has closed is not "now" and was never "later": it
-  // is the thing you meant to do and did not, so it goes back to the list
-  // that means next.
-  if (now >= interval.end) return 'em_breve';
-
-  return interval.start < workWindowFor(now).end ? 'em_breve' : 'depois';
+  return undefined;
 }

@@ -2,7 +2,6 @@
 library;
 
 export 'package:flutter/material.dart';
-
 export 'src/app_icons/a2ui_icons.dart';
 export 'src/app_icons/app_icon_data.dart';
 export 'src/app_icons/app_icon_widget.dart';
@@ -24,7 +23,10 @@ export 'src/widgets/app_list_item.dart';
 export 'src/widgets/app_minute_builder.dart';
 export 'src/widgets/app_orb.dart';
 export 'src/widgets/app_prompt_sheet.dart';
+export 'src/widgets/app_segmented.dart';
 export 'src/widgets/app_skeleton.dart';
 export 'src/widgets/app_text_editor.dart';
 export 'src/widgets/app_text_field.dart';
+export 'src/widgets/app_text_prompt_sheet.dart';
 export 'src/widgets/app_typing_indicator.dart';
+export 'src/widgets/app_wheel_picker.dart';

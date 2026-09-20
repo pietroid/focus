@@ -99,35 +99,51 @@ describe('ThreadsStore', () => {
     await expect(fs.readdir(root)).resolves.toEqual([]);
   });
 
-  it('orders summaries oldest first until one has been placed', async () => {
-    await store.append('u1', 'old', 'Old', [
-      message('user', 'old', new Date(2026, 8, 14, 10, 0)),
-    ]);
-    await store.append('u1', 'new', 'New', [
-      message('user', 'new', new Date(2026, 8, 16, 10, 0)),
+  it('leaves a thread with no hour off the timeline', async () => {
+    await store.append('u1', 'idea', 'Idea', [
+      message('user', 'some day', new Date(2026, 8, 14, 10, 0)),
     ]);
 
-    const summaries = await store.readAllSummaries('u1');
-    expect(summaries.map((s) => s.slug)).toEqual(['old', 'new']);
-    expect(summaries[0].preview).toBe('old');
-    expect(summaries[0].messageCount).toBe(1);
-    expect(summaries[0].bucket).toBe('em_breve');
+    expect(await store.readAllSummaries('u1')).toEqual([]);
+    expect((await store.readAll('u1')).map((t) => t.slug)).toEqual(['idea']);
   });
 
-  it('puts a placed thread where its order says, not where its date does', async () => {
-    await store.append('u1', 'old', 'Old', [
-      message('user', 'old', new Date(2026, 8, 14, 10, 0)),
-    ]);
-    await store.append('u1', 'new', 'New', [
-      message('user', 'new', new Date(2026, 8, 16, 10, 0)),
-    ]);
+  it('orders the timeline by the clock', async () => {
+    const now = new Date(2026, 8, 15, 9, 0);
 
-    await store.updateState('u1', 'new', { bucket: 'agora', order: 0 });
-    await store.updateState('u1', 'old', { bucket: 'depois', order: 1 });
+    for (const [slug, hour] of [
+      ['later', 14],
+      ['sooner', 10],
+    ] as const) {
+      await store.append('u1', slug, slug, [
+        message('user', slug, new Date(2026, 8, 15, 8, 0)),
+      ]);
+      await store.updateState('u1', slug, {
+        timing: {
+          durationMinutes: 30,
+          startTime: new Date(2026, 8, 15, hour, 0).toISOString(),
+          endTime: new Date(2026, 8, 15, hour, 30).toISOString(),
+          fixed: false,
+        },
+      });
+    }
 
-    const summaries = await store.readAllSummaries('u1');
-    expect(summaries.map((s) => s.slug)).toEqual(['new', 'old']);
-    expect(summaries.map((s) => s.bucket)).toEqual(['agora', 'depois']);
+    const summaries = await store.readAllSummaries('u1', now);
+    expect(summaries.map((s) => s.slug)).toEqual(['sooner', 'later']);
+    expect(summaries.map((s) => s.section)).toEqual(['hoje', 'hoje']);
+  });
+
+  it('drops timing that is not all there', async () => {
+    await store.append('u1', 'half', 'Half', [
+      message('user', 'half', new Date(2026, 8, 15, 8, 0)),
+    ]);
+    await store.updateState('u1', 'half', {
+      timing: {
+        startTime: new Date(2026, 8, 15, 10, 0).toISOString(),
+      } as never,
+    });
+
+    expect((await store.read('u1', 'half'))?.timing).toBeUndefined();
   });
 
   it('remembers that a thread was solved', async () => {

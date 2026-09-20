@@ -1,27 +1,17 @@
 import { Message } from './message.entity';
 
 /**
- * Which of the home screen's three lists a card sits in.
+ * Which of the timeline's sections a card sits in.
  *
- * For an untimed thread the bucket is the user's own judgement: the agent
- * never sets it, nothing infers it, and it moves only because someone dragged
- * it. For anything with a time on it the clock decides instead, because the
- * question the buckets ask has already been answered by the calendar.
+ * A section is a stretch of clock, not a judgement. Nothing stores one and
+ * nothing drags a card between them: a card is in "Amanhã" because it starts
+ * tomorrow, and the only way to move it is to change when it happens.
+ *
+ * Three of them today, one per stretch of time the screen draws. They are
+ * meant to become one per day, which is why they are derived from a start
+ * time rather than named in the data.
  */
-export type ThreadBucket = 'agora' | 'em_breve' | 'depois';
-
-/** Every bucket, in the order the home screen draws them. */
-export const THREAD_BUCKETS: ThreadBucket[] = ['agora', 'em_breve', 'depois'];
-
-/** The bucket a thread starts life in. */
-export const DEFAULT_BUCKET: ThreadBucket = 'em_breve';
-
-/** Whether [value] names a bucket. */
-export function isThreadBucket(value: unknown): value is ThreadBucket {
-  return (
-    typeof value === 'string' && THREAD_BUCKETS.includes(value as ThreadBucket)
-  );
-}
+export type TimelineSection = 'agora' | 'hoje' | 'amanha';
 
 /**
  * Where a card on the timeline came from.
@@ -33,21 +23,29 @@ export function isThreadBucket(value: unknown): value is ThreadBucket {
 export type CardKind = 'thread' | 'calendar';
 
 /**
- * What is known about when a thread happens.
+ * When a thread happens.
  *
- * Every field is optional and they arrive in that order: a thread is untimed,
- * then it has a duration, then it has a time, then that time is in the
- * calendar. The finest planning is the one that reached Google; everything
- * before it is the user saying as much as they knew at the time.
+ * Either a thread has all of this or it has none of it. A thread with timing
+ * is on the timeline, at a concrete hour, for a concrete length; a thread
+ * without it is not on the timeline at all. There is no half-planned state in
+ * between, which is what lets every section heading be literally true.
  */
 export interface ThreadTiming {
-  /** How long it takes, once someone has said. */
-  durationMinutes?: number;
-  /** ISO 8601 start, set when it was given a time. */
-  startTime?: string;
-  /** ISO 8601 end. Always start plus the duration. */
-  endTime?: string;
-  /** The Google event this thread is, once it was put in the calendar. */
+  /** How long it takes. */
+  durationMinutes: number;
+  /** ISO 8601 start. */
+  startTime: string;
+  /** ISO 8601 end. Always the start plus the duration. */
+  endTime: string;
+  /**
+   * Whether this hour is the point of it.
+   *
+   * A fixed block is an anchor: rearranging the day flows everything else
+   * around it and never moves it. Everything is flexible unless the user
+   * said otherwise when they wrote it down.
+   */
+  fixed: boolean;
+  /** The Google event this thread is. */
   calendarEventId?: string;
 }
 
@@ -59,17 +57,13 @@ export class Thread {
   messages: Message[];
   /** Whether the user considers this thread closed. */
   solved: boolean;
-  /** Which of the home screen's lists it sits in. */
-  bucket: ThreadBucket;
-  /** Its place inside that list, ascending. */
-  order: number;
-  /** When it happens, as far as anyone has said. */
-  timing: ThreadTiming;
+  /** When it happens, or undefined when it is not on the timeline. */
+  timing?: ThreadTiming;
   createdAt: Date;
   updatedAt: Date;
 }
 
-/** One card on the home screen: a thread without its messages, or an event. */
+/** One card on the timeline: a thread without its messages, or an event. */
 export class ThreadSummary {
   /** Whether there is a thread behind this card. */
   kind: CardKind;
@@ -80,13 +74,35 @@ export class ThreadSummary {
   preview: string;
   messageCount: number;
   solved: boolean;
-  bucket: ThreadBucket;
-  order: number;
-  /** ISO 8601 start, when this card has a time. */
+  /** The section it falls in, worked out from the clock when it was read. */
+  section: TimelineSection;
+  /** ISO 8601 start. */
+  startTime: string;
+  /** ISO 8601 end. */
+  endTime: string;
+  durationMinutes: number;
+  /** Whether a rearrangement is allowed to move it. */
+  fixed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * A thread in a plain list, with no claim about when it happens.
+ *
+ * What the concluded items are drawn from, and what Coisas will be drawn
+ * from: a thread that is not on the timeline still exists, and a list of them
+ * cannot be made of cards that insist on an hour.
+ */
+export class ThreadItem {
+  slug: string;
+  title: string;
+  preview: string;
+  messageCount: number;
+  solved: boolean;
+  /** ISO 8601, when it has an hour at all. */
   startTime?: string;
-  /** ISO 8601 end, when this card has a time. */
   endTime?: string;
-  /** How long it takes, when anyone has said. */
   durationMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -97,21 +113,6 @@ export interface ThreadState {
   solved: boolean;
   /** Set when the user or the agent renamed the thread. */
   title?: string;
-  /** Set once the thread has been placed; absent means [DEFAULT_BUCKET]. */
-  bucket?: ThreadBucket;
-  /**
-   * Set once the thread has been dragged.
-   *
-   * A thread that has never moved falls back to when it was created, so the
-   * list an untouched account shows is oldest-first rather than arbitrary.
-   */
-  order?: number;
-  /**
-   * When the thread happens, once it has been given a duration or a time.
-   *
-   * Absent means untimed, which is where everything starts: a thread is a
-   * pre-calendar thing, and this is filled in as the guards get answers out
-   * of the user.
-   */
+  /** When the thread happens. Absent means it is not on the timeline. */
   timing?: ThreadTiming;
 }

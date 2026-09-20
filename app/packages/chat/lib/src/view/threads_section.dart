@@ -7,31 +7,31 @@ import 'package:chat/src/widgets/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Where a card is about to land: a list, and a place in it.
-///
-/// The index counts the list with the card being dragged already taken out of
-/// it, which is the list the drop is going to be applied to.
-typedef _Slot = ({ThreadBucket bucket, int index});
-
 /// A place a card can land, and where it is on the screen.
-typedef _Anchor = ({_Slot slot, double y});
+typedef _Anchor = ({int index, double y});
 
 /// A solved card on its way off the screen, frozen as it was let go.
 typedef _Flying = ({
-  ThreadSummary thread,
+  ThreadSummary card,
   double top,
   double height,
   double dx,
 });
 
 /// {@template threads_section}
-/// The home screen's three lists: Agora, Em breve, and Depois.
+/// The timeline: one list in clock order, cut into sections by the clock.
+///
+/// The headings are not containers. Every card has an hour, the hour says
+/// which heading it falls under, and a drop is a place in the one list
+/// underneath all of them. That is what took the arithmetic out of this
+/// screen: there is no list a card can be in the wrong one of, and no index
+/// that means something different depending on which heading it is near.
 ///
 /// One [Listener] over the whole thing owns every gesture: a tap opens a
 /// thread, a press held for a moment picks its card up, and the card then
-/// follows the finger while the rest of the lists open a place for it. The
-/// place is whichever one is nearest, so the card lands wherever it is let
-/// go rather than only on something it managed to hit.
+/// follows the finger while the rest of the list opens a place for it. The
+/// place is whichever one is nearest, so the card lands wherever it is let go
+/// rather than only on something it managed to hit.
 ///
 /// A drag picks an axis as soon as it starts moving and keeps it. Up and down
 /// reorders; left and right carries the card out of the timeline and solves
@@ -39,7 +39,7 @@ typedef _Flying = ({
 /// being reordered would be asking which of the two the finger meant, and the
 /// finger has already said.
 ///
-/// The lists do not re-lay-out while a card is up. The cards that move are
+/// The list does not re-lay-out while a card is up. The cards that move are
 /// moved by a transform over a layout that was measured once, when the card
 /// came up, so the place being aimed at cannot shift out from under the
 /// finger that is aiming at it.
@@ -67,17 +67,14 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   static const _axisSlop = 12.0;
 
   /// How far sideways a card has to be carried before letting it go solves
-  /// the thread rather than dropping it back into a list.
+  /// the thread rather than dropping it back into the list.
   static const _solveTravel = 96.0;
 
   /// The section itself, for turning the pointer into local coordinates.
   final GlobalKey _sectionKey = GlobalKey();
 
-  /// One key per card, so the laid-out lists can be measured.
+  /// One key per card, so the laid-out list can be measured.
   final _cardKeys = <String, GlobalKey>{};
-
-  /// One key per empty list, which is the only place such a list has.
-  final _emptyKeys = <ThreadBucket, GlobalKey>{};
 
   Timer? _hold;
   Offset? _down;
@@ -92,21 +89,14 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   Rect? _originRect;
   double _slotHeight = 0;
 
-  /// The dragged card's place in the whole screen, counted in cards rather
-  /// than in lists, because a card moving between lists moves everything
-  /// under it: the headings below it as well as the cards.
-  int _originPos = 0;
-
-  /// How many cards come before each list, with and without the card in the
-  /// air. Taken once at pick-up, from the layout the drag is measured in.
-  final _before = <ThreadBucket, int>{};
-  final _beforeWithout = <ThreadBucket, int>{};
+  /// The dragged card's place in the list, taken once at pick-up.
+  int _originIndex = 0;
 
   /// Every place the card could land, measured once at pick-up.
   List<_Anchor> _anchors = const [];
 
   /// The place it would land, and how far the finger has come since pick-up.
-  _Slot? _target;
+  int? _target;
   Offset _travel = Offset.zero;
 
   /// Which way this drag is going, decided once and then kept.
@@ -124,6 +114,9 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
   ThreadsState get _state => context.read<ThreadsBloc>().state;
 
+  /// The whole timeline, in the order it is drawn.
+  List<ThreadSummary> get _cards => _state.cards;
+
   /// How far the card in the air has come towards being solved, 0 to 1.
   ///
   /// Always zero on a drag that went up or down, so a reorder never shows the
@@ -139,9 +132,6 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
   GlobalKey _cardKey(String slug) => _cardKeys.putIfAbsent(slug, GlobalKey.new);
 
-  GlobalKey _emptyKey(ThreadBucket bucket) =>
-      _emptyKeys.putIfAbsent(bucket, GlobalKey.new);
-
   /// The global rect a key has been laid out into, if it is on screen.
   Rect? _rectOf(GlobalKey key) {
     final box = key.currentContext?.findRenderObject() as RenderBox?;
@@ -152,10 +142,9 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
   /// The slug of the card under [global], if there is one that can be touched.
   ///
-  /// A calendar card is drawn in the lists and is not in them: it comes from
-  /// the event, it goes where the event says, and there is no conversation
-  /// under it to open. The gesture passes straight through it, so a finger on
-  /// one scrolls the list the way a finger on the background does.
+  /// A calendar card is drawn in the list and is not the user's to move: it
+  /// comes from the event, it goes where the event says, and there is no
+  /// conversation under it to open. The gesture passes straight through it.
   String? _cardAt(Offset global) {
     for (final entry in _cardKeys.entries) {
       if (_rectOf(entry.value)?.contains(global) ?? false) {
@@ -168,25 +157,6 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     return null;
   }
 
-  /// Where [slug] sits right now, counted among the cards a drag can move.
-  ///
-  /// Calendar cards are left out of the count on purpose: the index that
-  /// travels to the server is a place in the placement, and the placement is
-  /// only ever the threads.
-  _Slot? _slotOf(String slug) {
-    for (final bucket in ThreadBucket.values) {
-      final index = _movable(bucket).indexWhere((t) => t.slug == slug);
-      if (index != -1) return (bucket: bucket, index: index);
-    }
-
-    return null;
-  }
-
-  /// The cards in [bucket] a drag is allowed to rearrange.
-  List<ThreadSummary> _movable(ThreadBucket bucket) {
-    return _state.inBucket(bucket).where((t) => t.isInteractive).toList();
-  }
-
   /// Measures every place [slug] could go, in the layout as it stands.
   ///
   /// A list of n cards has n + 1 places: above each card, and below the last.
@@ -195,87 +165,51 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   /// out of the way are moved by a transform and never change where they were
   /// laid out.
   List<_Anchor> _measure(String slug) {
-    final anchors = <_Anchor>[];
-
-    for (final bucket in ThreadBucket.values) {
-      final rects = <Rect>[];
-      for (final thread in _movable(bucket)) {
-        if (thread.slug == slug) continue;
-        final rect = _rectOf(_cardKey(thread.slug));
-        if (rect != null) rects.add(rect);
-      }
-
-      if (rects.isEmpty) {
-        // A list with nothing left in it has one place, on whatever it is
-        // showing instead: its empty line, or the hole the card left.
-        final rect = _rectOf(_emptyKey(bucket)) ?? _rectOf(_cardKey(slug));
-        if (rect != null) {
-          anchors.add((slot: (bucket: bucket, index: 0), y: rect.center.dy));
-        }
-        continue;
-      }
-
-      for (var index = 0; index < rects.length; index++) {
-        anchors.add((
-          slot: (bucket: bucket, index: index),
-          y: rects[index].top,
-        ));
-      }
-      anchors.add((
-        slot: (bucket: bucket, index: rects.length),
-        y: rects.last.bottom,
-      ));
+    final rects = <Rect>[];
+    for (final card in _cards) {
+      if (card.slug == slug) continue;
+      final rect = _rectOf(_cardKey(card.slug));
+      if (rect != null) rects.add(rect);
     }
 
-    return anchors;
+    if (rects.isEmpty) {
+      final rect = _rectOf(_cardKey(slug));
+      return rect == null ? const [] : [(index: 0, y: rect.center.dy)];
+    }
+
+    return [
+      for (var index = 0; index < rects.length; index++)
+        (index: index, y: rects[index].top),
+      (index: rects.length, y: rects.last.bottom),
+    ];
   }
 
   /// The place nearest [global], which is the one a drop lands on.
-  _Slot? _nearest(Offset global) {
+  int? _nearest(Offset global) {
     if (_anchors.isEmpty) return null;
 
     return _anchors
         .reduce(
           (a, b) => (global.dy - a.y).abs() <= (global.dy - b.y).abs() ? a : b,
         )
-        .slot;
+        .index;
   }
 
-  /// How far the card with [before] cards above it on the whole screen has
-  /// to move to open the place the card in the air is aiming at.
+  /// How far a row with [before] cards above it has to move to open the
+  /// place the card in the air is aiming at.
   ///
-  /// One card leaves and one card arrives, and a card moves by however many
-  /// of those two happened above it. Counting the screen rather than one list
-  /// is what keeps the lists from running into each other: everything under
-  /// the place the card is going moves down, and everything under the place
-  /// it left moves up.
-  double _shiftCard(int before) {
+  /// One card leaves and one card arrives, and a row moves by however many of
+  /// those two happened above it. It works for a heading as well as a card,
+  /// because a heading is only a row that happens to have no card in it: what
+  /// moves either one is how many cards crossed the line it sits on.
+  double _shift(int before) {
     final target = _target;
     if (target == null) return 0;
 
-    final without = before - (_originPos < before ? 1 : 0);
-    final insert = (_beforeWithout[target.bucket] ?? 0) + target.index;
-    final to = without + (insert <= without ? 1 : 0);
+    final left = _originIndex < before ? 1 : 0;
+    final arrived = target <= before - left ? 1 : 0;
 
-    return (to - before) * _slotHeight;
-  }
-
-  /// How far [bucket]'s heading has to move.
-  ///
-  /// A heading is not a card but the line above one, so it cannot be worked
-  /// out from a position the way a card can: the end of one list and the top
-  /// of the next are the same place, and a heading sits between them. What
-  /// moves it is which list the card came from and which it is going to, not
-  /// where in them.
-  double _shiftHeading(ThreadBucket bucket) {
-    final target = _target;
-    if (target == null) return 0;
-
-    final before = _before[bucket] ?? 0;
-    final left = _originPos < before ? -1 : 0;
-    final arrived = target.bucket.index < bucket.index ? 1 : 0;
-
-    return (left + arrived) * _slotHeight;
+    return (arrived - left) * _slotHeight;
   }
 
   void _onDown(PointerDownEvent event) {
@@ -289,23 +223,13 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
   void _lift(String slug) {
     final rect = _rectOf(_cardKey(slug));
-    final origin = _slotOf(slug);
-    if (rect == null || origin == null) return;
-
-    var counted = 0;
-    var countedWithout = 0;
-    for (final bucket in ThreadBucket.values) {
-      _before[bucket] = counted;
-      _beforeWithout[bucket] = countedWithout;
-      final threads = _movable(bucket);
-      counted += threads.length;
-      countedWithout += threads.where((t) => t.slug != slug).length;
-    }
+    final origin = _state.indexOf(slug);
+    if (rect == null || origin == -1) return;
 
     setState(() {
       _dragging = slug;
       _axis = null;
-      _originPos = (_before[origin.bucket] ?? 0) + origin.index;
+      _originIndex = origin;
       _originRect = rect;
       _slotHeight = rect.height + AppSpacing.s1;
       _anchors = _measure(slug);
@@ -326,13 +250,13 @@ class _ThreadsSectionState extends State<ThreadsSection> {
         _axis = _axisFor(travel);
         // The card moves along the axis the drag chose and not a pixel along
         // the other one, so a reorder cannot drift sideways into solving the
-        // thread and a card being carried out cannot drift into a list.
+        // thread and a card being carried out cannot drift into the list.
         _travel = _axis == Axis.horizontal
             ? Offset(travel.dx, 0)
             : Offset(0, travel.dy);
-        // A card on its way out of the timeline is not aiming at a list, so
-        // nothing opens a place for it: the lists stay where they are and the
-        // only thing left to read is the check.
+        // A card on its way out of the timeline is not aiming at a place, so
+        // nothing opens one for it: the list stays where it is and the only
+        // thing left to read is the check.
         _target = _axis == Axis.horizontal ? null : _nearest(event.position);
       });
 
@@ -370,7 +294,8 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     final rect = _originRect;
     // A timer still ticking means the hold never fired, so this was a tap.
     final tapped = _hold?.isActive ?? false;
-    final thread = slug == null ? null : _state.bySlug(slug);
+    final card = slug == null ? null : _state.bySlug(slug);
+    final origin = _originIndex;
     _cancel();
 
     if (slug == null) {
@@ -380,21 +305,21 @@ class _ThreadsSectionState extends State<ThreadsSection> {
 
     // Let go out to the side and the thread is solved: it leaves the timeline
     // for the concluded items, and the card is thrown after it.
-    if (solving && thread != null && rect != null) {
-      _solve(slug, thread, rect, travel);
+    if (solving && card != null && rect != null) {
+      _solve(slug, card, rect, travel);
       return;
     }
 
     if (target == null) return;
 
     // A card put back exactly where it came from is not a move, and does not
-    // need to be written anywhere.
-    final origin = _slotOf(slug);
-    final from = origin?.bucket == target.bucket ? origin!.index : -1;
-    if (from == target.index) return;
+    // need to be written anywhere. The target counts the list with the card
+    // already lifted out, which is the same list the server splices it into,
+    // so its old place is just its old index.
+    if (target == origin) return;
 
     context.read<ThreadsBloc>().add(
-      ThreadMoved(slug: slug, bucket: target.bucket, index: target.index),
+      ThreadMoved(slug: slug, index: target),
     );
   }
 
@@ -405,14 +330,14 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   /// captured here rather than from the list, because the list has already
   /// let go of it by the time this runs, and everything below it closes up
   /// while the card is still on its way out.
-  void _solve(String slug, ThreadSummary thread, Rect rect, Offset travel) {
+  void _solve(String slug, ThreadSummary card, Rect rect, Offset travel) {
     final box = _sectionKey.currentContext?.findRenderObject() as RenderBox?;
     unawaited(HapticFeedback.mediumImpact());
 
     if (box != null) {
       setState(() {
         _flight = (
-          thread: thread,
+          card: card,
           top: box.globalToLocal(rect.topLeft).dy + travel.dy,
           height: rect.height,
           dx: travel.dx,
@@ -474,27 +399,13 @@ class _ThreadsSectionState extends State<ThreadsSection> {
                     // Room under the last card so the bar never covers it.
                     AppSpacing.s16 + AppSpacing.s12,
                   ),
-                  children: [
-                    for (final bucket in ThreadBucket.values)
-                      _Bucket(
-                        bucket: bucket,
-                        threads: state.inBucket(bucket),
-                        pressed: _pressed,
-                        dragging: dragging,
-                        landing: _target?.bucket == bucket,
-                        cardKey: _cardKey,
-                        emptyKey: _emptyKey(bucket),
-                        before: _before[bucket] ?? 0,
-                        shiftCard: _shiftCard,
-                        shiftHeading: _shiftHeading(bucket),
-                      ),
-                  ],
+                  children: _rows(state, dragging),
                 ),
               ),
             ),
-            // The card in the air is drawn over the lists rather than in
-            // them, so it passes over the cards it is moving between instead
-            // of sliding under them.
+            // The card in the air is drawn over the list rather than in it,
+            // so it passes over the cards it is moving between instead of
+            // sliding under them.
             if (dragging != null) _lifted(state, dragging),
             if (_flight != null) _flying(_flight!),
           ],
@@ -503,11 +414,74 @@ class _ThreadsSectionState extends State<ThreadsSection> {
     );
   }
 
+  /// The one list, with a heading dropped in wherever the section changes.
+  ///
+  /// The headings are written out of the cards rather than wrapped around
+  /// them, so nothing has to be laid out twice and a section with nothing in
+  /// it simply is not drawn. An empty timeline gets one line instead.
+  List<Widget> _rows(ThreadsState state, String? dragging) {
+    var first = true;
+    final rows = <Widget>[
+      // A write that never landed used to be entirely silent: the card the
+      // user had just typed simply did not appear, which reads as the button
+      // being broken rather than as the server being unreachable.
+      if (state.failure != null)
+        _Failed(
+          reason: state.failure!,
+          onRetry: () =>
+              context.read<ThreadsBloc>().add(const ThreadsRequested()),
+        ),
+    ];
+
+    if (state.cards.isEmpty) return [...rows, const _Empty()];
+
+    TimelineSection? section;
+
+    for (var index = 0; index < state.cards.length; index++) {
+      final card = state.cards[index];
+
+      // A card only moves while there is another one in the air; the rest of
+      // the time the offset is zero, so a dropped card cannot animate after
+      // it has landed.
+      final dy = dragging == null ? 0.0 : _shift(index);
+
+      if (card.section != section) {
+        section = card.section;
+        rows.add(
+          _Slid(
+            dy: dy,
+            child: _Heading(label: section.label, first: first),
+          ),
+        );
+        first = false;
+      }
+
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.s1),
+          child: _Slid(
+            dy: dy,
+            child: ThreadTile(
+              key: _cardKey(card.slug),
+              card: card,
+              pressed: card.slug == _pressed,
+              // The card in the air is drawn over the list, so the one left
+              // behind only holds its place open.
+              hidden: card.slug == dragging,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return rows;
+  }
+
   Widget _lifted(ThreadsState state, String slug) {
     final rect = _originRect;
-    final thread = state.bySlug(slug);
+    final card = state.bySlug(slug);
     final box = _sectionKey.currentContext?.findRenderObject() as RenderBox?;
-    if (rect == null || thread == null || box == null) {
+    if (rect == null || card == null || box == null) {
       return const SizedBox.shrink();
     }
 
@@ -520,7 +494,7 @@ class _ThreadsSectionState extends State<ThreadsSection> {
       height: rect.height,
       child: IgnorePointer(
         child: _Lifted(
-          thread: thread,
+          card: card,
           dx: _travel.dx,
           progress: _solveProgress,
         ),
@@ -537,8 +511,8 @@ class _ThreadsSectionState extends State<ThreadsSection> {
       height: flight.height,
       child: IgnorePointer(
         child: _Flight(
-          key: ValueKey(flight.thread.slug),
-          thread: flight.thread,
+          key: ValueKey(flight.card.slug),
+          card: flight.card,
           dx: flight.dx,
           onEnd: () {
             if (mounted) setState(() => _flight = null);
@@ -549,16 +523,37 @@ class _ThreadsSectionState extends State<ThreadsSection> {
   }
 }
 
+/// One section heading, which is a line and not a container.
+class _Heading extends StatelessWidget {
+  const _Heading({required this.label, required this.first});
+
+  final String label;
+
+  /// Whether it is the first thing on the screen, and so needs no room above.
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: first ? AppSpacing.s2 : AppSpacing.s6,
+        bottom: AppSpacing.s1,
+      ),
+      child: Text(label, style: AppTypography.title),
+    );
+  }
+}
+
 /// The card in the air: the tile itself, and the check it is being carried
 /// towards.
 class _Lifted extends StatelessWidget {
   const _Lifted({
-    required this.thread,
+    required this.card,
     required this.dx,
     required this.progress,
   });
 
-  final ThreadSummary thread;
+  final ThreadSummary card;
 
   /// How far sideways the finger has taken it.
   final double dx;
@@ -586,7 +581,7 @@ class _Lifted extends StatelessWidget {
         Positioned.fill(
           child: Transform.translate(
             offset: Offset(dx, 0),
-            child: ThreadTile(thread: thread, lifted: true),
+            child: ThreadTile(card: card, lifted: true),
           ),
         ),
       ],
@@ -625,17 +620,17 @@ class _SolveMark extends StatelessWidget {
 /// The last quarter second of a solved card.
 ///
 /// The card carries on the way it was going and fades out while the check
-/// swells behind it. It is drawn over lists that have already closed the gap,
+/// swells behind it. It is drawn over a list that has already closed the gap,
 /// so by the time it is gone there is nothing left to tidy up.
 class _Flight extends StatefulWidget {
   const _Flight({
-    required this.thread,
+    required this.card,
     required this.dx,
     required this.onEnd,
     super.key,
   });
 
-  final ThreadSummary thread;
+  final ThreadSummary card;
 
   /// Where the card was when it was let go, and which way it was headed.
   final double dx;
@@ -668,7 +663,7 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
 
     return AnimatedBuilder(
       animation: _controller,
-      child: ThreadTile(thread: widget.thread, lifted: true),
+      child: ThreadTile(card: widget.card, lifted: true),
       builder: (context, child) {
         final t = Curves.easeIn.transform(_controller.value);
 
@@ -712,124 +707,6 @@ class _FlightState extends State<_Flight> with SingleTickerProviderStateMixin {
   }
 }
 
-/// One list: its heading, and the cards in it.
-class _Bucket extends StatelessWidget {
-  const _Bucket({
-    required this.bucket,
-    required this.threads,
-    required this.pressed,
-    required this.dragging,
-    required this.landing,
-    required this.cardKey,
-    required this.emptyKey,
-    required this.before,
-    required this.shiftCard,
-    required this.shiftHeading,
-  });
-
-  final ThreadBucket bucket;
-  final List<ThreadSummary> threads;
-  final String? pressed;
-  final String? dragging;
-
-  /// Whether the card in the air is currently aimed at this list.
-  final bool landing;
-
-  final GlobalKey Function(String slug) cardKey;
-  final GlobalKey emptyKey;
-
-  /// How many cards come before this list on the whole screen.
-  final int before;
-
-  /// How far a card with that many cards above it on the screen has to move.
-  final double Function(int before) shiftCard;
-
-  /// How far this list's heading, and its empty line, have to move.
-  final double shiftHeading;
-
-  /// Moves a row out of the way, but only while there is a card in the air.
-  ///
-  /// The wrapper goes when the drag does, rather than staying on to animate
-  /// its way back to nothing: by then the lists have already been rebuilt in
-  /// their new order, and animating the old offsets out on top of that is
-  /// what made a dropped card drift after it had landed.
-  Widget _row(double dy, Widget child) {
-    if (dragging == null) return child;
-
-    return _Slid(dy: dy, child: child);
-  }
-
-  /// The cards to draw, each with its place among the ones a drag can move.
-  ///
-  /// The two indices are different the moment a calendar card is in the list,
-  /// and it is the movable one the drag arithmetic is counted in.
-  List<({ThreadSummary thread, int? movableIndex, bool first})> _rows() {
-    final rows = <({ThreadSummary thread, int? movableIndex, bool first})>[];
-    var movable = 0;
-
-    for (var index = 0; index < threads.length; index++) {
-      final thread = threads[index];
-      rows.add((
-        thread: thread,
-        movableIndex: thread.isInteractive ? movable : null,
-        first: index == 0,
-      ));
-      if (thread.isInteractive) movable++;
-    }
-
-    return rows;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      // Cards run the full width of the column. A card only as wide as its
-      // title is a card with a dead right-hand side.
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _row(
-          shiftHeading,
-          Padding(
-            padding: const EdgeInsets.only(
-              top: AppSpacing.s6,
-              bottom: AppSpacing.s2,
-            ),
-            child: Text(bucket.label, style: AppTypography.title),
-          ),
-        ),
-        // A heading with nothing under it reads as a screen that failed to
-        // load. One quiet line says the list is empty on purpose, and it is
-        // also where a card lands when there is nothing to land beside.
-        if (threads.isEmpty)
-          _row(
-            shiftHeading,
-            _Empty(key: emptyKey, active: dragging != null && landing),
-          ),
-        for (final entry in _rows())
-          _row(
-            // A calendar card holds still while a drag goes on around it. It
-            // is not one of the places a card can land, so opening a gap at
-            // it would be offering something that is not on offer.
-            entry.movableIndex == null
-                ? 0
-                : shiftCard(before + entry.movableIndex!),
-            Padding(
-              padding: EdgeInsets.only(top: entry.first ? 0 : AppSpacing.s1),
-              child: ThreadTile(
-                key: cardKey(entry.thread.slug),
-                thread: entry.thread,
-                pressed: entry.thread.slug == pressed,
-                // The card in the air is drawn over the list, so the one
-                // left behind only holds its place open.
-                hidden: entry.thread.slug == dragging,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 /// A card moved out of the way, without being laid out anywhere else.
 class _Slid extends StatelessWidget {
   const _Slid({required this.dy, required this.child});
@@ -850,24 +727,57 @@ class _Slid extends StatelessWidget {
   }
 }
 
-/// The line a list shows when there is nothing in it.
-class _Empty extends StatelessWidget {
-  const _Empty({required this.active, super.key});
+/// What the timeline says when the last thing it tried did not land.
+///
+/// Quiet, and above the cards rather than over them: nothing has been lost,
+/// the screen is simply older than the user thinks it is, and the way out is
+/// to ask again.
+class _Failed extends StatelessWidget {
+  const _Failed({required this.reason, required this.onRetry});
 
-  final bool active;
+  /// The server's own sentence about what went wrong.
+  final String reason;
+
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-      decoration: BoxDecoration(
-        color: active ? AppColors.fill : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppSpacing.chipRadius),
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.s3),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onRetry,
+        child: Row(
+          children: [
+            const AppIcon(
+              iconData: AppIcons.warning,
+              size: AppSpacing.s4,
+              color: AppColors.ink3,
+            ),
+            const SizedBox(width: AppSpacing.s2),
+            Expanded(
+              child: Text(
+                '$reason Toque para tentar de novo.',
+                style: AppTypography.label.copyWith(color: AppColors.ink3),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// What the timeline says when there is nothing on it.
+class _Empty extends StatelessWidget {
+  const _Empty();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.s6),
       child: Text(
-        'Nada por aqui',
+        'Nada marcado. Toque no orbe para escrever algo.',
         style: AppTypography.body.copyWith(color: AppColors.ink3),
       ),
     );

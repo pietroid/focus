@@ -1,5 +1,3 @@
-import { ThreadBucket } from '../threads/entities/thread.entity';
-
 /**
  * A2UI: the component tree the server sends the app.
  *
@@ -57,7 +55,19 @@ export type A2uiAction =
   | DismissAction
   | OpenUrlAction
   | ThreadAction
-  | TimingAction;
+  | TimingAction
+  | SyncAction;
+
+/**
+ * Asks the server to push the day to Google again.
+ *
+ * Carried by the one button on the sync popup. It names nothing, because
+ * there is nothing to name: the retry is "everything that did not make it",
+ * and the server is the only side that knows what that is.
+ */
+export interface SyncAction {
+  type: 'sync';
+}
 
 /** Send a message back into the thread, as if the user typed it. */
 export interface ReplyAction {
@@ -102,54 +112,36 @@ export interface ThreadAction {
 export type ThreadOp = 'solve' | 'reopen' | 'rename' | 'delete';
 
 /**
- * Answers a guard: the move the user asked for, plus what they just decided
- * about it.
+ * Answers the one guard the timeline raises.
  *
- * The whole intent travels on every one of these, so a guard that asks two
- * questions is two round trips over the same object rather than a
- * conversation the server has to remember. There is no pending state on
- * either side, which means a guard abandoned halfway leaves nothing behind.
+ * The whole move travels on it, so nothing is pending on either side and a
+ * guard abandoned halfway leaves nothing behind.
  *
  * A model never writes one of these: the type is not in [MODEL_ACTION_TYPES],
  * so the validator drops it out of a reply along with the button carrying it.
- * Guards are built by the server, from the calendar, with no model in the
- * loop at all.
  */
 export interface TimingAction {
   type: 'timing';
   /** The thread being moved. */
   slug: string;
-  /** The list it is being moved to. */
-  bucket: ThreadBucket;
-  /** Its place in that list, as the drop left it. */
+  /** Where in the day's queue the drop left it, counting from the top. */
   index: number;
-  /** How long it takes, once a guard has asked. */
-  durationMinutes?: number;
-  /** The start being proposed, carried back so both sides agree on it. */
-  startTime?: string;
   /** What the user decided. Absent means they have not been asked yet. */
   decision?: TimingDecision;
 }
 
 /**
- * What a guard's buttons say.
+ * What the guard's two buttons say about the thread that was already running.
  *
- * - `schedule` books the proposed time on the calendar.
- * - `manual` keeps the move without a time, having learned the duration.
- * - `postpone` books it and pushes whatever it ran into later. The default.
- * - `force` books it on top of what is already there.
- * - `unschedule` takes it off the calendar and leaves it untimed.
+ * - `solve_current` closes it and gives its hour away.
+ * - `postpone_current` keeps it, further down the day.
  */
-export type TimingDecision =
-  'schedule' | 'manual' | 'postpone' | 'force' | 'unschedule';
+export type TimingDecision = 'solve_current' | 'postpone_current';
 
 /** Every decision, for validating one off the wire. */
 export const TIMING_DECISIONS: TimingDecision[] = [
-  'schedule',
-  'manual',
-  'postpone',
-  'force',
-  'unschedule',
+  'solve_current',
+  'postpone_current',
 ];
 
 /** What went wrong, or was quietly fixed, while validating a tree. */

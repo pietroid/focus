@@ -161,11 +161,12 @@ export class CalendarReaderService {
 
     try {
       await fs.mkdir(path.dirname(this._file), { recursive: true });
-      await fs.writeFile(
-        this._file,
-        JSON.stringify(this._snapshot, null, 2),
-        'utf8',
-      );
+      // Through a temp file and a rename, for the same reason the thread
+      // store does it: this is written from a queue and read on a restart,
+      // and half a file parses as an empty calendar.
+      const temp = `${this._file}.tmp`;
+      await fs.writeFile(temp, JSON.stringify(this._snapshot, null, 2), 'utf8');
+      await fs.rename(temp, this._file);
     } catch (error) {
       // The cache is still good in memory, so a disk that will not take it
       // costs nothing until the next restart.

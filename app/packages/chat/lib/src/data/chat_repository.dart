@@ -1,4 +1,5 @@
 import 'package:api_client/api_client.dart';
+import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/models/models.dart';
 
 /// {@template chat_repository}
@@ -21,34 +22,66 @@ class ChatRepository {
         .toList();
   }
 
-  /// Writes where the home screen's lists ended up after a drag.
-  ///
-  /// [buckets] is the whole placement, not the one thread that moved: a drop
-  /// shifts everything below it in two lists at once, and sending the result
-  /// is the only version of this that cannot disagree with what is on screen.
-  ///
-  /// The answer is not always the new lists. A move that needs something
-  /// decided first comes back with a guard instead, and nothing has changed
-  /// on the server until that guard is answered.
-  Future<TimelineOutcome> savePlacements(
-    Map<ThreadBucket, List<String>> buckets,
-  ) async {
-    final placements = <Map<String, dynamic>>[
-      for (final entry in buckets.entries)
-        for (var index = 0; index < entry.value.length; index++)
-          {
-            'slug': entry.value[index],
-            'bucket': entry.key.wire,
-            'index': index,
-          },
-    ];
+  /// Everything the user has closed, most recently touched first.
+  Future<List<ThreadItem>> fetchSolved() async {
+    final response = await apiClient.get<List<dynamic>>('/threads/solved');
 
-    final response = await apiClient.post<Map<String, dynamic>>(
-      '/threads/placements',
-      data: {'placements': placements},
-    );
+    return (response.data ?? <dynamic>[])
+        .map((t) => ThreadItem.fromJson(t as Map<String, dynamic>))
+        .toList();
+  }
 
-    return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+  /// Writes something down and puts it straight on the timeline.
+  ///
+  /// No agent runs. The sheet already asked everything that has to be known
+  /// to give something an hour, so the answer is the timeline with the new
+  /// card already in it.
+  Future<List<ThreadSummary>> createScheduled({
+    required String message,
+    required int durationMinutes,
+    required bool fixed,
+    DateTime? startTime,
+  }) async {
+    try {
+      final response = await apiClient.post<List<dynamic>>(
+        '/threads/scheduled',
+        data: {
+          'message': message,
+          'durationMinutes': durationMinutes,
+          'fixed': fixed,
+          if (startTime != null)
+            'startTime': startTime.toUtc().toIso8601String(),
+        },
+      );
+
+      return (response.data ?? <dynamic>[])
+          .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+          .toList();
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
+  }
+
+  /// Moves a card to [index] in the day's single list.
+  ///
+  /// One number, because there is one list. Everything a drop does to the
+  /// hours of everything around it is worked out on the server, so the answer
+  /// is the whole timeline rather than a confirmation.
+  ///
+  /// It is not always the new timeline. A move that displaces something that
+  /// is already running comes back with a guard instead, and nothing has
+  /// changed on the server until that guard is answered.
+  Future<TimelineOutcome> moveThread(String slug, int index) async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/threads/$slug/move',
+        data: {'index': index},
+      );
+
+      return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
   }
 
   /// Answers a guard with the button the user tapped.
@@ -58,12 +91,47 @@ class ChatRepository {
   /// does to the rest of the day, is the server's to know. The app's whole
   /// part in it is drawing the buttons and saying which one was pressed.
   Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async {
-    final response = await apiClient.post<Map<String, dynamic>>(
-      '/threads/timing',
-      data: {'action': action},
-    );
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/threads/timing',
+        data: {'action': action},
+      );
 
-    return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+      return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
+  }
+
+  /// Waits for the calendar to catch up with what the app already shows.
+  ///
+  /// Called after a change, and never on the path the finger is on: the drag
+  /// has already landed by the time this goes out. It comes back with nothing
+  /// to say almost every time, and with a popup to draw when the booking did
+  /// not make it across.
+  Future<SyncOutcome> awaitSync() async {
+    try {
+      final response = await apiClient.get<Map<String, dynamic>>(
+        '/threads/sync',
+      );
+
+      return SyncOutcome.fromJson(response.data ?? <String, dynamic>{});
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
+  }
+
+  /// Pushes whatever did not reach the calendar again.
+  Future<SyncOutcome> retrySync() async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/threads/sync',
+      );
+
+      return SyncOutcome.fromJson(response.data ?? <String, dynamic>{});
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
   }
 
   /// Marks a thread solved, or puts a solved one back on the timeline.
@@ -74,14 +142,18 @@ class ChatRepository {
     String slug, {
     required bool solved,
   }) async {
-    final response = await apiClient.post<List<dynamic>>(
-      '/threads/$slug/solved',
-      data: {'solved': solved},
-    );
+    try {
+      final response = await apiClient.post<List<dynamic>>(
+        '/threads/$slug/solved',
+        data: {'solved': solved},
+      );
 
-    return (response.data ?? <dynamic>[])
-        .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
-        .toList();
+      return (response.data ?? <dynamic>[])
+          .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+          .toList();
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
   }
 
   /// One thread, with every message it holds.

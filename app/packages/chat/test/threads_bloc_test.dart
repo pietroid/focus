@@ -5,10 +5,17 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockChatRepository extends Mock implements ChatRepository {}
 
-ThreadSummary _thread(
-  String slug,
-  ThreadBucket bucket, {
+DateTime _at(int hour, {int minute = 0, int addDays = 0}) {
+  return DateTime(2026, 8, 27 + addDays, hour, minute);
+}
+
+ThreadSummary _card(
+  String slug, {
+  required TimelineSection section,
+  required DateTime start,
+  int minutes = 30,
   CardKind kind = CardKind.thread,
+  bool fixed = false,
 }) {
   return ThreadSummary(
     kind: kind,
@@ -17,9 +24,13 @@ ThreadSummary _thread(
     preview: '',
     messageCount: 1,
     solved: false,
-    bucket: bucket,
-    createdAt: DateTime(2026, 8, 27, 9),
-    updatedAt: DateTime(2026, 8, 27, 9),
+    section: section,
+    startTime: start,
+    endTime: start.add(Duration(minutes: minutes)),
+    durationMinutes: minutes,
+    fixed: fixed,
+    createdAt: start,
+    updatedAt: start,
   );
 }
 
@@ -27,422 +38,396 @@ ThreadSummary _thread(
 const _guard = A2uiComponent(
   component: 'Column',
   children: [
-    A2uiComponent(component: 'Text', properties: {'text': 'Quanto tempo?'}),
+    A2uiComponent(component: 'Text', properties: {'text': 'Começar agora?'}),
   ],
 );
 
-/// The placement, flattened back into the list a server would return.
-///
-/// A thread the app left out of the placement is one it has already solved,
-/// and the server sends those back too: they are still the user's, they are
-/// just not on the timeline. Leaving them out here would have the double
-/// deleting threads the real server keeps.
-List<ThreadSummary> _applied(Map<ThreadBucket, List<String>> buckets) {
-  final placed = buckets.values.expand((slugs) => slugs).toSet();
-
-  return [
-    for (final entry in buckets.entries)
-      for (final slug in entry.value)
-        _threads.firstWhere((t) => t.slug == slug).copyWith(bucket: entry.key),
-    for (final thread in _threads)
-      if (!placed.contains(thread.slug)) thread.copyWith(solved: true),
-  ];
-}
-
-/// The list as it comes back from the server: one flat list, bucket order
-/// first and place within the bucket second.
-final _threads = <ThreadSummary>[
-  _thread('a', ThreadBucket.agora),
-  _thread('b', ThreadBucket.emBreve),
-  _thread('c', ThreadBucket.emBreve),
-  _thread('d', ThreadBucket.depois),
+/// The timeline as the server sends it: one flat list, in clock order.
+final _cards = <ThreadSummary>[
+  _card('a', section: TimelineSection.agora, start: _at(9)),
+  _card('b', section: TimelineSection.hoje, start: _at(14)),
+  _card('c', section: TimelineSection.hoje, start: _at(15)),
+  _card('d', section: TimelineSection.amanha, start: _at(9, addDays: 1)),
 ];
+
+/// The list with [slug] lifted out and put back at [index].
+///
+/// The real server also rewrites every hour the move disturbed. The order is
+/// the part the bloc is responsible for drawing, so that is the part the
+/// double bothers to get right.
+List<ThreadSummary> _moved(String slug, int index) {
+  final cards = [..._cards];
+  final card = cards.removeAt(cards.indexWhere((c) => c.slug == slug));
+
+  return cards..insert(index.clamp(0, cards.length), card);
+}
 
 void main() {
   late ChatRepository repository;
 
   setUp(() {
     repository = _MockChatRepository();
-    when(repository.fetchThreads).thenAnswer((_) async => _threads);
-    // The server is the one that says what the lists look like afterwards, so
-    // the double answers with the placement it was given rather than with the
-    // list it started from.
-    when(() => repository.savePlacements(any())).thenAnswer(
+    when(repository.fetchThreads).thenAnswer((_) async => _cards);
+    when(() => repository.moveThread(any(), any())).thenAnswer(
       (invocation) async => TimelineOutcome(
-        cards: _applied(
-          invocation.positionalArguments.first
-              as Map<ThreadBucket, List<String>>,
+        cards: _moved(
+          invocation.positionalArguments[0] as String,
+          invocation.positionalArguments[1] as int,
         ),
       ),
     );
     when(
       () => repository.setSolved(any(), solved: any(named: 'solved')),
     ).thenAnswer((_) async => []);
+    // The calendar keeps up unless a test says otherwise.
+    when(
+      repository.awaitSync,
+    ).thenAnswer((_) async => const SyncOutcome(ok: true));
+    when(
+      repository.retrySync,
+    ).thenAnswer((_) async => const SyncOutcome(ok: true));
   });
 
   ThreadsBloc build() => ThreadsBloc(chatRepository: repository);
 
-  /// The bucket each thread is in, in the order they are drawn.
-  List<String> placement(ThreadsState state) {
-    return [
-      for (final thread in state.threads)
-        '${thread.slug}:${thread.bucket.wire}',
-    ];
-  }
+  List<String> order(ThreadsState state) =>
+      state.cards.map((card) => card.slug).toList();
 
   group('ThreadsBloc', () {
     blocTest<ThreadsBloc, ThreadsState>(
-      'loads the list',
+      'checks the calendar behind a drop, and says nothing when it kept up',
+      build: build,
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (bloc) {
+        verify(repository.awaitSync).called(1);
+        expect(bloc.state.guard, isNull);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'puts the popup up when the calendar fell behind',
+      build: () {
+        when(repository.awaitSync).thenAnswer(
+          (_) async => const SyncOutcome(ok: false, guard: _guard),
+        );
+        return build();
+      },
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (bloc) {
+        expect(bloc.state.guard, _guard);
+        // The drop itself stands. Only the copy on Google fell behind.
+        expect(order(bloc.state), ['d', 'a', 'b', 'c']);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'never covers an open question with the sync popup',
+      build: () {
+        when(() => repository.moveThread(any(), any())).thenAnswer(
+          (_) async => TimelineOutcome(cards: _cards, guard: _guard),
+        );
+        when(repository.awaitSync).thenAnswer(
+          (_) async => const SyncOutcome(ok: false, guard: _guard),
+        );
+        return build();
+      },
+      act: (bloc) async {
+        bloc.add(const ThreadsRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+      },
+      wait: const Duration(milliseconds: 30),
+      verify: (_) {
+        // A move that came back asking something never queued a check, so
+        // the question the user is reading is the only thing on screen.
+        verifyNever(repository.awaitSync);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'closes the popup when the retry gets the calendar back in step',
+      build: build,
+      act: (bloc) => bloc.add(const SyncRetried()),
+      wait: const Duration(milliseconds: 20),
+      verify: (bloc) {
+        verify(repository.retrySync).called(1);
+        expect(bloc.state.guard, isNull);
+        expect(bloc.state.guardBusy, isFalse);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'leaves the popup up when the retry fails too',
+      build: () {
+        when(repository.retrySync).thenAnswer(
+          (_) async => const SyncOutcome(ok: false, guard: _guard),
+        );
+        return build();
+      },
+      act: (bloc) => bloc.add(const SyncRetried()),
+      wait: const Duration(milliseconds: 20),
+      verify: (bloc) {
+        expect(bloc.state.guard, _guard);
+        expect(bloc.state.guardBusy, isFalse);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'loads the timeline',
       build: build,
       act: (bloc) => bloc.add(const ThreadsRequested()),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
-        expect(bloc.state.inBucket(ThreadBucket.emBreve), hasLength(2));
+        expect(order(bloc.state), ['a', 'b', 'c', 'd']);
+        expect(bloc.state.inSection(TimelineSection.hoje), hasLength(2));
+        expect(bloc.state.status, ThreadsStatus.success);
       },
     );
 
     blocTest<ThreadsBloc, ThreadsState>(
-      'moves a thread into another list at the index it was dropped on',
+      'draws the order the server sends back after a drop',
       build: build,
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(
-            slug: 'd',
-            bucket: ThreadBucket.emBreve,
-            index: 1,
-          ),
-        );
-      },
-      wait: const Duration(milliseconds: 20),
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+      ),
+      act: (bloc) => bloc.add(const ThreadMoved(slug: 'c', index: 0)),
+      wait: const Duration(milliseconds: 10),
       verify: (bloc) {
-        expect(placement(bloc.state), [
-          'a:agora',
-          'b:em_breve',
-          'd:em_breve',
-          'c:em_breve',
-        ]);
-        verify(
-          () => repository.savePlacements({
-            ThreadBucket.agora: ['a'],
-            ThreadBucket.emBreve: ['b', 'd', 'c'],
-            ThreadBucket.depois: <String>[],
-          }),
-        ).called(1);
+        expect(order(bloc.state), ['c', 'a', 'b', 'd']);
+        verify(() => repository.moveThread('c', 0)).called(1);
       },
     );
 
     blocTest<ThreadsBloc, ThreadsState>(
-      'reorders inside one list',
-      build: build,
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        // "c" dropped above "b": the view has already taken "c" out of the
-        // list, so index 0 is the gap at the top.
-        bloc.add(
-          const ThreadMoved(
-            slug: 'c',
-            bucket: ThreadBucket.emBreve,
-            index: 0,
-          ),
+      'leaves the timeline alone and raises the guard the move came back with',
+      build: () {
+        when(() => repository.moveThread(any(), any())).thenAnswer(
+          (_) async => TimelineOutcome(cards: _cards, guard: _guard),
         );
+        return build();
       },
-      wait: const Duration(milliseconds: 20),
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+      ),
+      act: (bloc) => bloc.add(const ThreadMoved(slug: 'c', index: 0)),
+      wait: const Duration(milliseconds: 10),
       verify: (bloc) {
-        expect(
-          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
-          ['c', 'b'],
-        );
+        expect(order(bloc.state), ['a', 'b', 'c', 'd']);
+        expect(bloc.state.guard, _guard);
       },
     );
 
     blocTest<ThreadsBloc, ThreadsState>(
-      'ignores a move for a thread it does not have',
+      'refuses to move a card that came off the calendar',
       build: build,
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: [
+          ..._cards,
+          _card(
+            'gcal-1',
+            section: TimelineSection.hoje,
+            start: _at(11),
+            kind: CardKind.calendar,
+          ),
+        ],
+      ),
+      act: (bloc) => bloc.add(const ThreadMoved(slug: 'gcal-1', index: 0)),
+      wait: const Duration(milliseconds: 10),
+      verify: (_) {
+        verifyNever(() => repository.moveThread(any(), any()));
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'answers a guard and draws what came back',
+      build: () {
+        when(() => repository.applyTiming(any())).thenAnswer(
+          (_) async => TimelineOutcome(cards: _moved('c', 0)),
+        );
+        return build();
+      },
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+        guard: _guard,
+      ),
       act: (bloc) => bloc.add(
-        const ThreadMoved(
-          slug: 'gone',
-          bucket: ThreadBucket.agora,
-          index: 0,
-        ),
+        const GuardAnswered({'type': 'timing', 'slug': 'c', 'index': 0}),
       ),
       wait: const Duration(milliseconds: 10),
-      verify: (_) => verifyNever(() => repository.savePlacements(any())),
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'leaves the drop on screen when the write fails',
-      build: () {
-        when(() => repository.savePlacements(any())).thenThrow(Exception('no'));
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(slug: 'd', bucket: ThreadBucket.agora, index: 0),
-        );
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        expect(
-          bloc.state.inBucket(ThreadBucket.agora).map((t) => t.slug),
-          ['d', 'a'],
-        );
-        expect(bloc.state.status, ThreadsStatus.failure);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'takes a solved thread off the timeline and into the solved list',
-      build: build,
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadSolved('b', solved: true));
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        expect(
-          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
-          ['c'],
-        );
-        expect(bloc.state.solved.map((t) => t.slug), ['b']);
-        verify(() => repository.setSolved('b', solved: true)).called(1);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'puts a recovered thread back in the list it left',
-      build: build,
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadSolved('b', solved: true));
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadSolved('b', solved: false));
-      },
-      wait: const Duration(milliseconds: 30),
-      verify: (bloc) {
-        expect(
-          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
-          ['b', 'c'],
-        );
-        expect(bloc.state.solved, isEmpty);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'puts the card back when solving it cannot be written',
-      build: () {
-        when(
-          () => repository.setSolved(any(), solved: any(named: 'solved')),
-        ).thenThrow(Exception('no'));
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadSolved('b', solved: true));
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        expect(bloc.state.solved, isEmpty);
-        expect(
-          bloc.state.inBucket(ThreadBucket.emBreve).map((t) => t.slug),
-          ['b', 'c'],
-        );
-        expect(bloc.state.status, ThreadsStatus.failure);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'puts the card back and shows the question when a move raises a guard',
-      build: () {
-        when(() => repository.savePlacements(any())).thenAnswer(
-          (_) async => TimelineOutcome(cards: _threads, guard: _guard),
-        );
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(slug: 'd', bucket: ThreadBucket.agora, index: 0),
-        );
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        expect(bloc.state.guard, _guard);
-        // The drag is undone while the question is up: nothing was applied on
-        // the server, so nothing stays applied on screen.
-        expect(
-          bloc.state.inBucket(ThreadBucket.agora).map((t) => t.slug),
-          ['a'],
-        );
-        expect(
-          bloc.state.inBucket(ThreadBucket.depois).map((t) => t.slug),
-          ['d'],
-        );
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'draws the day the guard produced once it is answered',
-      build: () {
-        when(() => repository.applyTiming(any())).thenAnswer(
-          (_) async => TimelineOutcome(
-            cards: [
-              _thread('d', ThreadBucket.agora),
-              ..._threads.where((t) => t.slug != 'd'),
-            ],
-          ),
-        );
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const GuardAnswered({'type': 'timing', 'slug': 'd'}));
-      },
-      wait: const Duration(milliseconds: 20),
       verify: (bloc) {
         expect(bloc.state.guard, isNull);
-        expect(bloc.state.guardBusy, isFalse);
-        expect(
-          bloc.state.inBucket(ThreadBucket.agora).map((t) => t.slug),
-          ['d', 'a'],
-        );
+        expect(order(bloc.state), ['c', 'a', 'b', 'd']);
       },
     );
 
     blocTest<ThreadsBloc, ThreadsState>(
-      'keeps the sheet open when the guard has another question',
-      build: () {
-        when(() => repository.applyTiming(any())).thenAnswer(
-          (_) async => TimelineOutcome(cards: _threads, guard: _guard),
-        );
-        return build();
-      },
-      act: (bloc) => bloc.add(const GuardAnswered({'type': 'timing'})),
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        expect(bloc.state.guard, _guard);
-        expect(bloc.state.guardBusy, isFalse);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'drops a guard that is dismissed, and writes nothing',
-      build: () {
-        when(() => repository.savePlacements(any())).thenAnswer(
-          (_) async => TimelineOutcome(cards: _threads, guard: _guard),
-        );
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(slug: 'd', bucket: ThreadBucket.agora, index: 0),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const GuardDismissed());
-      },
-      wait: const Duration(milliseconds: 30),
+      'dropping a guard changes nothing',
+      build: build,
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+        guard: _guard,
+      ),
+      act: (bloc) => bloc.add(const GuardDismissed()),
       verify: (bloc) {
         expect(bloc.state.guard, isNull);
+        expect(order(bloc.state), ['a', 'b', 'c', 'd']);
         verifyNever(() => repository.applyTiming(any()));
       },
     );
 
     blocTest<ThreadsBloc, ThreadsState>(
-      'refuses to move a calendar card at all',
-      build: () {
-        when(repository.fetchThreads).thenAnswer(
-          (_) async => [
-            ..._threads,
-            _thread('gcal-1', ThreadBucket.agora, kind: CardKind.calendar),
-          ],
-        );
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(
-            slug: 'gcal-1',
-            bucket: ThreadBucket.depois,
-            index: 0,
-          ),
-        );
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (bloc) {
-        verifyNever(() => repository.savePlacements(any()));
-        expect(
-          bloc.state.inBucket(ThreadBucket.agora).map((t) => t.slug),
-          ['a', 'gcal-1'],
-        );
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'leaves a calendar card out of the placement a drag writes',
-      build: () {
-        when(repository.fetchThreads).thenAnswer(
-          (_) async => [
-            ..._threads,
-            _thread('gcal-1', ThreadBucket.emBreve, kind: CardKind.calendar),
-          ],
-        );
-        return build();
-      },
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(slug: 'd', bucket: ThreadBucket.emBreve, index: 0),
-        );
-      },
-      wait: const Duration(milliseconds: 20),
-      verify: (_) {
-        verify(
-          () => repository.savePlacements({
-            ThreadBucket.agora: ['a'],
-            ThreadBucket.emBreve: ['d', 'b', 'c'],
-            ThreadBucket.depois: <String>[],
-          }),
-        ).called(1);
-      },
-    );
-
-    blocTest<ThreadsBloc, ThreadsState>(
-      'leaves a solved thread out of the placement a later drag writes',
+      'takes a solved card off the timeline before the write lands',
       build: build,
-      act: (bloc) async {
-        bloc.add(const ThreadsRequested());
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadSolved('b', solved: true));
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(
-          const ThreadMoved(slug: 'd', bucket: ThreadBucket.emBreve, index: 0),
-        );
-      },
-      wait: const Duration(milliseconds: 30),
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+      ),
+      act: (bloc) => bloc.add(const ThreadSolved('b', solved: true)),
       verify: (bloc) {
-        verify(
-          () => repository.savePlacements({
-            ThreadBucket.agora: ['a'],
-            ThreadBucket.emBreve: ['d', 'c'],
-            ThreadBucket.depois: <String>[],
-          }),
-        ).called(1);
-        expect(bloc.state.solved.map((t) => t.slug), ['b']);
+        expect(order(bloc.state), isNot(contains('b')));
       },
     );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'keeps the sentence the server refused in',
+      build: () {
+        when(
+          () => repository.createScheduled(
+            message: any(named: 'message'),
+            durationMinutes: any(named: 'durationMinutes'),
+            fixed: any(named: 'fixed'),
+            startTime: any(named: 'startTime'),
+          ),
+        ).thenThrow(const ChatFailure('A agenda não respondeu.'));
+        return build();
+      },
+      act: (bloc) => bloc.add(
+        const ThreadScheduled(
+          message: 'Revisar proposta',
+          durationMinutes: 30,
+          fixed: false,
+        ),
+      ),
+      wait: const Duration(milliseconds: 10),
+      verify: (bloc) {
+        expect(bloc.state.failure, 'A agenda não respondeu.');
+        expect(bloc.state.status, ThreadsStatus.failure);
+        expect(bloc.state.cards, isEmpty);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'puts a solved card back when the write fails',
+      build: () {
+        when(
+          () => repository.setSolved(any(), solved: any(named: 'solved')),
+        ).thenThrow(Exception('nope'));
+        return build();
+      },
+      seed: () => ThreadsState(
+        status: ThreadsStatus.success,
+        cards: _cards,
+      ),
+      act: (bloc) => bloc.add(const ThreadSolved('b', solved: true)),
+      wait: const Duration(milliseconds: 10),
+      verify: (bloc) {
+        expect(order(bloc.state), ['a', 'b', 'c', 'd']);
+        expect(bloc.state.status, ThreadsStatus.failure);
+      },
+    );
+
+    blocTest<ThreadsBloc, ThreadsState>(
+      'writes something down and draws the timeline it came back in',
+      build: () {
+        when(
+          () => repository.createScheduled(
+            message: any(named: 'message'),
+            durationMinutes: any(named: 'durationMinutes'),
+            fixed: any(named: 'fixed'),
+            startTime: any(named: 'startTime'),
+          ),
+        ).thenAnswer((_) async => _cards);
+        return build();
+      },
+      act: (bloc) => bloc.add(
+        const ThreadScheduled(
+          message: 'Revisar proposta',
+          durationMinutes: 30,
+          fixed: false,
+        ),
+      ),
+      wait: const Duration(milliseconds: 10),
+      verify: (bloc) {
+        expect(order(bloc.state), ['a', 'b', 'c', 'd']);
+        expect(bloc.state.status, ThreadsStatus.success);
+      },
+    );
+  });
+
+  group('TimelinePlan', () {
+    test('takes the hour asked for when the day is empty', () {
+      final start = TimelinePlan.nextFreeStart(
+        const [],
+        const Duration(minutes: 30),
+        now: _at(9, minute: 12),
+      );
+
+      expect(start, _at(9, minute: 12));
+    });
+
+    test('steps over what is already booked, keeping the gap', () {
+      final start = TimelinePlan.nextFreeStart(
+        [
+          _card(
+            'a',
+            section: TimelineSection.agora,
+            start: _at(9),
+            minutes: 60,
+          ),
+        ],
+        const Duration(minutes: 30),
+        now: _at(9, minute: 30),
+      );
+
+      expect(start, _at(10, minute: 5));
+    });
+
+    test('fills a gap rather than queueing at the end', () {
+      final start = TimelinePlan.nextFreeStart(
+        [
+          _card('a', section: TimelineSection.agora, start: _at(9)),
+          _card('b', section: TimelineSection.hoje, start: _at(14)),
+        ],
+        const Duration(minutes: 30),
+        now: _at(9),
+      );
+
+      expect(start, _at(9, minute: 35));
+    });
+
+    test('spills into the next day rather than past the end of this one', () {
+      final start = TimelinePlan.nextFreeStart(
+        const [],
+        const Duration(minutes: 60),
+        now: _at(21, minute: 30),
+      );
+
+      expect(start, _at(7, addDays: 1));
+    });
   });
 }

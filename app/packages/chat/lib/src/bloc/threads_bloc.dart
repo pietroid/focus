@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/data/chat_repository.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:equatable/equatable.dart';
@@ -7,16 +8,24 @@ part 'threads_event.dart';
 part 'threads_state.dart';
 
 /// {@template threads_bloc}
-/// Holds the home screen's list of threads.
+/// Holds the timeline.
+///
+/// Everything about when things happen is worked out on the server, so this
+/// mostly forwards and redraws. There is one optimistic write left, solving,
+/// because the card has already flown off the screen by the time the request
+/// goes out.
 /// {@endtemplate}
 class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// {@macro threads_bloc}
   ThreadsBloc({required this._chatRepository}) : super(const ThreadsState()) {
     on<ThreadsRequested>(_onRequested);
+    on<ThreadScheduled>(_onScheduled);
     on<ThreadMoved>(_onMoved);
     on<ThreadSolved>(_onSolved);
     on<GuardAnswered>(_onGuardAnswered);
     on<GuardDismissed>(_onGuardDismissed);
+    on<SyncWatched>(_onSyncWatched);
+    on<SyncRetried>(_onSyncRetried);
   }
 
   final ChatRepository _chatRepository;
@@ -25,81 +34,143 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
     ThreadsRequested event,
     Emitter<ThreadsState> emit,
   ) async {
-    emit(state.copyWith(status: ThreadsStatus.loading));
+    emit(state.copyWith(status: ThreadsStatus.loading, clearFailure: true));
 
     try {
-      final threads = await _chatRepository.fetchThreads();
       emit(
-        state.copyWith(status: ThreadsStatus.success, threads: threads),
+        state.copyWith(
+          status: ThreadsStatus.success,
+          cards: await _chatRepository.fetchThreads(),
+          clearFailure: true,
+        ),
       );
-    } on Exception catch (_) {
-      emit(state.copyWith(status: ThreadsStatus.failure));
+    } on Object catch (error) {
+      emit(_failed(error));
     }
   }
 
-  Future<void> _onMoved(ThreadMoved event, Emitter<ThreadsState> emit) async {
-    final index = state.threads.indexWhere((t) => t.slug == event.slug);
-    if (index == -1) return;
-    final moved = state.threads[index];
-
-    // A calendar card is drawn from the event and has nowhere else to be.
-    if (!moved.isInteractive) return;
-
-    final before = state.threads;
-
-    // Rebuild every list from the one on screen, drop the thread out of the
-    // list it was in, and put it back at the index it was dropped on.
-    final buckets = <ThreadBucket, List<ThreadSummary>>{
-      for (final bucket in ThreadBucket.values)
-        bucket: state
-            .inBucket(bucket)
-            .where((t) => t.slug != event.slug && t.isInteractive)
-            .toList(),
-    };
-
-    final target = buckets[event.bucket]!;
-    target.insert(
-      event.index.clamp(0, target.length),
-      moved.copyWith(bucket: event.bucket),
+  /// The state after something the server refused.
+  ///
+  /// The refusal is kept as the server wrote it, because the server is the
+  /// one that knows what went wrong. Every write on this screen is all or
+  /// nothing, so the cards already on it are still the true ones.
+  ThreadsState _failed(Object error) {
+    return state.copyWith(
+      status: ThreadsStatus.failure,
+      failure: ChatFailure.from(error).message,
+      guardBusy: false,
+      clearGuard: true,
     );
+  }
 
-    // Calendar cards and solved threads are not part of the placement: the
-    // first are not the user's to move and the second are not on screen. Both
-    // are kept so the list the app draws is still the whole list.
-    final reordered = [
-      for (final bucket in ThreadBucket.values) ...buckets[bucket]!,
-      ...state.threads.where((t) => t.solved || !t.isInteractive),
-    ];
+  /// Writes something down, and draws the timeline with it already in place.
+  Future<void> _onScheduled(
+    ThreadScheduled event,
+    Emitter<ThreadsState> emit,
+  ) async {
+    try {
+      final cards = await _chatRepository.createScheduled(
+        message: event.message,
+        durationMinutes: event.durationMinutes,
+        fixed: event.fixed,
+        startTime: event.startTime,
+      );
 
-    emit(state.copyWith(threads: reordered));
+      emit(
+        state.copyWith(
+          status: ThreadsStatus.success,
+          cards: cards,
+          clearFailure: true,
+        ),
+      );
+
+      add(const SyncWatched());
+    } on Object catch (error) {
+      emit(_failed(error));
+    }
+  }
+
+  /// Sends a drop and draws what the day became.
+  ///
+  /// Nothing is applied on screen first. A drop changes the hour of
+  /// everything it displaced and only the server knows what those hours are,
+  /// so guessing at them would mean drawing a day that is about to be
+  /// replaced by a different one.
+  Future<void> _onMoved(ThreadMoved event, Emitter<ThreadsState> emit) async {
+    final card = state.bySlug(event.slug);
+    if (card == null || !card.isInteractive) return;
 
     try {
-      final outcome = await _chatRepository.savePlacements({
-        for (final entry in buckets.entries)
-          entry.key: entry.value.map((t) => t.slug).toList(),
-      });
+      final outcome = await _chatRepository.moveThread(
+        event.slug,
+        event.index,
+      );
 
-      // A guard means the server did not move anything. The card goes back to
-      // where it was and the question takes its place: leaving the card in
-      // its new list while asking whether it may go there would be the screen
-      // answering on the user's behalf.
+      // A guard means the server did not move anything, so the cards that
+      // come back are the ones that were already on screen.
       emit(
         outcome.guard == null
-            ? state.copyWith(threads: outcome.cards)
-            : state.copyWith(threads: before, guard: outcome.guard),
+            ? state.copyWith(cards: outcome.cards, clearFailure: true)
+            : state.copyWith(
+                cards: outcome.cards,
+                guard: outcome.guard,
+                clearFailure: true,
+              ),
       );
-    } on Exception catch (_) {
-      // The drop stays on screen. A reload is what puts it back, and that is
-      // better than yanking a card out from under the finger that moved it.
-      emit(state.copyWith(status: ThreadsStatus.failure));
+
+      // The drop has landed. Whether it reached Google is a separate
+      // question, asked behind the answer the finger was waiting for.
+      if (outcome.guard == null) add(const SyncWatched());
+    } on Object catch (error) {
+      emit(_failed(error));
+    }
+  }
+
+  /// Waits for the calendar and puts the popup up if it fell behind.
+  ///
+  /// Its own event so that it runs after the change it follows rather than
+  /// inside it. Nothing on screen waits for this, and when it comes back with
+  /// nothing to say, which is nearly always, it emits nothing at all.
+  Future<void> _onSyncWatched(
+    SyncWatched event,
+    Emitter<ThreadsState> emit,
+  ) async {
+    try {
+      final outcome = await _chatRepository.awaitSync();
+      if (outcome.ok || outcome.guard == null) return;
+
+      // Never over an open question. The user is in the middle of answering
+      // one, and this one will still be true when they are done.
+      if (state.guard != null) return;
+
+      emit(state.copyWith(guard: outcome.guard));
+    } on Object catch (_) {
+      // A sync check that cannot be made says nothing. The day on screen is
+      // right either way, and a popup about the popup helps nobody.
+    }
+  }
+
+  /// Pushes the day at the calendar again, from the popup's one button.
+  Future<void> _onSyncRetried(
+    SyncRetried event,
+    Emitter<ThreadsState> emit,
+  ) async {
+    emit(state.copyWith(guardBusy: true));
+
+    try {
+      final outcome = await _chatRepository.retrySync();
+
+      emit(
+        outcome.ok || outcome.guard == null
+            ? state.copyWith(guardBusy: false, clearGuard: true)
+            : state.copyWith(guard: outcome.guard, guardBusy: false),
+      );
+    } on Object catch (error) {
+      emit(_failed(error).copyWith(guardBusy: false, clearGuard: true));
     }
   }
 
   /// Sends the button the user tapped on a guard, and draws what comes back.
-  ///
-  /// The answer is either the day as it now stands or the next question, and
-  /// the two are handled the same way, because a guard that asks twice is the
-  /// same guard: one move, answered a piece at a time.
   Future<void> _onGuardAnswered(
     GuardAnswered event,
     Emitter<ThreadsState> emit,
@@ -112,22 +183,18 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
       emit(
         outcome.guard == null
             ? state.copyWith(
-                threads: outcome.cards,
+                cards: outcome.cards,
                 guardBusy: false,
                 clearGuard: true,
               )
             : state.copyWith(guard: outcome.guard, guardBusy: false),
       );
-    } on Exception catch (_) {
+
+      if (outcome.guard == null) add(const SyncWatched());
+    } on Object catch (error) {
       // The guard closes rather than sitting there looking live. Nothing was
       // applied, so the timeline on screen is still the true one.
-      emit(
-        state.copyWith(
-          status: ThreadsStatus.failure,
-          guardBusy: false,
-          clearGuard: true,
-        ),
-      );
+      emit(_failed(error));
     }
   }
 
@@ -136,27 +203,40 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
     emit(state.copyWith(clearGuard: true, guardBusy: false));
   }
 
-  /// Flips one thread's solved flag on screen, then writes it.
+  /// Takes a thread off the timeline, then writes it.
   ///
-  /// A thread that changes this flag moves between two screens rather than
-  /// between two places on one, so a failed write is put back: leaving a card
-  /// off the timeline because the request never landed is the one outcome the
-  /// user cannot see and cannot undo.
+  /// This one lands on screen first: the card has already been thrown off by
+  /// the time the request goes out, and a failure puts it back rather than
+  /// leaving a thread the user thinks is solved.
   Future<void> _onSolved(ThreadSolved event, Emitter<ThreadsState> emit) async {
-    final before = state.threads;
-    final index = before.indexWhere((t) => t.slug == event.slug);
-    if (index == -1 || before[index].solved == event.solved) return;
+    final before = state.cards;
+    final card = state.bySlug(event.slug);
+    if (card == null || !card.isInteractive) return;
 
-    if (!before[index].isInteractive) return;
-
-    final threads = [...before];
-    threads[index] = threads[index].copyWith(solved: event.solved);
-    emit(state.copyWith(threads: threads));
+    if (event.solved) {
+      emit(
+        state.copyWith(
+          cards: before.where((it) => it.slug != event.slug).toList(),
+        ),
+      );
+    }
 
     try {
-      await _chatRepository.setSolved(event.slug, solved: event.solved);
-    } on Exception catch (_) {
-      emit(state.copyWith(status: ThreadsStatus.failure, threads: before));
+      emit(
+        state.copyWith(
+          cards: await _chatRepository.setSolved(
+            event.slug,
+            solved: event.solved,
+          ),
+          clearFailure: true,
+        ),
+      );
+
+      add(const SyncWatched());
+    } on Object catch (error) {
+      // Solving is the one write that lands on screen first, so it is also
+      // the one that has to be put back.
+      emit(_failed(error).copyWith(cards: before));
     }
   }
 }

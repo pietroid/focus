@@ -21,17 +21,13 @@ import { Trace } from '../common/trace';
 import { ActionDto } from './dto/action.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
-import { PlacementsDto } from './dto/placements.dto';
+import { MoveDto } from './dto/move.dto';
+import { ScheduleDto } from './dto/schedule.dto';
 import { SolvedDto } from './dto/solved.dto';
 import { TimingDto } from './dto/timing.dto';
-import {
-  isThreadBucket,
-  Thread,
-  ThreadBucket,
-  ThreadSummary,
-} from './entities/thread.entity';
-import { ThreadsService } from './threads.service';
-import { TimingOutcome } from './timing.service';
+import { Thread, ThreadItem, ThreadSummary } from './entities/thread.entity';
+import { SyncOutcome, ThreadsService } from './threads.service';
+import { ScheduleRequest, TimingOutcome } from './timing.service';
 
 type DecodedIdToken = adminAuth.DecodedIdToken;
 
@@ -49,6 +45,43 @@ export class ThreadsController {
   @Get()
   async findAll(@CurrentUser() user: DecodedIdToken): Promise<ThreadSummary[]> {
     return this.threadsService.findAll(user.uid);
+  }
+
+  /**
+   * Everything that has been closed.
+   *
+   * Declared before the `:slug` routes so `solved` is read as this route and
+   * not as a thread called "solved".
+   */
+  @Get('solved')
+  async findSolved(@CurrentUser() user: DecodedIdToken): Promise<ThreadItem[]> {
+    return this.threadsService.findSolved(user.uid);
+  }
+
+  /**
+   * Waits for the calendar to catch up, and says whether it did.
+   *
+   * The app calls this after a change, off the path the finger is on. It
+   * answers `{ ok: true }` the moment the queue is empty, which is almost
+   * always and almost immediately; when something did not make it, it answers
+   * with the popup to draw instead.
+   *
+   * A request that hangs about waiting rather than returning nothing and
+   * being asked again. There is no polling, no interval, and no window in
+   * which a failure is known here and not yet on screen.
+   */
+  @Get('sync')
+  async sync(@CurrentUser() user: DecodedIdToken): Promise<SyncOutcome> {
+    return this.threadsService.awaitSync(user.uid, Trace.start(user.uid));
+  }
+
+  /** Pushes everything that did not make it to Google again. */
+  @Post('sync')
+  async retrySync(@CurrentUser() user: DecodedIdToken): Promise<SyncOutcome> {
+    const trace = Trace.start(user.uid);
+    trace.log('sync.retry', {});
+
+    return this.threadsService.retrySync(user.uid, trace);
   }
 
   @Get(':slug')
@@ -70,21 +103,23 @@ export class ThreadsController {
   }
 
   /**
-   * Rewrites where threads sit on the home screen after a drag.
+   * Writes something down on the timeline, with its hour.
    *
-   * Declared before the `:slug` routes so `placements` is read as this route
-   * and not as a thread called "placements".
+   * Declared before the `:slug` routes so `scheduled` is read as this route
+   * and not as a thread called "scheduled".
    */
-  @Post('placements')
-  async setPlacements(
+  @Post('scheduled')
+  async createScheduled(
     @CurrentUser() user: DecodedIdToken,
-    @Body() dto: PlacementsDto,
-  ): Promise<TimingOutcome> {
+    @Body() dto: ScheduleDto,
+  ): Promise<ThreadSummary[]> {
     const trace = Trace.start(user.uid);
+    trace.log('turn.begin', { kind: 'scheduled' });
 
-    return this.threadsService.setPlacements(
+    return this.threadsService.createScheduled(
       user.uid,
-      (dto.placements ?? []).map(requirePlacement),
+      requireMessage(dto.message),
+      requireSchedule(dto),
       trace,
     );
   }
@@ -97,7 +132,7 @@ export class ThreadsController {
    * reaches the agent: the answer is arithmetic over the calendar, and the
    * only thing that crosses to the other container is the booking itself.
    *
-   * Declared before the `:slug` routes for the same reason `placements` is.
+   * Declared before the `:slug` routes for the same reason `scheduled` is.
    */
   @Post('timing')
   async applyTiming(
@@ -107,19 +142,35 @@ export class ThreadsController {
     const action = requireTiming(dto.action ?? {});
     const trace = Trace.start(user.uid, action.slug);
     trace.log('timing.received', {
-      bucket: action.bucket,
+      index: action.index,
       decision: action.decision,
     });
 
     return this.threadsService.applyTiming(user.uid, action, trace);
   }
 
+  /** Moves a card to a new place in the day's list. */
+  @Post(':slug/move')
+  async move(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('slug') slug: string,
+    @Body() dto: MoveDto,
+  ): Promise<TimingOutcome> {
+    const trace = Trace.start(user.uid, slug);
+
+    return this.threadsService.moveThread(
+      user.uid,
+      slug,
+      requireIndex(dto.index),
+      trace,
+    );
+  }
+
   /**
    * Marks a thread solved, or puts a solved one back on the timeline.
    *
-   * Separate from the placement route because it is a different question:
-   * placement is where something sits, this is whether it is still there at
-   * all.
+   * Separate from the move route because it is a different question: a move
+   * is when something happens, this is whether it still happens at all.
    */
   @Post(':slug/solved')
   async setSolved(
@@ -233,48 +284,45 @@ export class ThreadsController {
   }
 }
 
-function requirePlacement(placement: {
-  slug?: string;
-  bucket?: string;
-  index?: number;
-}): { slug: string; bucket: ThreadBucket; index: number } {
-  const slug = placement.slug?.trim() ?? '';
-  if (slug === '') throw new BadRequestException('slug is required');
-
-  if (!isThreadBucket(placement.bucket)) {
-    throw new BadRequestException(
-      `Unknown bucket "${String(placement.bucket)}"`,
-    );
-  }
-
-  const index = placement.index;
+/** A non-negative place in the day's list. */
+function requireIndex(index: number | undefined): number {
   if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) {
     throw new BadRequestException('index must be a non-negative integer');
   }
 
-  return { slug, bucket: placement.bucket, index };
+  return index;
+}
+
+/** Reads what the creation sheet said, refusing anything unusable. */
+function requireSchedule(dto: ScheduleDto): ScheduleRequest {
+  const durationMinutes = dto.durationMinutes;
+  if (
+    typeof durationMinutes !== 'number' ||
+    !Number.isFinite(durationMinutes) ||
+    durationMinutes <= 0
+  ) {
+    throw new BadRequestException('durationMinutes must be positive');
+  }
+
+  const fixed = dto.fixed === true;
+  const startTime = dto.startTime;
+  if (startTime !== undefined && Number.isNaN(Date.parse(startTime))) {
+    throw new BadRequestException('startTime must be an ISO 8601 date-time');
+  }
+
+  // Only a fixed block names its hour. Carrying one on a flexible block would
+  // be the app asking for a slot the server is about to pick anyway.
+  return { durationMinutes, fixed, startTime: fixed ? startTime : undefined };
 }
 
 /** Reads a guard's answer off the wire, refusing anything it cannot trust. */
 function requireTiming(action: {
   slug?: string;
-  bucket?: string;
   index?: number;
-  durationMinutes?: number;
-  startTime?: string;
   decision?: string;
 }): TimingAction {
   const slug = action.slug?.trim() ?? '';
   if (slug === '') throw new BadRequestException('slug is required');
-
-  if (!isThreadBucket(action.bucket)) {
-    throw new BadRequestException(`Unknown bucket "${String(action.bucket)}"`);
-  }
-
-  const index = action.index ?? 0;
-  if (!Number.isInteger(index) || index < 0) {
-    throw new BadRequestException('index must be a non-negative integer');
-  }
 
   const decision = action.decision;
   if (
@@ -284,26 +332,10 @@ function requireTiming(action: {
     throw new BadRequestException(`Unknown decision "${decision}"`);
   }
 
-  const durationMinutes = action.durationMinutes;
-  if (
-    durationMinutes !== undefined &&
-    (!Number.isFinite(durationMinutes) || durationMinutes <= 0)
-  ) {
-    throw new BadRequestException('durationMinutes must be positive');
-  }
-
-  const startTime = action.startTime;
-  if (startTime !== undefined && Number.isNaN(Date.parse(startTime))) {
-    throw new BadRequestException('startTime must be an ISO 8601 date-time');
-  }
-
   return {
     type: 'timing',
     slug,
-    bucket: action.bucket,
-    index,
-    durationMinutes,
-    startTime,
+    index: requireIndex(action.index ?? 0),
     decision: decision as TimingDecision | undefined,
   };
 }

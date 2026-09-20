@@ -10,39 +10,80 @@ void main() {
   runApp(const _PreviewApp());
 }
 
-ThreadSummary _thread(String slug, String title, ThreadBucket bucket) {
+ThreadSummary _card(
+  String slug,
+  String title,
+  TimelineSection section,
+  DateTime start,
+  int minutes, {
+  bool fixed = false,
+}) {
   return ThreadSummary(
     slug: slug,
     title: title,
     preview: '',
     messageCount: 2,
     solved: false,
-    bucket: bucket,
-    createdAt: DateTime(2026, 8, 27, 9),
-    updatedAt: DateTime(2026, 8, 27, 9),
+    section: section,
+    startTime: start,
+    endTime: start.add(Duration(minutes: minutes)),
+    durationMinutes: minutes,
+    fixed: fixed,
+    createdAt: start,
+    updatedAt: start,
   );
 }
 
-final _threads = <ThreadSummary>[
-  _thread('focus', 'Fazendo Focus', ThreadBucket.agora),
-  _thread('mercado', 'Comprar leite e ovos', ThreadBucket.emBreve),
-  _thread('standup', 'Standup de quinta', ThreadBucket.emBreve),
-  _thread('dentista', 'Marcar dentista', ThreadBucket.depois),
+final _today = DateTime.now();
+
+DateTime _at(int hour, int minute, {int addDays = 0}) {
+  return DateTime(
+    _today.year,
+    _today.month,
+    _today.day + addDays,
+    hour,
+    minute,
+  );
+}
+
+final _cards = <ThreadSummary>[
+  _card('focus', 'Fazendo Focus', TimelineSection.agora, _at(9, 0), 60),
+  _card(
+    'mercado',
+    'Comprar leite e ovos',
+    TimelineSection.hoje,
+    _at(14, 30),
+    30,
+  ),
+  _card(
+    'standup',
+    'Standup',
+    TimelineSection.hoje,
+    _at(16, 0),
+    15,
+    fixed: true,
+  ),
+  _card(
+    'dentista',
+    'Marcar dentista',
+    TimelineSection.amanha,
+    _at(9, 0, addDays: 1),
+    30,
+  ),
 ];
 
 /// A repository that answers from memory and forgets every write.
 class _FakeChatRepository implements ChatRepository {
   @override
-  Future<List<ThreadSummary>> fetchThreads() async => _threads;
+  Future<List<ThreadSummary>> fetchThreads() async => _cards;
 
   @override
-  Future<TimelineOutcome> savePlacements(
-    Map<ThreadBucket, List<String>> buckets,
-  ) async => TimelineOutcome(cards: _threads);
+  Future<TimelineOutcome> moveThread(String slug, int index) async =>
+      TimelineOutcome(cards: _cards);
 
   @override
   Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async =>
-      TimelineOutcome(cards: _threads);
+      TimelineOutcome(cards: _cards);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -120,7 +161,11 @@ class _PreviewHome extends StatelessWidget {
                   right: AppSpacing.s6,
                   bottom: AppSpacing.s6,
                   child: AppOrb(
-                    onTap: () => AppPromptSheet.show(context),
+                    onTap: () => AppPromptSheet.show(
+                      context,
+                      previewFor: (duration) =>
+                          TimelinePlan.nextFreeStart(_cards, duration),
+                    ),
                   ),
                 ),
               ],

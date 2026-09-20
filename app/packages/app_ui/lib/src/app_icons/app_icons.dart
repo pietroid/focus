@@ -67,6 +67,15 @@ class AppIcons {
     PhosphorIconsRegular.calendarBlank,
   );
 
+  /// Warning, for a screen that is older than the user thinks it is.
+  static const warning = AppIconData.phosphor(PhosphorIconsRegular.warning);
+
+  /// Pin, for a card whose hour is the point of it.
+  static const pin = AppIconData.phosphor(PhosphorIconsRegular.pushPin);
+
+  /// Timer, for how long something takes.
+  static const timer = AppIconData.phosphor(PhosphorIconsRegular.timer);
+
   /// Undo, for taking a finished thread back out of the concluded list.
   static const undo = AppIconData.phosphor(
     PhosphorIconsRegular.arrowCounterClockwise,

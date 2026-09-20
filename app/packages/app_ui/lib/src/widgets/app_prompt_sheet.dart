@@ -2,44 +2,88 @@ import 'dart:math' as math;
 
 import 'package:app_ui/app_ui.dart';
 
-/// {@template app_prompt_sheet}
-/// The sheet the orb opens: one field, one send, nothing else.
+/// What the creation sheet came back with.
 ///
-/// It is the only place in the app where the user starts something, so it is
-/// deliberately bare: black, a line of text on it, and no box drawn around
-/// anything. The hint is picked at random from [hints] each time the sheet
-/// opens, which is the whole of its personality.
+/// Everything needed to give something an hour, and nothing else. A flexible
+/// block leaves [startTime] null and takes whatever slot the day has going;
+/// a fixed one carries the hour the user picked.
+class AppPromptResult {
+  /// Creates a result.
+  const AppPromptResult({
+    required this.text,
+    required this.duration,
+    required this.fixed,
+    this.startTime,
+  });
+
+  /// What the user wrote.
+  final String text;
+
+  /// How long it takes.
+  final Duration duration;
+
+  /// Whether the hour is the point of it.
+  final bool fixed;
+
+  /// The hour, when the user picked one.
+  final DateTime? startTime;
+}
+
+/// {@template app_prompt_sheet}
+/// The sheet the orb opens on Tempo: one line of text, and when it happens.
+///
+/// It is the whole of planning, collapsed into one screen. Type what it is,
+/// say how long it takes, and the line underneath says what hour that works
+/// out to. Tapping the check puts it on the timeline. There is no
+/// conversation, no proposal and nothing to accept, because there is nothing
+/// left to decide by the time the sheet closes.
+///
+/// Flexible is the default and means "in that order, whenever it fits". Fixed
+/// means the hour is the point of it, and is the only case where the user is
+/// asked to name one.
 /// {@endtemplate}
 class AppPromptSheet extends StatefulWidget {
   /// {@macro app_prompt_sheet}
-  const AppPromptSheet({super.key});
+  const AppPromptSheet({required this.previewFor, super.key});
+
+  /// When something of this length would land, if it were added now.
+  ///
+  /// Passed in rather than worked out here: the sheet knows how to ask a
+  /// question and nothing at all about what is already on the day.
+  final DateTime Function(Duration duration) previewFor;
+
+  /// The length something has before anyone has said otherwise.
+  static const defaultDuration = Duration(minutes: 30);
 
   /// The ways the sheet asks what the user wants.
   ///
   /// All ten mean the same thing. They exist so that opening the sheet twice
   /// in a row does not feel like opening the same drawer twice.
   static const hints = <String>[
-    'O que posso ajudar?',
-    'Em que posso ajudar?',
+    'O que precisa ser feito?',
     'No que vamos trabalhar?',
-    'O que você precisa agora?',
+    'O que entra no dia?',
     'Por onde começamos?',
     'O que está na sua cabeça?',
     'Me conta o que precisa.',
     'Qual é a próxima?',
     'O que resolvemos hoje?',
+    'Escreve aí.',
     'Pode falar.',
   ];
 
-  /// Opens the sheet and resolves with the trimmed text, or null if it was
+  /// Opens the sheet and resolves with what was confirmed, or null if it was
   /// dismissed without sending.
-  static Future<String?> show(BuildContext context) {
-    return showModalBottomSheet<String>(
+  static Future<AppPromptResult?> show(
+    BuildContext context, {
+    required DateTime Function(Duration duration) previewFor,
+  }) {
+    return showModalBottomSheet<AppPromptResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: AppColors.bg.withValues(alpha: 0.72),
-      builder: (_) => const AppPromptSheet(),
+      builder: (_) => AppPromptSheet(previewFor: previewFor),
     );
   }
 
@@ -52,17 +96,71 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
   late final String _hint =
       AppPromptSheet.hints[math.Random().nextInt(AppPromptSheet.hints.length)];
 
+  Duration _duration = AppPromptSheet.defaultDuration;
+  bool _fixed = false;
+
+  /// The hour a fixed block was given. Null while it is still flexible.
+  DateTime? _startTime;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  /// When this would run, as the line under the field reads it.
+  ///
+  /// A fixed block says the hour it was given; a flexible one asks where it
+  /// would land. Either way it is a span, because that is what a card on the
+  /// timeline will say once this is one.
+  ({DateTime start, DateTime end}) get _span {
+    final start = _startTime ?? widget.previewFor(_duration);
+
+    return (start: start, end: start.add(_duration));
+  }
+
+  /// Turning "fixo" on has to name an hour, because that is what fixed means.
+  void _setFixed({required bool fixed}) {
+    setState(() {
+      _fixed = fixed;
+      _startTime = fixed ? widget.previewFor(_duration) : null;
+    });
+  }
+
+  Future<void> _pickDuration() async {
+    final picked = await AppWheelPicker.duration(
+      context,
+      initial: _duration,
+    );
+    if (picked == null || picked == Duration.zero) return;
+
+    setState(() => _duration = picked);
+  }
+
+  Future<void> _pickTime() async {
+    final now = DateTime.now();
+    final picked = await AppWheelPicker.time(
+      context,
+      initial: _startTime ?? widget.previewFor(_duration),
+      earliest: now,
+    );
+    if (picked == null) return;
+
+    setState(() => _startTime = picked);
+  }
+
   void _submit() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    Navigator.of(context).pop(text);
+    Navigator.of(context).pop(
+      AppPromptResult(
+        text: text,
+        duration: _duration,
+        fixed: _fixed,
+        startTime: _fixed ? _span.start : null,
+      ),
+    );
   }
 
   @override
@@ -70,27 +168,45 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
     return Padding(
       // The sheet sits on the keyboard rather than under it, so the field is
       // still visible the moment it takes focus.
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: ColoredBox(
         color: AppColors.bg,
         child: SafeArea(
           top: false,
-          // The sheet is the width of the screen, not of a reading column:
-          // it is one line of input and a send, and a 560pt box centred in a
-          // wider window would sit off the orb that opened it.
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s5,
-              AppSpacing.s2,
               AppSpacing.s3,
-              AppSpacing.s2,
+              AppSpacing.s5,
+              AppSpacing.s3,
             ),
-            child: _Field(
-              controller: _controller,
-              hint: _hint,
-              onSubmit: _submit,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Field(
+                  controller: _controller,
+                  hint: _hint,
+                  onSubmit: _submit,
+                ),
+                const SizedBox(height: AppSpacing.s2),
+                _Controls(
+                  fixed: _fixed,
+                  duration: _duration,
+                  onFixed: (value) => _setFixed(fixed: value),
+                  onDuration: _pickDuration,
+                ),
+                const SizedBox(height: AppSpacing.s3),
+                _Preview(
+                  span: _span,
+                  editable: _fixed,
+                  onTap: _pickTime,
+                  send: _Send(
+                    controller: _controller,
+                    onPressed: _submit,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -99,7 +215,7 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
   }
 }
 
-/// The field: no fill, no border, the send sitting beside it.
+/// The field: no fill, no border, nothing drawn around it.
 class _Field extends StatelessWidget {
   const _Field({
     required this.controller,
@@ -113,82 +229,183 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      autofocus: true,
+      minLines: 1,
+      maxLines: 4,
+      textInputAction: TextInputAction.send,
+      textCapitalization: TextCapitalization.sentences,
+      onSubmitted: (_) => onSubmit(),
+      cursorColor: AppColors.ink,
+      cursorWidth: 1.5,
+      cursorRadius: const Radius.circular(AppSpacing.s1),
+      style: AppTypography.body,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: AppTypography.body.copyWith(color: AppColors.ink3),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+      ),
+    );
+  }
+}
+
+/// The one line of controls: flexible or fixed, and how long.
+class _Controls extends StatelessWidget {
+  const _Controls({
+    required this.fixed,
+    required this.duration,
+    required this.onFixed,
+    required this.onDuration,
+  });
+
+  final bool fixed;
+  final Duration duration;
+  final ValueChanged<bool> onFixed;
+  final VoidCallback onDuration;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        AppSegmented(
+          selected: fixed ? 1 : 0,
+          onSelected: (index) => onFixed(index == 1),
+          segments: const [
+            AppSegment(label: 'Flexível', iconData: AppIcons.time),
+            AppSegment(label: 'Fixo', iconData: AppIcons.pin),
+          ],
+        ),
+        const SizedBox(width: AppSpacing.s2),
+        AppPillButton(
+          iconData: AppIcons.timer,
+          label: formatDuration(duration),
+          onPressed: onDuration,
+        ),
+      ],
+    );
+  }
+}
+
+/// The line that says when this will happen, and the check that makes it so.
+class _Preview extends StatelessWidget {
+  const _Preview({
+    required this.span,
+    required this.editable,
+    required this.onTap,
+    required this.send,
+  });
+
+  final ({DateTime start, DateTime end}) span;
+
+  /// Whether the hour is the user's to choose, which only a fixed block is.
+  final bool editable;
+
+  final VoidCallback onTap;
+  final Widget send;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      '${_hhmm(span.start)} – ${_hhmm(span.end)}${_day(span.start)}',
+      style: AppTypography.body.copyWith(
+        // A preview is the app saying what it worked out; a fixed hour is the
+        // user's own answer read back. The second one is brighter because it
+        // can be tapped and the first one cannot.
+        color: editable ? AppColors.ink : AppColors.ink3,
+      ),
+    );
+
+    return Row(
+      children: [
+        Expanded(
+          child: editable
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: text,
+                )
+              : text,
+        ),
+        send,
+      ],
+    );
+  }
+
+  /// ", amanhã" when the hour has run past midnight, and nothing otherwise.
+  static String _day(DateTime start) {
+    final now = DateTime.now();
+    final days = DateTime(start.year, start.month, start.day)
+        .difference(DateTime(now.year, now.month, now.day))
+        .inDays;
+
+    return switch (days) {
+      <= 0 => '',
+      1 => ', amanhã',
+      _ => ', ${start.day}/${start.month}',
+    };
+  }
+
+  static String _hhmm(DateTime at) {
+    return '${at.hour.toString().padLeft(2, '0')}:'
+        '${at.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// The send: a bare check that lights up once there is something to send.
+class _Send extends StatelessWidget {
+  const _Send({required this.controller, required this.onPressed});
+
+  final TextEditingController controller;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                minLines: 1,
-                maxLines: 5,
-                textInputAction: TextInputAction.send,
-                textCapitalization: TextCapitalization.sentences,
-                onSubmitted: (_) => onSubmit(),
-                cursorColor: AppColors.ink,
-                cursorWidth: 1.5,
-                cursorRadius: const Radius.circular(AppSpacing.s1),
-                style: AppTypography.body,
-                decoration: InputDecoration(
-                  hintText: hint,
-                  hintStyle: AppTypography.body.copyWith(
-                    color: AppColors.ink3,
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  filled: false,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.s4,
+        final enabled = value.text.trim().isNotEmpty;
+
+        return SizedBox.square(
+          dimension: AppSpacing.tapTarget,
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: enabled ? onPressed : null,
+              customBorder: const CircleBorder(),
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: enabled ? 1 : 0.35,
+                  duration: const Duration(milliseconds: 160),
+                  child: const AppIcon(
+                    iconData: AppIcons.check,
+                    size: AppSpacing.s5,
+                    color: AppColors.ink,
                   ),
                 ),
               ),
             ),
-            _Send(
-              enabled: value.text.trim().isNotEmpty,
-              onPressed: onSubmit,
-            ),
-          ],
+          ),
         );
       },
     );
   }
 }
 
-/// The send: a bare icon that lights up once there is something to send.
-class _Send extends StatelessWidget {
-  const _Send({required this.enabled, required this.onPressed});
+/// "45 min", "1 h", "1h30", the way every length in the app is written.
+String formatDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  if (minutes < 60) return '$minutes min';
 
-  final bool enabled;
-  final VoidCallback onPressed;
+  final hours = minutes ~/ 60;
+  final rest = minutes % 60;
+  if (rest == 0) return '$hours h';
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: AppSpacing.tapTarget,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          customBorder: const CircleBorder(),
-          child: Center(
-            child: AnimatedOpacity(
-              opacity: enabled ? 1 : 0.35,
-              duration: const Duration(milliseconds: 160),
-              child: const AppIcon(
-                iconData: AppIcons.send,
-                size: AppSpacing.s5,
-                color: AppColors.ink,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  return '${hours}h${rest.toString().padLeft(2, '0')}';
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { CalendarReaderService } from './calendar-reader.service';
+import { CalendarSyncService } from './calendar-sync.service';
 import { CalendarWriterService } from './calendar-writer.service';
 
 /**
@@ -12,7 +13,11 @@ import { CalendarWriterService } from './calendar-writer.service';
  */
 @Module({
   imports: [ConfigModule],
-  providers: [CalendarReaderService, CalendarWriterService],
-  exports: [CalendarReaderService, CalendarWriterService],
+  providers: [
+    CalendarReaderService,
+    CalendarSyncService,
+    CalendarWriterService,
+  ],
+  exports: [CalendarReaderService, CalendarSyncService, CalendarWriterService],
 })
 export class CalendarModule {}

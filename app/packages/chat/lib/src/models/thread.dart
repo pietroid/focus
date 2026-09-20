@@ -1,23 +1,23 @@
 import 'package:chat/src/models/chat_message.dart';
 import 'package:equatable/equatable.dart';
 
-/// Which of the home screen's three lists a card sits in.
+/// Which stretch of the clock a card falls in.
 ///
-/// For an untimed thread the bucket is the user's own judgement: it starts in
-/// [ThreadBucket.emBreve] and moves only because someone dragged it. Anything
-/// with a time on it is filed by the clock instead, on the server, which is
-/// also where every rule about that lives.
-enum ThreadBucket {
-  /// What is being done right now.
+/// A section is not a place anything is put. It is what the card's own hour
+/// works out to when the list is read, on the server, so a heading is always
+/// literally true of everything under it. There are three today and they are
+/// meant to become one per day.
+enum TimelineSection {
+  /// Running, or overdue and still owed.
   agora('agora', 'Agora'),
 
-  /// What is next, but not yet.
-  emBreve('em_breve', 'Em breve'),
+  /// Later today.
+  hoje('hoje', 'Ainda hoje'),
 
-  /// Parked, on purpose.
-  depois('depois', 'Depois');
+  /// The next day.
+  amanha('amanha', 'Amanhã');
 
-  const ThreadBucket(this.wire, this.label);
+  const TimelineSection(this.wire, this.label);
 
   /// The name the API uses.
   final String wire;
@@ -25,15 +25,11 @@ enum ThreadBucket {
   /// The section header, as the user reads it.
   final String label;
 
-  /// The bucket a thread lands in when it is created, and the fallback for a
-  /// name the app does not know.
-  static const ThreadBucket fallback = ThreadBucket.emBreve;
-
-  /// The bucket [wire] names, or [fallback].
-  static ThreadBucket fromWire(String? wire) {
-    return ThreadBucket.values.firstWhere(
-      (bucket) => bucket.wire == wire,
-      orElse: () => fallback,
+  /// The section [wire] names, defaulting to today.
+  static TimelineSection fromWire(String? wire) {
+    return TimelineSection.values.firstWhere(
+      (section) => section.wire == wire,
+      orElse: () => TimelineSection.hoje,
     );
   }
 }
@@ -75,7 +71,6 @@ class Thread extends Equatable {
     required this.title,
     required this.messages,
     required this.solved,
-    required this.bucket,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -91,7 +86,6 @@ class Thread extends Equatable {
           .map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
           .toList(),
       solved: json['solved'] as bool? ?? false,
-      bucket: ThreadBucket.fromWire(json['bucket'] as String?),
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -109,9 +103,6 @@ class Thread extends Equatable {
   /// Whether the user has marked this thread closed.
   final bool solved;
 
-  /// Which of the home screen's lists it sits in.
-  final ThreadBucket bucket;
-
   /// When the thread's first message was written.
   final DateTime createdAt;
 
@@ -124,14 +115,17 @@ class Thread extends Equatable {
     title,
     messages,
     solved,
-    bucket,
     createdAt,
     updatedAt,
   ];
 }
 
 /// {@template thread_summary}
-/// A thread without its messages, for the home screen's list.
+/// One card on the timeline: a thread without its messages, or an event.
+///
+/// Everything on the timeline has an hour. A thread that has not been given
+/// one is not a card at all, so there are no optional times here and no card
+/// that reads as half-planned.
 /// {@endtemplate}
 class ThreadSummary extends Equatable {
   /// {@macro thread_summary}
@@ -141,17 +135,20 @@ class ThreadSummary extends Equatable {
     required this.preview,
     required this.messageCount,
     required this.solved,
-    required this.bucket,
+    required this.section,
+    required this.startTime,
+    required this.endTime,
+    required this.durationMinutes,
     required this.createdAt,
     required this.updatedAt,
     this.kind = CardKind.thread,
-    this.startTime,
-    this.endTime,
-    this.durationMinutes,
+    this.fixed = false,
   });
 
   /// Creates a [ThreadSummary] from the API's JSON.
   factory ThreadSummary.fromJson(Map<String, dynamic> json) {
+    final start = _date(json['startTime']);
+
     return ThreadSummary(
       kind: CardKind.fromWire(json['kind'] as String?),
       slug: json['slug'] as String? ?? '',
@@ -159,10 +156,11 @@ class ThreadSummary extends Equatable {
       preview: json['preview'] as String? ?? '',
       messageCount: json['messageCount'] as int? ?? 0,
       solved: json['solved'] as bool? ?? false,
-      bucket: ThreadBucket.fromWire(json['bucket'] as String?),
-      startTime: _optionalDate(json['startTime']),
-      endTime: _optionalDate(json['endTime']),
-      durationMinutes: json['durationMinutes'] as int?,
+      section: TimelineSection.fromWire(json['section'] as String?),
+      startTime: start,
+      endTime: _date(json['endTime']),
+      durationMinutes: json['durationMinutes'] as int? ?? 0,
+      fixed: json['fixed'] as bool? ?? false,
       createdAt: _date(json['createdAt']),
       updatedAt: _date(json['updatedAt']),
     );
@@ -184,23 +182,22 @@ class ThreadSummary extends Equatable {
   final int messageCount;
 
   /// Whether the thread is solved.
-  ///
-  /// A solved thread leaves the timeline altogether. It is still there, under
-  /// the concluded items in the menu, and coming back out of that list is the
-  /// only way it returns to a bucket.
   final bool solved;
 
-  /// Which of the home screen's lists it sits in.
-  final ThreadBucket bucket;
+  /// The stretch of clock it falls in.
+  final TimelineSection section;
 
-  /// When it starts, when it has a time at all.
-  final DateTime? startTime;
+  /// When it starts.
+  final DateTime startTime;
 
   /// When it ends.
-  final DateTime? endTime;
+  final DateTime endTime;
 
-  /// How long it takes, when anyone has said.
-  final int? durationMinutes;
+  /// How long it takes.
+  final int durationMinutes;
+
+  /// Whether the hour is the point of it, and so cannot be rearranged.
+  final bool fixed;
 
   /// When the thread's first message was written.
   final DateTime createdAt;
@@ -208,14 +205,11 @@ class ThreadSummary extends Equatable {
   /// When the thread's last message was written.
   final DateTime updatedAt;
 
-  /// Whether the clock, rather than the user, decides where this card sits.
-  bool get isTimed => startTime != null && endTime != null;
-
   /// Whether the card can be dragged, opened or solved.
   bool get isInteractive => kind == CardKind.thread;
 
   /// Returns a copy with the given fields replaced.
-  ThreadSummary copyWith({ThreadBucket? bucket, bool? solved}) {
+  ThreadSummary copyWith({bool? solved}) {
     return ThreadSummary(
       kind: kind,
       slug: slug,
@@ -223,10 +217,11 @@ class ThreadSummary extends Equatable {
       preview: preview,
       messageCount: messageCount,
       solved: solved ?? this.solved,
-      bucket: bucket ?? this.bucket,
+      section: section,
       startTime: startTime,
       endTime: endTime,
       durationMinutes: durationMinutes,
+      fixed: fixed,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -240,10 +235,11 @@ class ThreadSummary extends Equatable {
     preview,
     messageCount,
     solved,
-    bucket,
+    section,
     startTime,
     endTime,
     durationMinutes,
+    fixed,
     createdAt,
     updatedAt,
   ];
@@ -251,14 +247,6 @@ class ThreadSummary extends Equatable {
 
 DateTime _date(Object? value) {
   return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? DateTime.now();
-}
-
-/// A date the API may simply not have, which is different from one it got
-/// wrong: an untimed card has no start, and inventing "now" for it would put
-/// it on the clock.
-DateTime? _optionalDate(Object? value) {
-  if (value is! String) return null;
-  return DateTime.tryParse(value)?.toLocal();
 }
 
 /// {@template timeline_outcome}
@@ -292,4 +280,36 @@ class TimelineOutcome extends Equatable {
 
   @override
   List<Object?> get props => [cards, guard];
+}
+
+/// {@template sync_outcome}
+/// How the calendar catch-up went.
+///
+/// [ok] is the answer nearly every time, and the user never learns that any
+/// of it happened. When it is false the day on screen is still right: it is
+/// the copy on Google that fell behind, and [guard] is the popup that says so
+/// and offers to push it again.
+/// {@endtemplate}
+class SyncOutcome extends Equatable {
+  /// {@macro sync_outcome}
+  const SyncOutcome({required this.ok, this.guard});
+
+  /// Creates a [SyncOutcome] from the API's JSON.
+  factory SyncOutcome.fromJson(Map<String, dynamic> json) {
+    final rawGuard = json['guard'] as Map<String, dynamic>?;
+
+    return SyncOutcome(
+      ok: json['ok'] as bool? ?? true,
+      guard: rawGuard == null ? null : A2uiComponent.fromJson(rawGuard),
+    );
+  }
+
+  /// Whether everything reached the calendar.
+  final bool ok;
+
+  /// What to put on screen when it did not.
+  final A2uiComponent? guard;
+
+  @override
+  List<Object?> get props => [ok, guard];
 }

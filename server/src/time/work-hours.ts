@@ -1,11 +1,10 @@
 /**
- * The working day, and the arithmetic every timed thing in Focus is measured
+ * The working day, and the arithmetic every hour in Focus is measured
  * against.
  *
- * One file owns the hours because three places need the same answer: the
- * bucket a timed card derives, the start time a guard proposes, and the shift
- * applied when blocks are postponed. Three copies of "the day ends at ten"
- * would have disagreed the first time one of them changed.
+ * One file owns the hours, and `scheduling.ts` is its only real caller. Two
+ * copies of "the day ends at ten" would have disagreed the first time one of
+ * them changed.
  */
 
 /** The first hour of the working day. Nothing is proposed before it. */
@@ -21,9 +20,6 @@ export const WORK_DAY_END_HOUR = 22;
  * built by the guards never has one thing ending exactly as the next begins.
  */
 export const BLOCK_GAP_MINUTES = 5;
-
-/** The durations a guard offers, in minutes. */
-export const DURATION_CHOICES_MINUTES = [15, 30, 45, 60, 90, 120] as const;
 
 /** A span of time, start inclusive and end exclusive. */
 export interface Interval {
@@ -48,13 +44,6 @@ function atHour(at: Date, hour: number): Date {
   const result = new Date(at);
   result.setHours(hour, 0, 0, 0);
   return result;
-}
-
-/** Whether [at] falls inside a working day. */
-export function withinWorkHours(at: Date): boolean {
-  return (
-    at >= atHour(at, WORK_DAY_START_HOUR) && at < atHour(at, WORK_DAY_END_HOUR)
-  );
 }
 
 /**
@@ -106,25 +95,15 @@ export function earliestStart(now: Date): Date {
 }
 
 /** Whether two intervals share any time at all. */
-export function overlaps(a: Interval, b: Interval): boolean {
+function overlaps(a: Interval, b: Interval): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
 /** Everything in [busy] that [candidate] runs into, earliest first. */
-export function conflictsWith(
-  candidate: Interval,
-  busy: Interval[],
-): Interval[] {
+function conflictsWith(candidate: Interval, busy: Interval[]): Interval[] {
   return busy
     .filter((interval) => overlaps(candidate, interval))
     .sort((a, b) => a.start.getTime() - b.start.getTime());
-}
-
-/** The first thing in [busy] that starts at or after [at]. */
-export function nextAfter(at: Date, busy: Interval[]): Interval | undefined {
-  return busy
-    .filter((interval) => interval.end > at)
-    .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
 }
 
 /** The next minute divisible by five, so a proposal never reads "14:07". */
@@ -150,7 +129,13 @@ export function nextFreeSlot(
   durationMinutes: number,
   busy: Interval[],
 ): Interval {
-  let start = roundUpToFiveMinutes(earliestStart(from));
+  // [from] is used as given rather than rounded up, so the first thing on a
+  // day can start at this minute. That is what makes "Agora" ever contain
+  // anything: a block nudged to the next multiple of five would be a block
+  // the clock says has not started.
+  const start0 = earliestStart(from);
+  start0.setSeconds(0, 0);
+  let start = start0;
 
   // One iteration per block it has to step over, and one more per day it
   // spills out of. The bound is what keeps a pathological calendar from
@@ -174,22 +159,11 @@ export function nextFreeSlot(
 }
 
 /** "14:30", in the server's timezone. */
-export function formatTime(at: Date): string {
+function formatTime(at: Date): string {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 }
 
 /** "14:30-15:15", the way a card and a guard both write a span. */
 export function formatRange(interval: Interval): string {
   return `${formatTime(interval.start)}-${formatTime(interval.end)}`;
-}
-
-/** "45 min", "1 h", "1 h 30", as the duration buttons are labelled. */
-export function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0
-    ? `${hours} h`
-    : `${hours}h${String(rest).padStart(2, '0')}`;
 }

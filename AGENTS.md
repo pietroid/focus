@@ -319,32 +319,26 @@ not reach the user.
 A blocked write is not a failed one. Nothing was attempted, so the proposal the
 model wrote is exactly right and is shown as is.
 
-### The home screen's three lists
+### The timeline
 
-A card sits in one of three buckets — `agora`, `em_breve`, `depois` — and
-holds a place inside it. Which of the two decides depends on whether the card
-has a time on it.
+**Everything on the timeline has an hour.** There is one list, in clock order,
+and the headings are cut out of it by the clock rather than stored anywhere. A
+card is under "Amanhã" because it starts tomorrow, and the only way to move it
+is to change when it happens. `sectionOf` in `threads/thread-timing.ts` is the
+whole filing system:
 
-**Untimed threads** work exactly as they always have. The bucket and the order
-live in the thread's `state.json` next to `solved`, and both mean one thing:
-what the user decided when they dragged the card. Nothing derives them, the
-agent never sets them, and a thread that has never been touched reports
-`em_breve` ordered by when it was created. A new thread is placed at the end of
-`em_breve` the moment it is created, because something just written is next but
-not now.
+| Section | What falls in it |
+|---------|------------------|
+| `agora` | running now, or overdue and still owed |
+| `hoje` | later today |
+| `amanha` | the next day |
 
-**Timed cards** are filed by the clock. `derivedBucket` in
-`threads/thread-timing.ts` is the whole rule: running now is `agora`, starting
-later today is `em_breve`, another day is `depois`, and already finished is
-`em_breve` again, because the thing you meant to do and did not is next rather
-than later. The stored bucket is still kept underneath, and it is where the
-card goes back to on the day its time is taken away.
+Anything further out than tomorrow is not drawn. The three sections are meant
+to become one per day, which is why nothing stores one.
 
-`POST /threads/placements` takes the whole placement of every list a drag
-touched, not the one thread that moved. One drop shifts the index of
-everything below it in two lists at once, so sending the result is the only
-version of this that cannot disagree with what is on screen. It answers
-`{ cards, guard? }`: a guard means nothing was applied.
+A thread with no timing is not on the timeline at all. It exists, it is in
+Coisas, and it has simply never been given an hour — there is no half-planned
+state between the two, which is what lets every heading be literally true.
 
 ### The time system
 
@@ -353,68 +347,141 @@ server.
 
 - `time/work-hours.ts` — the working day runs **07:00 to 22:00** and blocks are
   spaced **5 minutes** apart. Both are constants here and nowhere else, along
-  with slot-finding, conflict detection and the way a duration is written.
-- `threads/thread-timing.ts` — what a thread's timing is, and which list it
-  puts the card in.
-- `threads/timing.service.ts` — the guards, and what answering one does to the
-  rest of the day.
+  with slot-finding and conflict detection.
+- `time/scheduling.ts` — `relayout`, which is the scheduler entire.
+- `threads/timing.service.ts` — what adding and dragging do to the day.
+
+#### One rule
+
+The day is a queue of **flexible** blocks flowing around a handful of **fixed**
+ones, packed as close to now as they will go. Flexible is the default and
+means "in that order, whenever it fits". Fixed means the hour is the point of
+it: the block is an anchor, never moved, and everything else flows around it,
+including into the gap before it.
+
+`relayout` is one pass down the queue. Each flexible block takes the first slot
+that fits after the cursor, the cursor moves past it, and the next one starts
+looking from there. Fixed blocks and calendar events are never assigned
+anywhere — they are only obstacles.
+
+Two operations use it:
+
+- **Adding** (`POST /threads/scheduled`) drops something into the first gap
+  that fits *without disturbing anybody*. A fixed block instead takes the hour
+  it was given.
+- **Dragging** (`POST /threads/:slug/move`, one `index` into the one list)
+  rewrites the queue order and lets the whole thing repack.
+
+- **Solving** (`POST /threads/:slug/solved`, or the `solve` thread op) frees
+  the hour on Google, keeps it on the thread so the concluded list can say
+  when something was done, and repacks the queue without it. Finishing
+  something early is the day getting shorter, not the day growing a hole.
+
+So all three are `relayout` with a different queue, which is why there is no
+second copy of the rules anywhere and no guard that has to agree with them.
+
+**The store goes first and Google follows.** This used to be the other way
+round — nothing was stored until the event existed — and it was correct and it
+felt broken: every drag paid for a round trip to Google before the card would
+settle. Now the day is laid out, written and answered, and the calendar catches
+up behind the response.
+
+What makes that safe is that the queued jobs are not instructions but
+**reconciliations**. Each one reads the thread as it now stands and makes
+Google match it, under one rule: *a thread should have an event exactly when it
+has an hour and is not solved.* Two drags of the same card queue two jobs and
+both see the same final state, so there is no order to get wrong and nothing to
+undo. `CalendarSyncService` runs them one at a time per user.
+
+Three ordering rules hold the whole thing together, and each one was a bug
+first:
+
+- **Write what you want before you queue the job.** The job reads the thread to
+  decide what Google should hold, so queueing first asks the question before
+  the answer is written down.
+- **Claim the event before the cache hears about it.** A created event is
+  written onto its thread and only then put in the reader's cache; the other
+  order leaves a moment where the calendar holds an event nothing claims.
+- **Read the cache before the threads.** `_unlinkedEvents` does, so an event
+  created mid-read is simply not drawn this time rather than drawn twice.
+
+State writes are serialised per thread and written through a temp file and a
+rename. Read-modify-write on `state.json` is not atomic and no longer has the
+luxury of being the only thing running: interleaved, a torn read parses as a
+thread with no hour, which is a card silently dropping off the timeline.
+
+When a job does fail, nothing is rolled back. The day on screen is the user's
+and it is right; it is the copy on Google that fell behind. `GET /threads/sync`
+waits for the queue and answers `{ ok: true }` or with the popup to draw —
+the app calls it after every change, off the path the finger is on, so there is
+no polling and no window where a failure is known and not yet on screen.
+`POST /threads/sync` is the retry button behind it.
+
+The first block of a day starts at *this minute* rather than the next multiple
+of five. That is what makes "Agora" ever contain anything; everything after it
+reads off a tidy five minutes.
 
 #### Two sources, one list
 
-The calendar is the source of truth for anything with a time. An event with no
-thread behind it is drawn as a **read-only card**: it cannot be dragged,
-opened or solved, because it is a picture of the event and the only way to
-change it is to change the event. Where a thread *is* an event — a guard
-booked it — only the thread is drawn, so the same hour never appears twice.
+The calendar is the source of truth. An event with no thread behind it is drawn as a **read-only card**: it cannot be
+dragged, opened or solved, because it is a picture of the event and the only
+way to change it is to change the event. Where a thread *is* an event only the
+thread is drawn, so the same hour never appears twice.
 
 The agent holds the credentials and the server asks for what it needs.
 `CalendarReaderService` pulls `GET /calendar/window` when it builds a timeline
 or prices a slot, caches the answer for thirty seconds, and falls back to the
 last good read when the agent is unreachable: a timeline half a minute stale
 is a small lie, one that says the afternoon is free because Google timed out
-is a large one. Guards write through `POST|PATCH|DELETE /calendar/events` on
+is a large one. Moves write through `POST|PATCH|DELETE /calendar/events` on
 the same surface.
 
 **Every call runs server to agent.** The agent never calls back, holds no
 address for the server and no key: these routes are reached exactly the way
 `/generate` is, on the private Docker network, and nothing about the calendar
-is exposed through nginx. The routine the spec asks for is the derivation
-itself — buckets are computed from the clock on every read, and the home
-screen refetches on the minute, so a card moves into Agora when its hour
-arrives without anything having pushed it there.
+is exposed through nginx. Sections are computed from the clock on every read
+and the timeline refetches on the minute, so a card walks into Agora when its
+hour arrives without anything having pushed it there.
 
-None of these routes run a model. A guard is arithmetic, not a turn.
+None of these routes run a model.
 
-#### Guards
+#### The one guard
 
-A card cannot sit in `agora` or `em_breve` without a duration, and a booking
-cannot land on top of something else without being asked about. Each thing the
-user has not answered yet is a guard, asked in order:
+Dragging a card to the top of the day while something else is already running
+is the only move that destroys something, so it is the only one that asks:
 
-| Guard | When | Answers |
-|-------|------|---------|
-| duration | an untimed thread moves up | one of 15 min … 2 h |
-| schedule | it now has a duration | `schedule`, or `manual` to keep it untimed |
-| conflict | the slot is taken | `postpone` (the default) or `force` |
-| unschedule | a booked thread is dragged to `depois` | `unschedule` |
+| Answer | What happens |
+|--------|--------------|
+| `solve_current` | the running thread is closed and gives its hour away |
+| `postpone_current` | it is kept, further down the day |
 
-`agora` proposes *this minute*, conflicts and all, because someone dragging a
-card to the top of the screen is saying they are starting it. `em_breve`
-proposes the next slot that actually fits. Declining a booking still keeps the
-duration: a thread is a pre-calendar thing, and the chaos of life sometimes
-does not allow the rest of it.
+Everything the old guards asked — how long is this, may I book it, that hour is
+taken, shall I unbook it — was the screen asking the user to do arithmetic it
+could do itself. The duration is answered in the creation sheet, and the rest
+is `relayout`.
 
-Guards are A2UI trees built by `a2ui/a2ui.guards.ts` and drawn by the renderer
-that draws replies. The app knows none of the rules; it draws the buttons and
-posts the one that was tapped to `POST /threads/timing`. Every button carries
-the whole move plus one `decision`, so no pending state exists on either side
-and a guard abandoned halfway leaves nothing behind. Reordering inside a list
-never asks anything: timed cards are drawn in clock order wherever they are
-dropped, so a reorder can only change the hand-made order of untimed ones.
+The guard is an A2UI tree built by `a2ui/a2ui.guards.ts` and drawn by the
+renderer that draws replies. The app knows none of the rules; it draws the
+buttons and posts the one that was tapped to `POST /threads/timing`. Every
+button carries the whole move plus one `decision`, so no pending state exists
+on either side and a guard abandoned halfway leaves nothing behind.
 
 The `timing` action type is deliberately absent from `MODEL_ACTION_TYPES`. A
 model cannot emit one, and the validator drops it out of a reply along with the
 button carrying it.
+
+#### The orb
+
+One button, two meanings, decided by the tab under it. On **Tempo** it opens
+the creation sheet: a line of text, flexible or fixed, a duration, and a line
+saying what hour that works out to. No model runs and nothing is proposed —
+the card is on the timeline by the time the sheet closes. On **Coisas**, and
+everywhere else, it starts a conversation.
+
+The sheet's preview is computed on the phone by `TimelinePlan` in the chat
+package, deliberately the same arithmetic the server uses. A round trip per
+keystroke would be a spinner where a number should be, and the only way it can
+be wrong is something booked on another device since the last load.
 
 ### Actions
 
@@ -429,6 +496,7 @@ neither needs the server.
 | `confirm` | Server: the same, and the turn it starts may run writes. |
 | `thread` (`solve`/`reopen`/`rename`/`delete`) | Server alone. No agent call. |
 | `timing` | Server alone, on `POST /threads/timing`. Guards only; a model may not emit one. |
+| `sync` | App: posts `POST /threads/sync`. The retry on the sync popup; a model may not emit one either. |
 | `dismiss`, `openUrl` | App only. The server 400s if one arrives. |
 
 An action type outside the catalog is dropped by the validator, taking its

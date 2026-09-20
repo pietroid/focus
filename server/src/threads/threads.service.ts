@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { A2uiParserService } from '../a2ui/a2ui-parser.service';
 import { A2uiPromptService } from '../a2ui/a2ui-prompt.service';
 import { A2uiValidationService } from '../a2ui/a2ui-validation.service';
@@ -8,7 +12,12 @@ import {
   unavailableUi,
   writeFailedUi,
 } from '../a2ui/a2ui.builders';
+import { syncFailedUi } from '../a2ui/a2ui.guards';
 import { A2uiComponent, TimingAction } from '../a2ui/a2ui.types';
+import {
+  CalendarSyncService,
+  SyncFailure,
+} from '../calendar/calendar-sync.service';
 import { isCalendarSlug } from '../calendar/calendar.types';
 import { Trace } from '../common/trace';
 import {
@@ -18,16 +27,22 @@ import {
   ToolDescriptor,
 } from './agent.service';
 import { Message, MessageMetadata, ToolRun } from './entities/message.entity';
-import {
-  DEFAULT_BUCKET,
-  Thread,
-  ThreadBucket,
-  ThreadSummary,
-} from './entities/thread.entity';
+import { Thread, ThreadItem, ThreadSummary } from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
-import { ThreadsStore } from './threads.store';
+import { toItem, ThreadsStore } from './threads.store';
 import { TimelineService } from './timeline.service';
-import { TimingOutcome, TimingService } from './timing.service';
+import {
+  ScheduleRequest,
+  TimingOutcome,
+  TimingService,
+} from './timing.service';
+
+/** How the calendar catch-up went: nothing to say, or something to draw. */
+export interface SyncOutcome {
+  ok: boolean;
+  /** The popup, when the calendar did not keep up. */
+  guard?: A2uiComponent;
+}
 
 /**
  * A thread, end to end.
@@ -51,11 +66,20 @@ export class ThreadsService {
     private readonly validator: A2uiValidationService,
     private readonly timeline: TimelineService,
     private readonly timing: TimingService,
+    private readonly syncs: CalendarSyncService,
   ) {}
 
   /** Every card the timeline draws: the threads, and the calendar beside them. */
   async findAll(userId: string): Promise<ThreadSummary[]> {
     return this.timeline.cards(userId);
+  }
+
+  /** Everything the user has closed, most recently touched first. */
+  async findSolved(userId: string): Promise<ThreadItem[]> {
+    return (await this.store.readAll(userId))
+      .filter((thread) => thread.solved)
+      .map(toItem)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   async findOne(userId: string, slug: string): Promise<Thread> {
@@ -87,18 +111,47 @@ export class ThreadsService {
     trace.log('thread.create', { slug });
 
     await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
-    // A new thread lands at the end of "em breve": it is the one list that
-    // means "not now, but not parked either", and the end is where something
-    // just written belongs until the user says otherwise.
-    await this.store.updateState(userId, slug, {
-      bucket: DEFAULT_BUCKET,
-      order: await this._nextOrder(userId, DEFAULT_BUCKET, slug),
-    });
     // Nothing has been proposed yet, so the first turn of a thread can only
     // read and propose.
     await this._answer(userId, slug, trace, { allowWrites: false });
 
     return this.findOne(userId, slug);
+  }
+
+  /**
+   * Writes something down and puts it straight on the timeline.
+   *
+   * The Tempo half of the app, and deliberately not a conversation: the user
+   * said what it is and how long it takes, which is everything needed to give
+   * it an hour. No agent runs, nothing is proposed, and the card is on screen
+   * by the time the sheet closes.
+   */
+  async createScheduled(
+    userId: string,
+    text: string,
+    request: ScheduleRequest,
+    trace: Trace,
+  ): Promise<ThreadSummary[]> {
+    const slug = await this._freeSlug(userId, slugify(text));
+    trace.attachSlug(slug);
+    trace.log('thread.createScheduled', {
+      slug,
+      durationMinutes: request.durationMinutes,
+      fixed: request.fixed,
+    });
+
+    await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
+
+    try {
+      return await this.timing.schedule(userId, slug, request, trace);
+    } catch (error) {
+      // The thread exists on disk by now but never got an hour, so it would
+      // sit in Coisas as a ghost of something the user thinks failed. A
+      // refused add leaves nothing behind.
+      trace.error('thread.createScheduledFailed', { slug });
+      await this.store.remove(userId, slug);
+      throw error;
+    }
   }
 
   /**
@@ -150,89 +203,38 @@ export class ThreadsService {
   }
 
   /**
-   * Moves threads between the home screen's lists, or within one.
+   * Moves one thread to [index] in the day's queue.
    *
-   * The app sends the whole placement it wants rather than a delta, because
-   * one drag changes the index of every thread below it in both the list it
-   * left and the list it joined. Sending the result is the only version of
-   * this that cannot drift from what is on screen.
-   *
-   * A drop is not always a move. Anything that changes which list a card is
-   * in goes through the guards first, and if one of them has a question the
-   * whole placement is refused and the question comes back instead: the
-   * screen that asked has not changed, so there is nothing to put back when
-   * the user cancels.
-   *
-   * Reordering inside a list never asks anything. Timed cards are drawn in
-   * clock order regardless of where they are dropped, so the only thing a
-   * reorder can actually change is the hand-made order of untimed ones, and
-   * that cannot collide with anything.
+   * One index rather than a whole placement. The old screen had three
+   * hand-ordered lists and a drop changed the index of everything below it in
+   * two of them at once, so the only safe thing to send was the result. There
+   * is one list now and it is ordered by the clock, so a drop is a single
+   * number and the server works out every hour from it.
    */
-  async setPlacements(
+  async moveThread(
     userId: string,
-    placements: { slug: string; bucket: ThreadBucket; index: number }[],
+    slug: string,
+    index: number,
     trace: Trace,
   ): Promise<TimingOutcome> {
-    trace.log('thread.placements', { count: placements.length });
-
-    // A calendar card is not the user's to move. It is drawn from the event
-    // and changes when the event does.
-    const movable = placements.filter(
-      (placement) => !isCalendarSlug(placement.slug),
-    );
-
-    for (const placement of movable) {
-      if (!(await this.store.exists(userId, placement.slug))) {
-        throw new NotFoundException(`No thread "${placement.slug}"`);
-      }
+    if (isCalendarSlug(slug)) {
+      throw new BadRequestException('A calendar event cannot be moved here');
     }
 
-    for (const placement of movable) {
-      const thread = await this.store.read(userId, placement.slug);
-      if (thread === null || thread.bucket === placement.bucket) continue;
+    trace.log('thread.move', { slug, index });
 
-      const outcome = await this.timing.resolve(
-        userId,
-        { type: 'timing', ...placement },
-        trace,
-      );
-
-      // A guard is a question, and a question leaves the day alone.
-      if (outcome.guard !== undefined) return outcome;
-    }
-
-    for (const placement of movable) {
-      await this.store.updateState(userId, placement.slug, {
-        bucket: placement.bucket,
-        order: placement.index,
-      });
-    }
-
-    return { cards: await this.timeline.cards(userId) };
+    return this.timing.move(userId, { type: 'timing', slug, index }, trace);
   }
 
-  /**
-   * Answers a guard, which is the same call as the drag that raised it.
-   *
-   * The button carries the whole move plus the one thing it just decided, so
-   * this needs no memory of the guard it is answering. A guard left on screen
-   * and never answered expires by being forgotten.
-   */
   async applyTiming(
     userId: string,
     action: TimingAction,
     trace: Trace,
   ): Promise<TimingOutcome> {
-    return this.timing.resolve(userId, action, trace);
+    return this.timing.move(userId, action, trace);
   }
 
-  /**
-   * Marks a thread solved, or puts an already solved one back.
-   *
-   * Solving does not touch the bucket or the order: they are what the
-   * thread goes back to when it is recovered, and losing them would mean a
-   * recovered thread landing somewhere the user never put it.
-   */
+  /** Marks a thread solved, or puts an already solved one back. */
   async setSolved(
     userId: string,
     slug: string,
@@ -242,30 +244,52 @@ export class ThreadsService {
     await this.findOne(userId, slug);
     trace.log('thread.solved', { slug, solved });
 
-    await this.store.updateState(userId, slug, { solved });
+    // A solved thread gives its hour back, so the calendar and the screen go
+    // on saying the same thing, and the day closes up over the space it left.
+    // Reopening one puts it in Coisas with no hour, which is honest: the time
+    // it had is long gone.
+    if (solved) {
+      await this.timing.solve(userId, slug, trace);
+    } else {
+      await this.store.updateState(userId, slug, { solved: false });
+    }
 
     return this.findAll(userId);
   }
 
   /**
-   * One past the last order in [bucket], so a new thread lands at the end.
+   * Waits for the queued calendar work and reports what the user should see.
    *
-   * [exclude] is the thread being placed. Its messages are already on disk by
-   * the time this runs, so without it the thread would be measured against
-   * the placeholder order it does not have yet.
+   * Nothing to say is the usual answer and the good one. When there is
+   * something, it is a tree rather than an error: the day is not wrong, only
+   * its copy on Google, and the user needs a button rather than an apology.
    */
-  private async _nextOrder(
-    userId: string,
-    bucket: ThreadBucket,
-    exclude?: string,
-  ): Promise<number> {
-    const summaries = await this.store.readAllSummaries(userId);
-    const orders = summaries
-      .filter((summary) => summary.bucket === bucket)
-      .filter((summary) => summary.slug !== exclude)
-      .map((summary) => summary.order);
+  async awaitSync(userId: string, trace: Trace): Promise<SyncOutcome> {
+    const failure = await this.syncs.settle(userId);
+    if (failure !== undefined) {
+      trace.warn('sync.behind', { slug: failure.slug, error: failure.error });
+    }
 
-    return orders.length === 0 ? 0 : Math.max(...orders) + 1;
+    return this._syncOutcome(userId, failure);
+  }
+
+  /** Runs the failed calendar work again. */
+  async retrySync(userId: string, trace: Trace): Promise<SyncOutcome> {
+    return this._syncOutcome(userId, await this.syncs.retry(userId, trace));
+  }
+
+  private async _syncOutcome(
+    userId: string,
+    failure: SyncFailure | undefined,
+  ): Promise<SyncOutcome> {
+    if (failure === undefined) return { ok: true };
+
+    const thread = await this.store.read(userId, failure.slug);
+
+    return {
+      ok: false,
+      guard: syncFailedUi(thread?.title ?? failure.slug),
+    };
   }
 
   /** Applies a thread-level change the app asked for. */
@@ -280,8 +304,10 @@ export class ThreadsService {
     trace.log('thread.op', { slug, op, title });
 
     switch (op) {
+      // The same act as dragging the card aside, so the same path: the hour
+      // goes back and the rest of the day moves up into it.
       case 'solve':
-        await this.store.updateState(userId, slug, { solved: true });
+        await this.timing.solve(userId, slug, trace);
         break;
       case 'reopen':
         await this.store.updateState(userId, slug, { solved: false });

@@ -26,6 +26,7 @@ import {
   ToolTraceEntry,
 } from './agent.service';
 import { CalendarReaderService } from '../calendar/calendar-reader.service';
+import { CalendarSyncService } from '../calendar/calendar-sync.service';
 import { CalendarEvent } from '../calendar/calendar.types';
 import { CalendarWriterService } from '../calendar/calendar-writer.service';
 import { ThreadsController } from './threads.controller';
@@ -42,17 +43,6 @@ function thread(response: { body: unknown }): Thread {
 
 function summaries(response: { body: unknown }): ThreadSummary[] {
   return response.body as ThreadSummary[];
-}
-
-/** A move or a guard's answer returns the timeline beside the open question. */
-function outcome(response: { body: unknown }): {
-  cards: ThreadSummary[];
-  guard?: { component: string; children?: unknown[] };
-} {
-  return response.body as {
-    cards: ThreadSummary[];
-    guard?: { component: string; children?: unknown[] };
-  };
 }
 
 /** Every string the user would actually read in a rendered message. */
@@ -200,6 +190,7 @@ describe('ThreadsController', () => {
         TimelineService,
         TimingService,
         CalendarReaderService,
+        CalendarSyncService,
         CalendarWriterService,
       ],
     })
@@ -292,69 +283,19 @@ describe('ThreadsController', () => {
     expect(thread(second).slug).toBe('standup-2');
   });
 
-  it('lists threads in the order they were placed', async () => {
+  it('keeps a thread with no hour off the timeline', async () => {
     await request(app.getHttpServer())
       .post('/threads')
       .send({ message: 'First' })
-      .expect(201);
-    await request(app.getHttpServer())
-      .post('/threads')
-      .send({ message: 'Second' })
       .expect(201);
 
     const response = await request(app.getHttpServer())
       .get('/threads')
       .expect(200);
 
-    // A new thread lands at the end of "em breve", so the list reads in the
-    // order the threads were written.
-    expect(summaries(response).map((t) => t.slug)).toEqual(['first', 'second']);
-    expect(summaries(response)[1]).toMatchObject({
-      title: 'Second',
-      preview: 'Noted.',
-      messageCount: 2,
-      bucket: 'em_breve',
-      order: 1,
-    });
-  });
-
-  it('rewrites where threads sit when the app sends a placement', async () => {
-    await request(app.getHttpServer())
-      .post('/threads')
-      .send({ message: 'First' })
-      .expect(201);
-    await request(app.getHttpServer())
-      .post('/threads')
-      .send({ message: 'Second' })
-      .expect(201);
-
-    const moved = await request(app.getHttpServer())
-      .post('/threads/placements')
-      .send({
-        placements: [
-          { slug: 'first', bucket: 'em_breve', index: 0 },
-          { slug: 'second', bucket: 'depois', index: 0 },
-        ],
-      })
-      .expect(201);
-
-    expect(outcome(moved).guard).toBeUndefined();
-    expect(outcome(moved).cards.map((t) => [t.slug, t.bucket])).toEqual([
-      ['first', 'em_breve'],
-      ['second', 'depois'],
-    ]);
-  });
-
-  it('refuses a placement into a bucket that does not exist', async () => {
-    await request(app.getHttpServer())
-      .post('/threads')
-      .send({ message: 'First' })
-      .expect(201);
-
-    await request(app.getHttpServer())
-      .post('/threads/placements')
-      .send({ placements: [{ slug: 'first', bucket: 'amanha', index: 0 }] })
-      .expect(400);
+    // A thread started from a conversation is a thing, not an hour. It has
+    // to be given a duration before the timeline has anywhere to draw it.
+    expect(summaries(response)).toEqual([]);
   });
 
   it('drops an action type the catalog does not have', async () => {
@@ -431,46 +372,20 @@ describe('ThreadsController', () => {
   });
 
   describe('solving a thread', () => {
-    it('marks it solved and keeps the bucket it was in', async () => {
+    it('marks it solved', async () => {
       await request(app.getHttpServer())
         .post('/threads')
         .send({ message: 'Buy milk' })
         .expect(201);
-      await request(app.getHttpServer())
-        .post('/threads/placements')
-        .send({
-          placements: [{ slug: 'buy-milk', bucket: 'depois', index: 0 }],
-        })
-        .expect(201);
 
-      const response = await request(app.getHttpServer())
-        .post('/threads/buy-milk/solved')
-        .send({ solved: true })
-        .expect(201);
-
-      expect(response.body).toMatchObject([
-        { slug: 'buy-milk', solved: true, bucket: 'depois', order: 0 },
-      ]);
-    });
-
-    it('puts a solved thread back', async () => {
-      await request(app.getHttpServer())
-        .post('/threads')
-        .send({ message: 'Buy milk' })
-        .expect(201);
       await request(app.getHttpServer())
         .post('/threads/buy-milk/solved')
         .send({ solved: true })
         .expect(201);
 
-      const response = await request(app.getHttpServer())
-        .post('/threads/buy-milk/solved')
-        .send({ solved: false })
-        .expect(201);
-
-      expect(response.body).toMatchObject([
-        { slug: 'buy-milk', solved: false },
-      ]);
+      expect(
+        (await request(app.getHttpServer()).get('/threads/buy-milk')).body,
+      ).toMatchObject({ slug: 'buy-milk', solved: true });
     });
 
     it('refuses a body without a solved flag', async () => {

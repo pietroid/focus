@@ -1,54 +1,19 @@
-import {
-  DURATION_CHOICES_MINUTES,
-  formatDuration,
-  formatRange,
-  formatTime,
-  Interval,
-} from '../time/work-hours';
-import { ThreadBucket } from '../threads/entities/thread.entity';
-import { A2uiComponent, TimingAction } from './a2ui.types';
+import { formatRange, Interval } from '../time/work-hours';
+import { A2uiComponent } from './a2ui.types';
 
 /**
- * The guards: the questions the server asks before a card lands.
+ * The one question the timeline still asks.
  *
- * They are A2UI trees, drawn by the same renderer a reply is drawn by, and
- * built here rather than by a model. A guard is arithmetic over the calendar
- * and the working day, so there is nothing for a model to add and a great
- * deal for it to get wrong: a proposal that drifts by fifteen minutes because
- * a model was feeling creative would be a meeting in the wrong place.
+ * Everything else a drag used to ask about — how long is this, may I book it,
+ * that hour is taken, shall I take it off the calendar — was the screen
+ * asking the user to do arithmetic it could do itself. All of it is gone. A
+ * card has an hour because everything has an hour, and dragging one changes
+ * which hour, which needs no permission.
  *
- * Every button carries the whole move plus one decision, so a guard holds no
- * state anywhere. Walking away from one leaves the thread exactly where it
- * was.
+ * What is left is the only drag that destroys something: putting a card at
+ * the top of the day while something else is already running. That one has a
+ * real answer only the user has, so it is the only one asked.
  */
-
-/** The move a guard is asking about. */
-export interface GuardMove {
-  slug: string;
-  bucket: ThreadBucket;
-  index: number;
-  durationMinutes?: number;
-  startTime?: string;
-}
-
-/** A timing action for [move], carrying [decision]. */
-function timing(
-  move: GuardMove,
-  decision?: TimingAction['decision'],
-  overrides: Partial<GuardMove> = {},
-): TimingAction {
-  const merged = { ...move, ...overrides };
-
-  return {
-    type: 'timing',
-    slug: merged.slug,
-    bucket: merged.bucket,
-    index: merged.index,
-    durationMinutes: merged.durationMinutes,
-    startTime: merged.startTime,
-    decision,
-  };
-}
 
 /** The button that closes a guard and changes nothing. */
 function cancelButton(): A2uiComponent {
@@ -62,53 +27,15 @@ function cancelButton(): A2uiComponent {
 }
 
 /**
- * Asks how long something takes.
+ * Asks what happens to the thing that was already running.
  *
- * The first guard anything untimed meets on its way up the screen. Without a
- * duration there is nothing to propose a time for, and "Em breve" would mean
- * no more than it did in "Depois".
+ * Both answers move the dragged card to now. They differ in what becomes of
+ * what it displaced: finished, or further down the day.
  */
-export function durationGuard(move: GuardMove, title: string): A2uiComponent {
-  return {
-    component: 'Column',
-    gap: 'normal',
-    children: [
-      {
-        component: 'ListItem',
-        icon: 'hourglass',
-        title: 'Quanto tempo isso leva?',
-        subtitle: title,
-      },
-      {
-        component: 'Text',
-        text: 'Preciso de uma duração para achar um horário.',
-        variant: 'caption',
-        color: 'ink2',
-      },
-      ...DURATION_CHOICES_MINUTES.map((minutes) => ({
-        component: 'AppButton' as const,
-        text: formatDuration(minutes),
-        variant: 'secondary' as const,
-        expand: true,
-        action: timing(move, undefined, { durationMinutes: minutes }),
-      })),
-      cancelButton(),
-    ],
-  };
-}
-
-/**
- * Proposes a time, and offers to keep the thread untimed instead.
- *
- * The second half of what the spec asks for: accepting puts it in the
- * calendar, declining still leaves it with a duration. A thread that came out
- * of this knowing how long it takes has learned something even if it never
- * got a slot.
- */
-export function scheduleGuard(
-  move: GuardMove,
-  title: string,
-  slot: Interval,
+export function startNowGuard(
+  slug: string,
+  index: number,
+  current: { title: string; interval: Interval },
 ): A2uiComponent {
   return {
     component: 'Column',
@@ -116,32 +43,34 @@ export function scheduleGuard(
     children: [
       {
         component: 'ListItem',
-        icon: 'calendarPlus',
-        title: `Reservar ${formatRange(slot)}?`,
-        subtitle: title,
-      },
-      {
-        component: 'Text',
-        text: `${formatDuration(move.durationMinutes ?? 0)} na sua agenda, começando ${formatTime(slot.start)}.`,
-        variant: 'caption',
-        color: 'ink2',
+        icon: 'alarm',
+        title: 'Começar agora?',
+        subtitle: `${current.title} está rodando, ${formatRange(current.interval)}.`,
       },
       {
         component: 'AppButton',
-        text: 'Colocar na agenda',
+        text: 'Concluir o atual',
         variant: 'primary',
-        icon: 'calendarCheck',
+        icon: 'check',
         expand: true,
-        action: timing(move, 'schedule', {
-          startTime: slot.start.toISOString(),
-        }),
+        action: {
+          type: 'timing',
+          slug,
+          index,
+          decision: 'solve_current',
+        },
       },
       {
         component: 'AppButton',
-        text: 'Deixar sem horário',
+        text: 'Deixar para depois',
         variant: 'secondary',
         expand: true,
-        action: timing(move, 'manual'),
+        action: {
+          type: 'timing',
+          slug,
+          index,
+          decision: 'postpone_current',
+        },
       },
       cancelButton(),
     ],
@@ -149,115 +78,47 @@ export function scheduleGuard(
 }
 
 /**
- * Says what the proposed time runs into, and offers the two ways out.
+ * Says the calendar has not kept up, and offers to try again.
  *
- * Postponing is the primary because it is the one the spec calls the default:
- * a day is a queue, and the ordinary meaning of putting something in the
- * middle of it is that everything after it moves down.
+ * The one thing the user ever learns about the queue behind the timeline.
+ * Everything they did is done and on screen; what failed is the copy of it
+ * that lives on Google, which is worth knowing about and never worth undoing
+ * their work over. So this says what is out of step and gives them the
+ * button, rather than rolling the day back to a state they did not ask for.
  */
-export function conflictGuard(
-  move: GuardMove,
-  slot: Interval,
-  conflicts: { title: string; interval: Interval }[],
-): A2uiComponent {
-  const first = conflicts[0];
-  const rest = conflicts.length - 1;
-
+export function syncFailedUi(title: string): A2uiComponent {
   return {
     component: 'Column',
     gap: 'normal',
     children: [
       {
         component: 'ListItem',
-        icon: 'warning',
+        icon: 'cloud',
         color: 'warning',
-        title: `${formatRange(slot)} está ocupado`,
-        subtitle:
-          rest > 0
-            ? `${first.title} e mais ${rest} nesse intervalo`
-            : `${first.title}, ${formatRange(first.interval)}`,
+        title: 'Sua agenda não acompanhou',
+        subtitle: `"${title}" está no Focus, mas não no Google Agenda.`,
       },
       {
         component: 'Text',
-        text: 'Posso empurrar o que vem depois para abrir espaço.',
+        text: 'O seu dia continua como você deixou. É só a cópia no Google que ficou para trás.',
         variant: 'caption',
         color: 'ink2',
       },
       {
         component: 'AppButton',
-        text: 'Adiar os próximos',
+        text: 'Tentar de novo',
         variant: 'primary',
         icon: 'arrowRight',
         expand: true,
-        action: timing(move, 'postpone'),
+        action: { type: 'sync' },
       },
       {
         component: 'AppButton',
-        text: 'Marcar por cima',
-        variant: 'secondary',
+        text: 'Agora não',
+        variant: 'tertiary',
         expand: true,
-        action: timing(move, 'force'),
+        action: { type: 'dismiss' },
       },
-      cancelButton(),
-    ],
-  };
-}
-
-/**
- * Asks before taking something off the calendar.
- *
- * Dragging a scheduled card down to "Depois" is the only way to unbook
- * something from this screen, and it is one flick of a finger away from a
- * reorder, so it is worth one question.
- */
-export function unscheduleGuard(
-  move: GuardMove,
-  title: string,
-  slot: Interval,
-): A2uiComponent {
-  return {
-    component: 'Column',
-    gap: 'normal',
-    children: [
-      {
-        component: 'ListItem',
-        icon: 'calendarX',
-        title: 'Tirar da agenda?',
-        subtitle: `${title}, ${formatRange(slot)}`,
-      },
-      {
-        component: 'Text',
-        text: 'O compromisso sai do Google Agenda e o card fica em Depois.',
-        variant: 'caption',
-        color: 'ink2',
-      },
-      {
-        component: 'AppButton',
-        text: 'Tirar da agenda',
-        variant: 'primary',
-        icon: 'calendarX',
-        expand: true,
-        action: timing(move, 'unschedule'),
-      },
-      cancelButton(),
-    ],
-  };
-}
-
-/** Says a guard could not do what it offered, without pretending otherwise. */
-export function guardFailedUi(reason: string): A2uiComponent {
-  return {
-    component: 'Column',
-    gap: 'normal',
-    children: [
-      {
-        component: 'ListItem',
-        icon: 'xCircle',
-        color: 'danger',
-        title: 'Não consegui mexer na agenda',
-        subtitle: reason,
-      },
-      cancelButton(),
     ],
   };
 }

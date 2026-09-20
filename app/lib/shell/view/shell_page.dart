@@ -14,8 +14,11 @@ import 'package:go_router/go_router.dart';
 /// rebuilt on every tap: moving between them is not navigation, it is looking
 /// somewhere else, and a list should be where it was left.
 ///
-/// The orb lives here rather than on Tempo because it is the app's one
-/// action from anywhere, not that screen's action.
+/// The orb is the app's one action from anywhere, and it does the thing the
+/// screen under it is about. On Tempo that is writing something down with an
+/// hour on it, which never involves the model. On Coisas, and everywhere
+/// else, it is starting a conversation. One button, two meanings, and the tab
+/// bar underneath already says which one is live.
 /// {@endtemplate}
 class ShellPage extends StatefulWidget {
   /// {@macro shell_page}
@@ -26,15 +29,48 @@ class ShellPage extends StatefulWidget {
 }
 
 class _ShellPageState extends State<ShellPage> {
+  /// Tempo, where the orb writes something straight onto the timeline.
+  static const _timelineIndex = 0;
+
   int _index = 0;
 
-  Future<void> _compose() async {
-    final text = await AppPromptSheet.show(context);
+  Future<void> _onOrbTapped() async {
+    if (_index == _timelineIndex) {
+      await _schedule();
+      return;
+    }
+
+    await _converse();
+  }
+
+  /// Writes something down with an hour on it. No conversation.
+  Future<void> _schedule() async {
+    final bloc = context.read<ThreadsBloc>();
+    final result = await AppPromptSheet.show(
+      context,
+      // The sheet asks where something would land while the user is still
+      // typing, so the answer comes off the cards already on screen rather
+      // than out of a request per keystroke.
+      previewFor: (duration) =>
+          TimelinePlan.nextFreeStart(bloc.state.cards, duration),
+    );
+    if (result == null) return;
+
+    bloc.add(
+      ThreadScheduled(
+        message: result.text,
+        durationMinutes: result.duration.inMinutes,
+        fixed: result.fixed,
+        startTime: result.startTime,
+      ),
+    );
+  }
+
+  /// Opens a new thread on whatever the user typed.
+  Future<void> _converse() async {
+    final text = await AppTextPromptSheet.show(context);
     if (text == null || !mounted) return;
 
-    // A new thread lands at the end of "Em breve"; the server places it. The
-    // list is refetched on the way back so the card is there when the chat
-    // closes.
     await context.push<void>('/chat', extra: text);
     if (mounted) {
       context.read<ThreadsBloc>().add(const ThreadsRequested());
@@ -58,7 +94,7 @@ class _ShellPageState extends State<ShellPage> {
       bottomNavigationBar: AppBottomBar(
         currentIndex: _index,
         onSelected: (index) => setState(() => _index = index),
-        center: AppOrb(onTap: _compose),
+        center: AppOrb(onTap: _onOrbTapped),
         items: const [
           AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
           AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),

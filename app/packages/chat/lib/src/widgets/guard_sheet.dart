@@ -104,6 +104,14 @@ class _Panel extends StatelessWidget {
       return;
     }
 
+    // The sync popup's retry. It goes to its own route because it is not
+    // about where a card sits: the day is already right, and this is the
+    // copy of it on Google being pushed again.
+    if (action['type'] == 'sync') {
+      bloc.add(const SyncRetried());
+      return;
+    }
+
     bloc.add(GuardAnswered(action));
   }
 }
