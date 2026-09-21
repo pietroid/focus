@@ -335,9 +335,18 @@ whole filing system:
 
 | Section | What falls in it |
 |---------|------------------|
-| `agora` | running now, or overdue and still owed |
+| `agora` | the hour being lived through right now |
 | `hoje` | later today |
 | `amanha` | the next day |
+
+**An hour that has run out is not a section.** A block booked 11:20 to 11:25
+is finished at 11:26: that was its hour, the hour is gone, and leaving it on
+screen would make "Agora" mean "now, and also everything now used to be".
+`ThreadsStore.sweep` marks those done on every read of the timeline — the app
+asks again on each minute boundary, so a day closes itself out with no timer
+running anywhere on the server. The booking stays on Google, because the hour
+happened; only solving something *early* gives a booking back, since that
+frees an hour still ahead.
 
 Anything further out than tomorrow is not drawn. The three sections are meant
 to become one per day, which is why nothing stores one.
@@ -367,8 +376,21 @@ including into the gap before it.
 
 `relayout` is one pass down the queue. Each flexible block takes the first slot
 that fits after the cursor, the cursor moves past it, and the next one starts
-looking from there. Fixed blocks and calendar events are never assigned
-anywhere — they are only obstacles.
+looking from there. Anchors are never assigned anywhere — they are only
+obstacles.
+
+Three things anchor, and the third is the subtle one:
+
+- a calendar event, which is somebody else's hour;
+- a fixed card, whose hour is the point of it;
+- **a block that has already started**, which keeps the hour it started at.
+
+That last one is why rearranging the afternoon does not rewrite what you are
+in the middle of. "Agora" says what the user is working on, not that they
+began it this second, so a block running since eleven goes on saying eleven.
+Its start is a fact by then, not a plan. The one exception is a block the user
+just asked to move — the card under their finger, or the running one they
+chose to push down — because being asked beats every reason to hold still.
 
 Two operations use it:
 

@@ -15,6 +15,7 @@ import {
   roundUpToFiveMinutes,
 } from '../time/work-hours';
 import { Thread, ThreadSummary, ThreadTiming } from './entities/thread.entity';
+import { isRunning } from './thread-timing';
 import { TimeBlock, TimelineService } from './timeline.service';
 import { ThreadsStore } from './threads.store';
 
@@ -137,6 +138,13 @@ export class TimingService {
         ? running.slug
         : undefined;
 
+    // The two blocks a drag is allowed to move out of their hour. Normally
+    // it is just the card under the finger; when the user chose to keep what
+    // was running and do it later, it is that one instead, because pushing
+    // it down the day is the whole of what they asked for.
+    const thawed =
+      action.decision === 'postpone_current' ? running?.slug : action.slug;
+
     if (closed !== undefined) await this._solve(userId, closed, trace);
 
     // The thread that was just closed is out of the day, so it is out of the
@@ -146,7 +154,12 @@ export class TimingService {
     // A calendar that refuses throws out of here. Whatever was already
     // rebooked stays rebooked and stays in step with Google; the rest is
     // untouched, so the day is half-rearranged but never out of sync.
-    await this._repack(userId, this._queue(cards, action, closed), trace, now);
+    await this._repack(
+      userId,
+      this._queue(cards, action, now, { closed, thawed }),
+      trace,
+      now,
+    );
 
     return { cards: await this._timeline.cards(userId, now) };
   }
@@ -179,7 +192,12 @@ export class TimingService {
     await this._solve(userId, slug, trace);
 
     try {
-      await this._repack(userId, this._blocksOf(cards, slug), trace, now);
+      await this._repack(
+        userId,
+        this._blocksOf(cards, now, { closed: slug }),
+        trace,
+        now,
+      );
     } catch (error) {
       trace.warn('timing.repackFailed', {
         slug,
@@ -240,22 +258,55 @@ export class TimingService {
    *
    * The order on screen is the order of the queue, which is the whole of
    * what the sections are. Nothing here decides an hour; that is the
-   * layout's job, and this only says what is in the day and in what order.
+   * layout's job, and this only says what is in the day, in what order, and
+   * which of it is allowed to move.
    */
-  private _blocksOf(cards: ThreadSummary[], closed?: string): PlannedBlock[] {
+  private _blocksOf(
+    cards: ThreadSummary[],
+    now: Date,
+    options: { closed?: string; thawed?: string } = {},
+  ): PlannedBlock[] {
     return cards
-      .filter((card) => card.slug !== closed)
-      .map((card): PlannedBlock => ({
-        id: card.slug,
-        minutes: card.durationMinutes,
-        // An event is somebody else's hour, and so is a card whose hour is
-        // the point of it. Neither is repacked.
-        fixed: card.fixed || isCalendarSlug(card.slug),
-        interval: {
+      .filter((card) => card.slug !== options.closed)
+      .map((card): PlannedBlock => {
+        const interval = {
           start: new Date(card.startTime),
           end: new Date(card.endTime),
-        },
-      }));
+        };
+
+        return {
+          id: card.slug,
+          minutes: card.durationMinutes,
+          fixed: this._anchored(card, interval, now, options.thawed),
+          interval,
+        };
+      });
+  }
+
+  /**
+   * Whether a layout has to leave this block exactly where it is.
+   *
+   * Three reasons, and the third is the subtle one. An event is somebody
+   * else's hour and a pinned card's hour is the point of it — neither is the
+   * layout's to move. And **a block that has already started keeps the hour
+   * it started at**: "Agora" says what the user is working on, not that they
+   * began it this second, so rearranging the afternoon must not quietly
+   * rewrite a block that has been running since eleven to say it began now.
+   * Its start is a fact by then, not a plan.
+   *
+   * [thawed] is the one block the user has just said to move anyway: the card
+   * under their finger, or the running one they chose to push down. Being
+   * asked to move something beats every reason it would otherwise hold still.
+   */
+  private _anchored(
+    card: ThreadSummary,
+    interval: Interval,
+    now: Date,
+    thawed?: string,
+  ): boolean {
+    if (card.slug === thawed) return card.fixed;
+
+    return card.fixed || isCalendarSlug(card.slug) || isRunning(now, interval);
   }
 
   /**
@@ -269,9 +320,10 @@ export class TimingService {
   private _queue(
     cards: ThreadSummary[],
     action: TimingAction,
-    closed?: string,
+    now: Date,
+    options: { closed?: string; thawed?: string } = {},
   ): PlannedBlock[] {
-    const blocks = this._blocksOf(cards, closed);
+    const blocks = this._blocksOf(cards, now, options);
 
     const from = blocks.findIndex((block) => block.id === action.slug);
     if (from === -1) return blocks;

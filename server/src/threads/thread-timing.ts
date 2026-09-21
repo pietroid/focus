@@ -32,23 +32,36 @@ function tomorrow(at: Date): Date {
   return next;
 }
 
+/** Whether [interval] is the hour being lived through at [now]. */
+export function isRunning(now: Date, interval: Interval): boolean {
+  return interval.start <= now && now < interval.end;
+}
+
+/** Whether [interval] is over at [now]. */
+export function isSpent(now: Date, interval: Interval): boolean {
+  return interval.end <= now;
+}
+
 /**
- * The section [interval] falls in at [now], or undefined when it is further
- * out than the timeline draws.
+ * The section [interval] falls in at [now], or undefined when the timeline
+ * does not draw it at all.
  *
  * Nothing else in the app decides this. A heading says what time it is, so it
  * has to be worked out from the clock every time the list is read, and this
  * is the one place that does it.
  *
- * Something whose hour has already passed and which nobody has closed is
- * still owed, and the only honest place for it is "Agora": that is when it
- * would be done if it were done.
+ * An hour that has run out is not a section. A block booked 11:20 to 11:25 is
+ * finished at 11:26 — that was the hour, the hour is gone, and leaving it on
+ * the screen would make "Agora" mean "now, and also everything now used to
+ * be". [ThreadsStore.sweep] marks those done; this keeps them off the screen
+ * in the moment before it does.
  */
 export function sectionOf(
   now: Date,
   interval: Interval,
 ): TimelineSection | undefined {
-  if (interval.start <= now) return 'agora';
+  if (isSpent(now, interval)) return undefined;
+  if (isRunning(now, interval)) return 'agora';
   if (sameDay(interval.start, now)) return 'hoje';
   if (sameDay(interval.start, tomorrow(now))) return 'amanha';
 

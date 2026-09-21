@@ -192,6 +192,7 @@ describe('the timeline', () => {
   let root: string;
   let calendar: StubCalendarWriter;
   let agenda: StubCalendarReader;
+  let store: ThreadsStore;
 
   beforeEach(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'focus-timing-'));
@@ -226,6 +227,7 @@ describe('the timeline', () => {
 
     calendar = moduleRef.get(CalendarWriterService);
     agenda = moduleRef.get(CalendarReaderService);
+    store = moduleRef.get(ThreadsStore);
 
     app = moduleRef.createNestApplication();
     await app.init();
@@ -538,6 +540,109 @@ describe('the timeline', () => {
     // back onto the timeline over a failed rebooking would be arguing with
     // the user about something they already know.
     expect((await timeline()).map((card) => card.slug)).toEqual(['segundo']);
+  });
+
+  /**
+   * Backdates a card so it is genuinely mid-hour.
+   *
+   * A block added through the sheet starts at this minute, so it is running
+   * but has nothing behind it: only a card whose start is real minutes ago
+   * can show whether a rearrangement leaves that start alone.
+   */
+  async function backdate(
+    slug: string,
+    startedMinutesAgo: number,
+    minutes = 60,
+  ) {
+    await sync();
+
+    const start = new Date(Date.now() - startedMinutesAgo * 60_000);
+    start.setSeconds(0, 0);
+
+    // The booking is kept. Dropping it would orphan the event the sync queue
+    // has already created, and the timeline would draw it as somebody else's
+    // meeting sitting next to the thread it belongs to.
+    const { timing } = await store.readState('test-user', slug);
+
+    await store.updateState('test-user', slug, {
+      timing: {
+        ...timing,
+        durationMinutes: minutes,
+        startTime: start.toISOString(),
+        endTime: new Date(start.getTime() + minutes * 60_000).toISOString(),
+        fixed: false,
+      },
+    });
+
+    return start;
+  }
+
+  it('leaves the hour of what is already running alone', async () => {
+    await add('Em andamento', 60).expect(201);
+    await add('Depois disso', 30).expect(201);
+    await add('E então', 30).expect(201);
+
+    // Running since twenty minutes ago, and flexible, so nothing but the new
+    // rule keeps the layout off it.
+    const started = await backdate('em-andamento', 20);
+
+    await drag('e-entao', 1).expect(201);
+
+    const cards = await timeline();
+    const current = cards.find((card) => card.slug === 'em-andamento');
+    expect(current?.section).toBe('agora');
+    expect(current?.startTime).toBe(started.toISOString());
+  });
+
+  it('packs the rest of the day after what is running, not over it', async () => {
+    await add('Em andamento', 60).expect(201);
+    await add('Depois disso', 30).expect(201);
+    const started = await backdate('em-andamento', 20);
+    const runningEnd = new Date(started.getTime() + 60 * 60_000);
+
+    await drag('depois-disso', 1).expect(201);
+
+    const next = (await timeline()).find((c) => c.slug === 'depois-disso');
+    expect(Date.parse(next!.startTime)).toBeGreaterThanOrEqual(
+      runningEnd.getTime(),
+    );
+  });
+
+  it('still moves the running card when the user drags it themselves', async () => {
+    await add('Em andamento', 60).expect(201);
+    await add('Outra', 30).expect(201);
+    const started = await backdate('em-andamento', 20);
+
+    await drag('em-andamento', 1).expect(201);
+
+    const cards = await timeline();
+    expect(cards.map((card) => card.slug)).toEqual(['outra', 'em-andamento']);
+    expect(cards[1].startTime).not.toBe(started.toISOString());
+  });
+
+  it('marks a card done once its hour has run out', async () => {
+    await add('Acabou', 30).expect(201);
+    // Started an hour ago and only lasted half of it, so it is over.
+    await backdate('acabou', 60, 30);
+
+    expect(await timeline()).toEqual([]);
+
+    const thread = await request(app.getHttpServer())
+      .get('/threads/acabou')
+      .expect(200);
+    expect((thread.body as { solved: boolean }).solved).toBe(true);
+  });
+
+  it('leaves a finished block on the calendar, because it happened', async () => {
+    await add('Acabou', 30).expect(201);
+    await sync();
+    calendar.removed = [];
+
+    await backdate('acabou', 60, 30);
+    await timeline();
+    await sync();
+
+    expect(calendar.removed).toEqual([]);
   });
 
   it('refuses a move without a place to move to', async () => {

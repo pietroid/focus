@@ -36,8 +36,17 @@ export class TimelineService {
     private readonly _calendar: CalendarReaderService,
   ) {}
 
-  /** Every card the timeline shows, earliest first. */
+  /**
+   * Every card the timeline shows, earliest first.
+   *
+   * Anything whose hour has run out is closed on the way past. The list is
+   * read constantly — the app asks again on every minute boundary — so this
+   * is where a day closes itself out, with no clock ticking anywhere on the
+   * server and nothing to schedule or keep alive.
+   */
   async cards(userId: string, now = new Date()): Promise<ThreadSummary[]> {
+    await this._store.sweep(userId, now);
+
     const cards = (await this._store.readAllSummaries(userId, now)).filter(
       (card) =>
         !card.solved &&

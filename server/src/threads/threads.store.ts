@@ -17,7 +17,7 @@ import {
   serializeThreadDay,
   titleFrom,
 } from './thread-markdown';
-import { intervalOf, sectionOf } from './thread-timing';
+import { intervalOf, isSpent, sectionOf } from './thread-timing';
 
 /**
  * The thread store: a directory of markdown files.
@@ -123,6 +123,36 @@ export class ThreadsStore {
     );
 
     return threads.filter((thread): thread is Thread => thread !== null);
+  }
+
+  /**
+   * Marks everything whose hour has run out as done, and says what it closed.
+   *
+   * A block is a promise about a stretch of clock. When the clock passes the
+   * end of it the block is spent: 11:20 to 11:25 is over at 11:26, and it is
+   * neither running nor still to come. Rather than leave it on the screen
+   * under a heading that is no longer true of it, it goes where everything
+   * finished goes.
+   *
+   * The booking on Google is left exactly where it is. The hour happened, and
+   * deleting a past event would be rewriting the day rather than closing it —
+   * unlike solving something early, which frees an hour that is still ahead
+   * and so has to give the booking back.
+   */
+  async sweep(userId: string, now = new Date()): Promise<string[]> {
+    const spent: string[] = [];
+
+    for (const thread of await this.readAll(userId)) {
+      if (thread.solved) continue;
+
+      const interval = intervalOf(thread.timing);
+      if (interval === undefined || !isSpent(now, interval)) continue;
+
+      await this.updateState(userId, thread.slug, { solved: true });
+      spent.push(thread.slug);
+    }
+
+    return spent;
   }
 
   /**
