@@ -33,6 +33,9 @@ services:
       # this path before deploying and set GOOGLE_APPLICATION_CREDENTIALS in
       # agent/.env.production.
       - /opt/focus/secrets/focus-calendar-prod.json:/run/secrets/focus-calendar-prod.json:ro
+      # Which calendar belongs to which person, so a restart does not have to
+      # look every one of them up by name again. Losing it costs one lookup.
+      - /opt/focus/data/agent:/app/data
 
   focus-web:
     image: nginx:alpine

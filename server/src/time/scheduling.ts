@@ -5,6 +5,7 @@ import {
   nextFreeSlot,
   roundUpToFiveMinutes,
 } from './work-hours';
+import { Zone } from './zone';
 
 /** One thing on the day, as the layout sees it. */
 export interface PlannedBlock {
@@ -34,6 +35,7 @@ export function relayout(
   queue: PlannedBlock[],
   anchors: Interval[],
   from: Date,
+  zone: Zone,
 ): Map<string, Interval> {
   const placed = new Map<string, Interval>();
   let cursor = from;
@@ -41,7 +43,7 @@ export function relayout(
   for (const block of queue) {
     if (block.fixed) continue;
 
-    const slot = nextFreeSlot(cursor, block.minutes, anchors);
+    const slot = nextFreeSlot(cursor, block.minutes, anchors, zone);
     placed.set(block.id, slot);
     // Everything after the first block reads off a tidy five minutes; only
     // the one that starts now is allowed an odd number on it.

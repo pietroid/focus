@@ -5,10 +5,12 @@ import {
   toolRegistry,
 } from './generate.js';
 import {
+  CalendarUser,
   deleteEvent,
   insertEvent,
+  calendarTimeZoneFor,
   listEventsBetween,
-  patchEventTime,
+  patchEvent,
 } from './services/google-calendar.js';
 import { Trace, newTraceId } from './trace.js';
 import { OpenRouterMessage, UserContext } from './types.js';
@@ -35,6 +37,11 @@ interface GenerateBody {
  * The calendar routes exist because the credentials live here and nowhere
  * else. They run no prompt and cost no generation: the server's guards do the
  * arithmetic and call these to make it true.
+ *
+ * Every calendar route names the person it is for. One Google account holds
+ * the whole ecosystem and each person has a calendar of their own inside it,
+ * so a call with no user is a call that cannot be answered rather than one
+ * that quietly reads everybody's day at once.
  *
  * Every call arrives from the server. The agent never calls out to it, has no
  * idea where it is, and holds no key for it: the one direction is what keeps
@@ -86,26 +93,38 @@ export function createServer(): express.Express {
   app.get('/calendar/window', async (req: Request, res: Response) => {
     const from = new Date(String(req.query.from ?? ''));
     const to = new Date(String(req.query.to ?? ''));
+    const user = userFromQuery(req);
 
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       res.status(400).json({ error: 'from and to must be ISO 8601 date-times' });
       return;
     }
 
     try {
-      res.json({ events: await listEventsBetween(from, to) });
+      // The zone travels with the events. The server's arithmetic about when
+      // a working day starts and ends is only right if it is done in the
+      // calendar's zone, and this is the one answer that already knows it.
+      res.json({
+        events: await listEventsBetween(user, from, to),
+        timeZone: await calendarTimeZoneFor(user),
+      });
     } catch (error) {
       res.status(502).json({ error: messageOf(error) });
     }
   });
 
   app.post('/calendar/events', async (req: Request, res: Response) => {
-    const body = req.body as {
-      title?: string;
-      startTime?: string;
-      endTime?: string;
-    };
+    const body = req.body as EventBody;
+    const user = userFromBody(body);
 
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
     if (
       typeof body.title !== 'string' ||
       typeof body.startTime !== 'string' ||
@@ -117,10 +136,12 @@ export function createServer(): express.Express {
 
     try {
       res.json(
-        await insertEvent({
+        await insertEvent(user, {
           title: body.title,
           startTime: body.startTime,
           endTime: body.endTime,
+          fixed: body.fixed === true,
+          threadSlug: body.threadSlug,
         }),
       );
     } catch (error) {
@@ -129,17 +150,22 @@ export function createServer(): express.Express {
   });
 
   app.patch('/calendar/events/:id', async (req: Request, res: Response) => {
-    const body = req.body as { startTime?: string; endTime?: string };
-    if (typeof body.startTime !== 'string' || typeof body.endTime !== 'string') {
-      res.status(400).json({ error: 'startTime and endTime are required' });
+    const body = req.body as EventBody;
+    const user = userFromBody(body);
+
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
       return;
     }
 
     try {
       res.json(
-        await patchEventTime(eventId(req), {
+        await patchEvent(user, eventId(req), {
+          title: body.title,
           startTime: body.startTime,
           endTime: body.endTime,
+          fixed: body.fixed,
+          threadSlug: body.threadSlug,
         }),
       );
     } catch (error) {
@@ -148,9 +174,16 @@ export function createServer(): express.Express {
   });
 
   app.delete('/calendar/events/:id', async (req: Request, res: Response) => {
+    const user = userFromQuery(req);
+
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+
     try {
       const id = eventId(req);
-      await deleteEvent(id);
+      await deleteEvent(user, id);
       res.json({ id, deleted: true });
     } catch (error) {
       res.status(502).json({ error: messageOf(error) });
@@ -158,6 +191,32 @@ export function createServer(): express.Express {
   });
 
   return app;
+}
+
+/** What a create or a patch carries, beyond the person it is for. */
+interface EventBody {
+  userId?: string;
+  userEmail?: string;
+  title?: string;
+  startTime?: string;
+  endTime?: string;
+  fixed?: boolean;
+  threadSlug?: string;
+}
+
+/** The person a calendar write is for, or null when none was named. */
+function userFromBody(body: EventBody): CalendarUser | null {
+  if (typeof body.userId !== 'string' || body.userId === '') return null;
+  return { id: body.userId, email: body.userEmail };
+}
+
+/** The same, for the routes that carry it in the query string. */
+function userFromQuery(req: Request): CalendarUser | null {
+  const id = String(req.query.userId ?? '');
+  if (id === '') return null;
+
+  const email = String(req.query.userEmail ?? '');
+  return { id, email: email === '' ? undefined : email };
 }
 
 /** The `:id` segment, which Express types as possibly repeated. */

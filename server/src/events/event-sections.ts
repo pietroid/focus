@@ -1,35 +1,21 @@
 import { Interval } from '../time/work-hours';
-import { ThreadTiming, TimelineSection } from './entities/thread.entity';
+import { addDaysIn, sameDayIn, Zone } from '../time/zone';
+import { CalendarEvent } from '../calendar/calendar.types';
+import { TimelineSection } from './entities/event.entity';
 
-/** [timing] as an interval, when it has one. */
+/** [event] as an interval, or undefined when its ends do not parse. */
 export function intervalOf(
-  timing: ThreadTiming | undefined,
+  event: Pick<CalendarEvent, 'startTime' | 'endTime'> | undefined,
 ): Interval | undefined {
-  if (timing === undefined) return undefined;
+  if (event === undefined) return undefined;
 
-  const start = new Date(timing.startTime);
-  const end = new Date(timing.endTime);
+  const start = new Date(event.startTime);
+  const end = new Date(event.endTime);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return undefined;
   }
 
   return { start, end };
-}
-
-/** Whether [a] and [b] are the same calendar day. */
-function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-/** The day after [at], at the same time. */
-function tomorrow(at: Date): Date {
-  const next = new Date(at);
-  next.setDate(next.getDate() + 1);
-  return next;
 }
 
 /** Whether [interval] is the hour being lived through at [now]. */
@@ -53,17 +39,22 @@ export function isSpent(now: Date, interval: Interval): boolean {
  * An hour that has run out is not a section. A block booked 11:20 to 11:25 is
  * finished at 11:26 — that was the hour, the hour is gone, and leaving it on
  * the screen would make "Agora" mean "now, and also everything now used to
- * be". [ThreadsStore.sweep] marks those done; this keeps them off the screen
- * in the moment before it does.
+ * be". The event stays on Google, because it happened; the timeline simply
+ * stops drawing it.
+ *
+ * "Hoje" is today in [zone], which is the calendar's zone and so the user's
+ * day. Asking the server's clock instead is how an evening block ended up
+ * under "Amanhã" on a machine running in UTC.
  */
 export function sectionOf(
   now: Date,
   interval: Interval,
+  zone: Zone,
 ): TimelineSection | undefined {
   if (isSpent(now, interval)) return undefined;
   if (isRunning(now, interval)) return 'agora';
-  if (sameDay(interval.start, now)) return 'hoje';
-  if (sameDay(interval.start, tomorrow(now))) return 'amanha';
+  if (sameDayIn(interval.start, now, zone)) return 'hoje';
+  if (sameDayIn(interval.start, addDaysIn(now, 1, zone), zone)) return 'amanha';
 
   return undefined;
 }

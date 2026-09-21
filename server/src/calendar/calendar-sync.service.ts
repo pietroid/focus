@@ -1,47 +1,41 @@
 import { Injectable } from '@nestjs/common';
 import { Trace } from '../common/trace';
 
-/** Why the calendar is not saying what the timeline says. */
+/** Why the calendar is not saying what the screen says. */
 export interface SyncFailure {
-  /** The thread whose hour did not make it across. */
-  slug: string;
+  /** The block whose hour did not make it across, as the user reads it. */
+  title: string;
   /** The raw error, for the trace. Never shown to anyone. */
   error: string;
 }
 
-/** One piece of work: push a thread's stored hour to Google. */
+/** One piece of work: make Google hold what the screen is showing. */
 type SyncJob = () => Promise<void>;
 
 /**
  * The calendar, kept up to date behind the user's back.
  *
- * The rule used to be that Google went first: nothing was stored until the
- * event existed, so the timeline could never point at an hour the calendar
- * did not have. It was correct and it felt broken. Every drag paid for a
- * round trip to Google before the card would settle, and a card that takes
- * half a second to land does not feel like a card, it feels like a form.
+ * Google is the truth about when things happen, and a drag still has to feel
+ * like a drag. So the cached day is written first and answers the request,
+ * and the write to Google runs from here, behind the response. What makes
+ * that safe is that a job is not an instruction but a reconciliation: it
+ * pushes the hour the cache now holds, so two drags of the same card queue
+ * two jobs that both end at the same place and there is no order to get
+ * wrong.
  *
- * So the order is inverted. The store is written first and answers the
- * request; the calendar catches up from here. What makes that safe is that
- * the jobs are not instructions but reconciliations: each one reads the
- * thread as it now stands and makes Google match it. Two drags of the same
- * card queue two jobs, and the second one sees the same final state as the
- * first, so there is no order to get wrong and nothing to undo.
- *
- * Jobs run one at a time per user, in the order they arrived, because two
- * reconciliations of the same thread at once could both decide to create the
- * event.
+ * Jobs run one at a time per person, in the order they arrived, because two
+ * writes to the same event at once is how one of them is lost.
  *
  * When one fails the failure is kept rather than thrown: the request that
- * queued it has long since answered. The app asks for it on [settle], and
- * the user gets a popup and a retry.
+ * queued it has long since answered. The app asks for it on [settle], and the
+ * user gets a popup and a retry.
  */
 @Injectable()
 export class CalendarSyncService {
-  /** The tail of each user's queue. Awaiting it awaits everything before it. */
+  /** The tail of each person's queue. Awaiting it awaits everything before. */
   private readonly _queues = new Map<string, Promise<void>>();
 
-  /** The last failure since anyone asked, per user. */
+  /** The last failure since anyone asked, per person. */
   private readonly _failures = new Map<string, SyncFailure>();
 
   /** Everything that failed, kept so a retry has something to run again. */
@@ -52,20 +46,30 @@ export class CalendarSyncService {
    *
    * Nothing waits on the result here, which is the whole point: the caller
    * has a request to answer and the calendar is not on its critical path.
+   *
+   * [key] names what the job is about, normally an event id. One job per key
+   * is kept on failure, because an older push of the same event would only
+   * write the same hour twice.
    */
-  enqueue(userId: string, slug: string, job: SyncJob, trace: Trace): void {
+  enqueue(
+    userId: string,
+    key: string,
+    title: string,
+    job: SyncJob,
+    trace: Trace,
+  ): void {
     const previous = this._queues.get(userId) ?? Promise.resolve();
 
     const next = previous.then(async () => {
       try {
         await job();
-        this._forget(userId, slug);
+        this._forget(userId, key);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        trace.error('calendar.sync.fail', { slug, error: message });
+        trace.error('calendar.sync.fail', { key, error: message });
 
-        this._failures.set(userId, { slug, error: message });
-        this._remember(userId, slug, job);
+        this._failures.set(userId, { title, error: message });
+        this._remember(userId, key, job);
       }
     });
 
@@ -91,7 +95,7 @@ export class CalendarSyncService {
   /**
    * Runs everything that failed again, and says how it went.
    *
-   * The jobs are the same closures that failed, and they read the thread
+   * The jobs are the same closures that failed, and they read the cached day
    * fresh, so a retry after three more drags pushes the day as it is now
    * rather than as it was when Google first refused.
    */
@@ -99,8 +103,8 @@ export class CalendarSyncService {
     const pending = [...(this._pending.get(userId)?.entries() ?? [])];
     trace.log('calendar.sync.retry', { jobs: pending.length });
 
-    for (const [slug, job] of pending) {
-      this.enqueue(userId, slug, job, trace);
+    for (const [key, job] of pending) {
+      this.enqueue(userId, key, key, job, trace);
     }
 
     return this.settle(userId);
@@ -111,15 +115,13 @@ export class CalendarSyncService {
     return (this._pending.get(userId)?.size ?? 0) > 0;
   }
 
-  private _remember(userId: string, slug: string, job: SyncJob): void {
+  private _remember(userId: string, key: string, job: SyncJob): void {
     const jobs = this._pending.get(userId) ?? new Map<string, SyncJob>();
-    // One job per thread. An older failed reconciliation of the same thread
-    // would only push the same state twice.
-    jobs.set(slug, job);
+    jobs.set(key, job);
     this._pending.set(userId, jobs);
   }
 
-  private _forget(userId: string, slug: string): void {
-    this._pending.get(userId)?.delete(slug);
+  private _forget(userId: string, key: string): void {
+    this._pending.get(userId)?.delete(key);
   }
 }

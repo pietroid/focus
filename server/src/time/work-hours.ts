@@ -5,7 +5,15 @@
  * One file owns the hours, and `scheduling.ts` is its only real caller. Two
  * copies of "the day ends at ten" would have disagreed the first time one of
  * them changed.
+ *
+ * **Every hour here is a wall-clock hour in a named zone**, and the zone is
+ * always passed in. Seven in the morning means seven where the person is, so
+ * nothing in this file may ask a `Date` what hour it is: that answers in the
+ * server's zone, and a server in UTC would call half past seven in the
+ * evening in São Paulo half past ten and push the block to tomorrow. See
+ * `zone.ts` for the arithmetic.
  */
+import { addDaysIn, atHourIn, formatTimeIn, Zone } from './zone';
 
 /** The first hour of the working day. Nothing is proposed before it. */
 export const WORK_DAY_START_HOUR = 7;
@@ -39,13 +47,6 @@ export function minutesOf(interval: Interval): number {
   );
 }
 
-/** The same day as [at], at [hour] o'clock exactly. */
-function atHour(at: Date, hour: number): Date {
-  const result = new Date(at);
-  result.setHours(hour, 0, 0, 0);
-  return result;
-}
-
 /**
  * The working window [at] is in, or the next one if it is outside them.
  *
@@ -53,18 +54,17 @@ function atHour(at: Date, hour: number): Date {
  * what makes a thread created at midnight propose a time someone could
  * actually keep.
  */
-export function workWindowFor(at: Date): Interval {
-  const start = atHour(at, WORK_DAY_START_HOUR);
-  const end = atHour(at, WORK_DAY_END_HOUR);
+export function workWindowFor(at: Date, zone: Zone): Interval {
+  const start = atHourIn(at, WORK_DAY_START_HOUR, zone);
+  const end = atHourIn(at, WORK_DAY_END_HOUR, zone);
 
   if (at < start) return { start, end };
   if (at < end) return { start, end };
 
-  const tomorrow = new Date(at);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrow = addDaysIn(at, 1, zone);
   return {
-    start: atHour(tomorrow, WORK_DAY_START_HOUR),
-    end: atHour(tomorrow, WORK_DAY_END_HOUR),
+    start: atHourIn(tomorrow, WORK_DAY_START_HOUR, zone),
+    end: atHourIn(tomorrow, WORK_DAY_END_HOUR, zone),
   };
 }
 
@@ -75,11 +75,8 @@ export function workWindowFor(at: Date): Interval {
  * window and the start of the next one are a day and nine hours apart, and
  * feeding one into the other lands on the morning after the one meant.
  */
-export function nextWorkWindowStart(window: Interval): Date {
-  const day = new Date(window.end);
-  day.setDate(day.getDate() + 1);
-  day.setHours(WORK_DAY_START_HOUR, 0, 0, 0);
-  return day;
+export function nextWorkWindowStart(window: Interval, zone: Zone): Date {
+  return atHourIn(addDaysIn(window.end, 1, zone), WORK_DAY_START_HOUR, zone);
 }
 
 /**
@@ -89,8 +86,8 @@ export function nextWorkWindowStart(window: Interval): Date {
  * seconds off the result, and handing back the caller's own clock would let
  * that trim travel backwards into whatever else is reading it.
  */
-export function earliestStart(now: Date): Date {
-  const window = workWindowFor(now);
+export function earliestStart(now: Date, zone: Zone): Date {
+  const window = workWindowFor(now, zone);
   return new Date(now < window.start ? window.start : now);
 }
 
@@ -128,12 +125,13 @@ export function nextFreeSlot(
   from: Date,
   durationMinutes: number,
   busy: Interval[],
+  zone: Zone,
 ): Interval {
   // [from] is used as given rather than rounded up, so the first thing on a
   // day can start at this minute. That is what makes "Agora" ever contain
   // anything: a block nudged to the next multiple of five would be a block
   // the clock says has not started.
-  const start0 = earliestStart(from);
+  const start0 = earliestStart(from, zone);
   start0.setSeconds(0, 0);
   let start = start0;
 
@@ -142,10 +140,10 @@ export function nextFreeSlot(
   // turning this into a hang.
   for (let attempt = 0; attempt < 500; attempt++) {
     const candidate = { start, end: addMinutes(start, durationMinutes) };
-    const window = workWindowFor(start);
+    const window = workWindowFor(start, zone);
 
     if (candidate.end > window.end) {
-      start = nextWorkWindowStart(window);
+      start = nextWorkWindowStart(window, zone);
       continue;
     }
 
@@ -158,12 +156,7 @@ export function nextFreeSlot(
   return { start, end: addMinutes(start, durationMinutes) };
 }
 
-/** "14:30", in the server's timezone. */
-function formatTime(at: Date): string {
-  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
-}
-
 /** "14:30-15:15", the way a card and a guard both write a span. */
-export function formatRange(interval: Interval): string {
-  return `${formatTime(interval.start)}-${formatTime(interval.end)}`;
+export function formatRange(interval: Interval, zone: Zone): string {
+  return `${formatTimeIn(interval.start, zone)}-${formatTimeIn(interval.end, zone)}`;
 }

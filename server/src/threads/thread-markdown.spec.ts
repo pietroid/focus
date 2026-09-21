@@ -1,8 +1,9 @@
 import { Message } from './entities/message.entity';
 import {
   dayFolder,
-  parseThreadDay,
-  serializeThreadDay,
+  isDayFolder,
+  parseThread,
+  serializeThread,
   slugify,
   titleFrom,
 } from './thread-markdown';
@@ -22,17 +23,35 @@ describe('thread markdown', () => {
     message('agent', 'Noted.', '2026-09-15T19:23:05.456Z'),
   ];
 
-  it('round-trips a day of conversation', () => {
-    const markdown = serializeThreadDay('Buy milk tomorrow', messages);
-    const parsed = parseThreadDay(markdown);
+  const front = {
+    createdAt: new Date('2026-09-15T19:23:04.123Z'),
+    solved: false,
+    title: 'Buy milk tomorrow',
+  };
 
-    expect(parsed.title).toBe('Buy milk tomorrow');
+  it('round-trips a conversation', () => {
+    const parsed = parseThread(serializeThread(front, messages));
+
+    expect(parsed.front).toEqual(front);
     expect(parsed.messages).toEqual(messages);
   });
 
+  it('remembers that a thread was closed', () => {
+    const parsed = parseThread(
+      serializeThread({ ...front, solved: true }, messages),
+    );
+
+    expect(parsed.front.solved).toBe(true);
+  });
+
   it('writes a readable file', () => {
-    expect(serializeThreadDay('Buy milk tomorrow', messages)).toBe(
+    expect(serializeThread(front, messages)).toBe(
       [
+        '---',
+        'created: 2026-09-15T19:23:04.123Z',
+        'solved: false',
+        '---',
+        '',
         '# Buy milk tomorrow',
         '',
         '## user @ 2026-09-15T19:23:04.123Z',
@@ -56,13 +75,26 @@ describe('thread markdown', () => {
       ),
     ];
 
-    const parsed = parseThreadDay(serializeThreadDay('Buy milk', withHeading));
+    const parsed = parseThread(
+      serializeThread({ ...front, title: 'Buy milk' }, withHeading),
+    );
 
     expect(parsed.messages).toEqual(withHeading);
   });
 
-  it('parses a file that was hand-edited', () => {
-    const parsed = parseThreadDay(
+  it('keeps a rule inside a message body out of the front matter', () => {
+    const withRule = [
+      message('agent', 'before\n\n---\n\nafter', '2026-09-15T19:23:05.456Z'),
+    ];
+
+    const parsed = parseThread(serializeThread(front, withRule));
+
+    expect(parsed.front.title).toBe('Buy milk tomorrow');
+    expect(parsed.messages).toEqual(withRule);
+  });
+
+  it('parses a file that was hand-written, front matter and all', () => {
+    const parsed = parseThread(
       [
         '# Hand written',
         '',
@@ -79,7 +111,11 @@ describe('thread markdown', () => {
       ].join('\n'),
     );
 
-    expect(parsed.title).toBe('Hand written');
+    // No front matter at all: an open thread called whatever its heading
+    // says, which started when its first message did.
+    expect(parsed.front.title).toBe('Hand written');
+    expect(parsed.front.solved).toBe(false);
+    expect(parsed.front.createdAt).toBeUndefined();
     expect(parsed.messages.map((m) => m.text)).toEqual([
       'no blank line after the header',
       'trailing blanks',
@@ -87,12 +123,15 @@ describe('thread markdown', () => {
   });
 
   it('returns nothing for an empty file', () => {
-    expect(parseThreadDay('')).toEqual({ title: '', messages: [] });
+    expect(parseThread('')).toEqual({
+      front: { createdAt: undefined, solved: false, title: '' },
+      messages: [],
+    });
   });
 });
 
 describe('slugify', () => {
-  it('makes a path-safe folder name', () => {
+  it('makes a path-safe file name', () => {
     expect(slugify('Buy milk tomorrow!')).toBe('buy-milk-tomorrow');
   });
 
@@ -125,8 +164,14 @@ describe('titleFrom', () => {
 });
 
 describe('dayFolder', () => {
-  it('formats the local date', () => {
-    expect(dayFolder(new Date(2026, 8, 15, 23, 59))).toBe('2026-09-15');
-    expect(dayFolder(new Date(2026, 0, 1, 0, 0))).toBe('2026-01-01');
+  it('formats the local date the way a date is written here', () => {
+    expect(dayFolder(new Date(2026, 8, 15, 23, 59))).toBe('15-09-2026');
+    expect(dayFolder(new Date(2026, 0, 1, 0, 0))).toBe('01-01-2026');
+  });
+
+  it('knows one of its own folders from anything else', () => {
+    expect(isDayFolder('15-09-2026')).toBe(true);
+    expect(isDayFolder('traces')).toBe(false);
+    expect(isDayFolder('2026-09-15')).toBe(false);
   });
 });

@@ -3,7 +3,11 @@ import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/models/models.dart';
 
 /// {@template chat_repository}
-/// Reads and writes threads on the backend.
+/// Conversations, on the backend.
+///
+/// Nothing here has an hour. When something happens belongs to the timeline
+/// repository, and a thread learns about a block of time only because the
+/// block says which thread it belongs to.
 /// {@endtemplate}
 class ChatRepository {
   /// {@macro chat_repository}
@@ -12,13 +16,15 @@ class ChatRepository {
   /// HTTP client used to communicate with the backend.
   final ApiClient apiClient;
 
-  /// Every thread the signed-in user owns, most recently updated first.
-  Future<List<ThreadSummary>> fetchThreads() async {
+  /// Every open thread, most recently replied to first.
+  ///
+  /// What Coisas draws, and all of what it draws: every conversation the user
+  /// has open, whether or not an hour was ever set aside for any of them.
+  Future<List<ThreadItem>> fetchItems() async {
     final response = await apiClient.get<List<dynamic>>('/threads');
-    final data = response.data ?? <dynamic>[];
 
-    return data
-        .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+    return (response.data ?? <dynamic>[])
+        .map((t) => ThreadItem.fromJson(t as Map<String, dynamic>))
         .toList();
   }
 
@@ -31,114 +37,13 @@ class ChatRepository {
         .toList();
   }
 
-  /// Writes something down and puts it straight on the timeline.
+  /// Marks a thread solved, or opens a closed one again.
   ///
-  /// No agent runs. The sheet already asked everything that has to be known
-  /// to give something an hour, so the answer is the timeline with the new
-  /// card already in it.
-  Future<List<ThreadSummary>> createScheduled({
-    required String message,
-    required int durationMinutes,
-    required bool fixed,
-    DateTime? startTime,
-  }) async {
-    try {
-      final response = await apiClient.post<List<dynamic>>(
-        '/threads/scheduled',
-        data: {
-          'message': message,
-          'durationMinutes': durationMinutes,
-          'fixed': fixed,
-          if (startTime != null)
-            'startTime': startTime.toUtc().toIso8601String(),
-        },
-      );
-
-      return (response.data ?? <dynamic>[])
-          .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
-          .toList();
-    } on Object catch (error) {
-      throw ChatFailure.from(error);
-    }
-  }
-
-  /// Moves a card to [index] in the day's single list.
-  ///
-  /// One number, because there is one list. Everything a drop does to the
-  /// hours of everything around it is worked out on the server, so the answer
-  /// is the whole timeline rather than a confirmation.
-  ///
-  /// It is not always the new timeline. A move that displaces something that
-  /// is already running comes back with a guard instead, and nothing has
-  /// changed on the server until that guard is answered.
-  Future<TimelineOutcome> moveThread(String slug, int index) async {
-    try {
-      final response = await apiClient.post<Map<String, dynamic>>(
-        '/threads/$slug/move',
-        data: {'index': index},
-      );
-
-      return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
-    } on Object catch (error) {
-      throw ChatFailure.from(error);
-    }
-  }
-
-  /// Answers a guard with the button the user tapped.
-  ///
-  /// The action object goes back exactly as it arrived, for the same reason
-  /// [runAction] posts one verbatim: what a guard's answer means, and what it
-  /// does to the rest of the day, is the server's to know. The app's whole
-  /// part in it is drawing the buttons and saying which one was pressed.
-  Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async {
-    try {
-      final response = await apiClient.post<Map<String, dynamic>>(
-        '/threads/timing',
-        data: {'action': action},
-      );
-
-      return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
-    } on Object catch (error) {
-      throw ChatFailure.from(error);
-    }
-  }
-
-  /// Waits for the calendar to catch up with what the app already shows.
-  ///
-  /// Called after a change, and never on the path the finger is on: the drag
-  /// has already landed by the time this goes out. It comes back with nothing
-  /// to say almost every time, and with a popup to draw when the booking did
-  /// not make it across.
-  Future<SyncOutcome> awaitSync() async {
-    try {
-      final response = await apiClient.get<Map<String, dynamic>>(
-        '/threads/sync',
-      );
-
-      return SyncOutcome.fromJson(response.data ?? <String, dynamic>{});
-    } on Object catch (error) {
-      throw ChatFailure.from(error);
-    }
-  }
-
-  /// Pushes whatever did not reach the calendar again.
-  Future<SyncOutcome> retrySync() async {
-    try {
-      final response = await apiClient.post<Map<String, dynamic>>(
-        '/threads/sync',
-      );
-
-      return SyncOutcome.fromJson(response.data ?? <String, dynamic>{});
-    } on Object catch (error) {
-      throw ChatFailure.from(error);
-    }
-  }
-
-  /// Marks a thread solved, or puts a solved one back on the timeline.
-  ///
-  /// Returns the whole list, because solving a thread changes which threads
-  /// the timeline has in it and not only the one that was dragged.
-  Future<List<ThreadSummary>> setSolved(
+  /// Returns the open list, because closing a conversation changes which
+  /// conversations Coisas has in it and not only the one that was touched. It
+  /// says nothing about the calendar: an hour is given back by finishing the
+  /// block, which is a different act on a different screen.
+  Future<List<ThreadItem>> setSolved(
     String slug, {
     required bool solved,
   }) async {
@@ -149,7 +54,7 @@ class ChatRepository {
       );
 
       return (response.data ?? <dynamic>[])
-          .map((t) => ThreadSummary.fromJson(t as Map<String, dynamic>))
+          .map((t) => ThreadItem.fromJson(t as Map<String, dynamic>))
           .toList();
     } on Object catch (error) {
       throw ChatFailure.from(error);

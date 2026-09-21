@@ -3,34 +3,29 @@ import 'package:chat/chat.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockChatRepository extends Mock implements ChatRepository {}
+class _MockTimelineRepository extends Mock implements TimelineRepository {}
 
 DateTime _at(int hour, {int minute = 0, int addDays = 0}) {
   return DateTime(2026, 8, 27 + addDays, hour, minute);
 }
 
-ThreadSummary _card(
-  String slug, {
+TimelineEvent _card(
+  String id, {
   required TimelineSection section,
   required DateTime start,
   int minutes = 30,
-  CardKind kind = CardKind.thread,
+  bool managed = true,
   bool fixed = false,
 }) {
-  return ThreadSummary(
-    kind: kind,
-    slug: slug,
-    title: slug,
-    preview: '',
-    messageCount: 1,
-    solved: false,
+  return TimelineEvent(
+    id: id,
+    title: id,
     section: section,
     startTime: start,
     endTime: start.add(Duration(minutes: minutes)),
     durationMinutes: minutes,
+    managed: managed,
     fixed: fixed,
-    createdAt: start,
-    updatedAt: start,
   );
 }
 
@@ -42,33 +37,33 @@ const _guard = A2uiComponent(
   ],
 );
 
-/// The timeline as the server sends it: one flat list, in clock order.
-final _cards = <ThreadSummary>[
+/// The day as the server sends it: one flat list, in clock order.
+final _cards = <TimelineEvent>[
   _card('a', section: TimelineSection.agora, start: _at(9)),
   _card('b', section: TimelineSection.hoje, start: _at(14)),
   _card('c', section: TimelineSection.hoje, start: _at(15)),
   _card('d', section: TimelineSection.amanha, start: _at(9, addDays: 1)),
 ];
 
-/// The list with [slug] lifted out and put back at [index].
+/// The list with [id] lifted out and put back at [index].
 ///
 /// The real server also rewrites every hour the move disturbed. The order is
 /// the part the bloc is responsible for drawing, so that is the part the
 /// double bothers to get right.
-List<ThreadSummary> _moved(String slug, int index) {
+List<TimelineEvent> _moved(String id, int index) {
   final cards = [..._cards];
-  final card = cards.removeAt(cards.indexWhere((c) => c.slug == slug));
+  final card = cards.removeAt(cards.indexWhere((c) => c.id == id));
 
   return cards..insert(index.clamp(0, cards.length), card);
 }
 
 void main() {
-  late ChatRepository repository;
+  late TimelineRepository repository;
 
   setUp(() {
-    repository = _MockChatRepository();
-    when(repository.fetchThreads).thenAnswer((_) async => _cards);
-    when(() => repository.moveThread(any(), any())).thenAnswer(
+    repository = _MockTimelineRepository();
+    when(repository.fetchEvents).thenAnswer((_) async => _cards);
+    when(() => repository.moveEvent(any(), any())).thenAnswer(
       (invocation) async => TimelineOutcome(
         cards: _moved(
           invocation.positionalArguments[0] as String,
@@ -76,9 +71,7 @@ void main() {
         ),
       ),
     );
-    when(
-      () => repository.setSolved(any(), solved: any(named: 'solved')),
-    ).thenAnswer((_) async => []);
+    when(() => repository.finishEvent(any())).thenAnswer((_) async => []);
     // The calendar keeps up unless a test says otherwise.
     when(
       repository.awaitSync,
@@ -88,19 +81,19 @@ void main() {
     ).thenAnswer((_) async => const SyncOutcome(ok: true));
   });
 
-  ThreadsBloc build() => ThreadsBloc(chatRepository: repository);
+  TimelineBloc build() => TimelineBloc(repository: repository);
 
-  List<String> order(ThreadsState state) =>
-      state.cards.map((card) => card.slug).toList();
+  List<String> order(TimelineState state) =>
+      state.cards.map((card) => card.id).toList();
 
-  group('ThreadsBloc', () {
-    blocTest<ThreadsBloc, ThreadsState>(
+  group('TimelineBloc', () {
+    blocTest<TimelineBloc, TimelineState>(
       'checks the calendar behind a drop, and says nothing when it kept up',
       build: build,
       act: (bloc) async {
-        bloc.add(const ThreadsRequested());
+        bloc.add(const TimelineRequested());
         await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+        bloc.add(const EventMoved(id: 'd', index: 0));
       },
       wait: const Duration(milliseconds: 30),
       verify: (bloc) {
@@ -109,7 +102,7 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'puts the popup up when the calendar fell behind',
       build: () {
         when(repository.awaitSync).thenAnswer(
@@ -118,9 +111,9 @@ void main() {
         return build();
       },
       act: (bloc) async {
-        bloc.add(const ThreadsRequested());
+        bloc.add(const TimelineRequested());
         await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+        bloc.add(const EventMoved(id: 'd', index: 0));
       },
       wait: const Duration(milliseconds: 30),
       verify: (bloc) {
@@ -130,10 +123,10 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'never covers an open question with the sync popup',
       build: () {
-        when(() => repository.moveThread(any(), any())).thenAnswer(
+        when(() => repository.moveEvent(any(), any())).thenAnswer(
           (_) async => TimelineOutcome(cards: _cards, guard: _guard),
         );
         when(repository.awaitSync).thenAnswer(
@@ -142,9 +135,9 @@ void main() {
         return build();
       },
       act: (bloc) async {
-        bloc.add(const ThreadsRequested());
+        bloc.add(const TimelineRequested());
         await Future<void>.delayed(const Duration(milliseconds: 10));
-        bloc.add(const ThreadMoved(slug: 'd', index: 0));
+        bloc.add(const EventMoved(id: 'd', index: 0));
       },
       wait: const Duration(milliseconds: 30),
       verify: (_) {
@@ -154,7 +147,7 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'closes the popup when the retry gets the calendar back in step',
       build: build,
       act: (bloc) => bloc.add(const SyncRetried()),
@@ -166,7 +159,7 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'leaves the popup up when the retry fails too',
       build: () {
         when(repository.retrySync).thenAnswer(
@@ -182,46 +175,46 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
-      'loads the timeline',
+    blocTest<TimelineBloc, TimelineState>(
+      'loads the day',
       build: build,
-      act: (bloc) => bloc.add(const ThreadsRequested()),
+      act: (bloc) => bloc.add(const TimelineRequested()),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(order(bloc.state), ['a', 'b', 'c', 'd']);
         expect(bloc.state.inSection(TimelineSection.hoje), hasLength(2));
-        expect(bloc.state.status, ThreadsStatus.success);
+        expect(bloc.state.status, TimelineStatus.success);
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'draws the order the server sends back after a drop',
       build: build,
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
       ),
-      act: (bloc) => bloc.add(const ThreadMoved(slug: 'c', index: 0)),
+      act: (bloc) => bloc.add(const EventMoved(id: 'c', index: 0)),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(order(bloc.state), ['c', 'a', 'b', 'd']);
-        verify(() => repository.moveThread('c', 0)).called(1);
+        verify(() => repository.moveEvent('c', 0)).called(1);
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'leaves the timeline alone and raises the guard the move came back with',
       build: () {
-        when(() => repository.moveThread(any(), any())).thenAnswer(
+        when(() => repository.moveEvent(any(), any())).thenAnswer(
           (_) async => TimelineOutcome(cards: _cards, guard: _guard),
         );
         return build();
       },
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
       ),
-      act: (bloc) => bloc.add(const ThreadMoved(slug: 'c', index: 0)),
+      act: (bloc) => bloc.add(const EventMoved(id: 'c', index: 0)),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(order(bloc.state), ['a', 'b', 'c', 'd']);
@@ -229,29 +222,29 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
-      'refuses to move a card that came off the calendar',
+    blocTest<TimelineBloc, TimelineState>(
+      'refuses to move a meeting Focus did not book',
       build: build,
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: [
           ..._cards,
           _card(
-            'gcal-1',
+            'daily',
             section: TimelineSection.hoje,
             start: _at(11),
-            kind: CardKind.calendar,
+            managed: false,
           ),
         ],
       ),
-      act: (bloc) => bloc.add(const ThreadMoved(slug: 'gcal-1', index: 0)),
+      act: (bloc) => bloc.add(const EventMoved(id: 'daily', index: 0)),
       wait: const Duration(milliseconds: 10),
       verify: (_) {
-        verifyNever(() => repository.moveThread(any(), any()));
+        verifyNever(() => repository.moveEvent(any(), any()));
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'answers a guard and draws what came back',
       build: () {
         when(() => repository.applyTiming(any())).thenAnswer(
@@ -259,13 +252,13 @@ void main() {
         );
         return build();
       },
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
         guard: _guard,
       ),
       act: (bloc) => bloc.add(
-        const GuardAnswered({'type': 'timing', 'slug': 'c', 'index': 0}),
+        const GuardAnswered({'type': 'timing', 'eventId': 'c', 'index': 0}),
       ),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
@@ -274,11 +267,11 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'dropping a guard changes nothing',
       build: build,
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
         guard: _guard,
       ),
@@ -290,25 +283,25 @@ void main() {
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
-      'takes a solved card off the timeline before the write lands',
+    blocTest<TimelineBloc, TimelineState>(
+      'takes a finished card off the day before the write lands',
       build: build,
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
       ),
-      act: (bloc) => bloc.add(const ThreadSolved('b', solved: true)),
+      act: (bloc) => bloc.add(const EventFinished('b')),
       verify: (bloc) {
         expect(order(bloc.state), isNot(contains('b')));
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
+    blocTest<TimelineBloc, TimelineState>(
       'keeps the sentence the server refused in',
       build: () {
         when(
-          () => repository.createScheduled(
-            message: any(named: 'message'),
+          () => repository.createEvent(
+            title: any(named: 'title'),
             durationMinutes: any(named: 'durationMinutes'),
             fixed: any(named: 'fixed'),
             startTime: any(named: 'startTime'),
@@ -317,8 +310,8 @@ void main() {
         return build();
       },
       act: (bloc) => bloc.add(
-        const ThreadScheduled(
-          message: 'Revisar proposta',
+        const EventCreated(
+          title: 'Revisar proposta',
           durationMinutes: 30,
           fixed: false,
         ),
@@ -326,37 +319,35 @@ void main() {
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(bloc.state.failure, 'A agenda não respondeu.');
-        expect(bloc.state.status, ThreadsStatus.failure);
+        expect(bloc.state.status, TimelineStatus.failure);
         expect(bloc.state.cards, isEmpty);
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
-      'puts a solved card back when the write fails',
+    blocTest<TimelineBloc, TimelineState>(
+      'puts a finished card back when the write fails',
       build: () {
-        when(
-          () => repository.setSolved(any(), solved: any(named: 'solved')),
-        ).thenThrow(Exception('nope'));
+        when(() => repository.finishEvent(any())).thenThrow(Exception('nope'));
         return build();
       },
-      seed: () => ThreadsState(
-        status: ThreadsStatus.success,
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
         cards: _cards,
       ),
-      act: (bloc) => bloc.add(const ThreadSolved('b', solved: true)),
+      act: (bloc) => bloc.add(const EventFinished('b')),
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(order(bloc.state), ['a', 'b', 'c', 'd']);
-        expect(bloc.state.status, ThreadsStatus.failure);
+        expect(bloc.state.status, TimelineStatus.failure);
       },
     );
 
-    blocTest<ThreadsBloc, ThreadsState>(
-      'writes something down and draws the timeline it came back in',
+    blocTest<TimelineBloc, TimelineState>(
+      'writes something down and draws the day it came back in',
       build: () {
         when(
-          () => repository.createScheduled(
-            message: any(named: 'message'),
+          () => repository.createEvent(
+            title: any(named: 'title'),
             durationMinutes: any(named: 'durationMinutes'),
             fixed: any(named: 'fixed'),
             startTime: any(named: 'startTime'),
@@ -365,8 +356,8 @@ void main() {
         return build();
       },
       act: (bloc) => bloc.add(
-        const ThreadScheduled(
-          message: 'Revisar proposta',
+        const EventCreated(
+          title: 'Revisar proposta',
           durationMinutes: 30,
           fixed: false,
         ),
@@ -374,7 +365,7 @@ void main() {
       wait: const Duration(milliseconds: 10),
       verify: (bloc) {
         expect(order(bloc.state), ['a', 'b', 'c', 'd']);
-        expect(bloc.state.status, ThreadsStatus.success);
+        expect(bloc.state.status, TimelineStatus.success);
       },
     );
   });

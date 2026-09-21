@@ -11,23 +11,14 @@ import * as adminAuth from 'firebase-admin/auth';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
 import { THREAD_OPS } from '../a2ui/a2ui.catalog';
-import {
-  ThreadOp,
-  TimingAction,
-  TimingDecision,
-  TIMING_DECISIONS,
-} from '../a2ui/a2ui.types';
+import { ThreadOp } from '../a2ui/a2ui.types';
 import { Trace } from '../common/trace';
 import { ActionDto } from './dto/action.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateThreadDto } from './dto/create-thread.dto';
-import { MoveDto } from './dto/move.dto';
-import { ScheduleDto } from './dto/schedule.dto';
 import { SolvedDto } from './dto/solved.dto';
-import { TimingDto } from './dto/timing.dto';
-import { Thread, ThreadItem, ThreadSummary } from './entities/thread.entity';
-import { SyncOutcome, ThreadsService } from './threads.service';
-import { ScheduleRequest, TimingOutcome } from './timing.service';
+import { Thread, ThreadItem } from './entities/thread.entity';
+import { ThreadsService } from './threads.service';
 
 type DecodedIdToken = adminAuth.DecodedIdToken;
 
@@ -37,14 +28,22 @@ interface ActionResult {
   traceId: string;
 }
 
+/**
+ * Conversations.
+ *
+ * Nothing here has an hour, a section or a place in a day. When something
+ * happens is `/events`, and a thread learns about a block of time only
+ * because the block says which thread it belongs to.
+ */
 @Controller('threads')
 @UseGuards(FirebaseAuthGuard)
 export class ThreadsController {
   constructor(private readonly threadsService: ThreadsService) {}
 
+  /** Every open thread, most recently replied to first. What Coisas draws. */
   @Get()
-  async findAll(@CurrentUser() user: DecodedIdToken): Promise<ThreadSummary[]> {
-    return this.threadsService.findAll(user.uid);
+  async findAll(@CurrentUser() user: DecodedIdToken): Promise<ThreadItem[]> {
+    return this.threadsService.findItems(user.uid);
   }
 
   /**
@@ -56,32 +55,6 @@ export class ThreadsController {
   @Get('solved')
   async findSolved(@CurrentUser() user: DecodedIdToken): Promise<ThreadItem[]> {
     return this.threadsService.findSolved(user.uid);
-  }
-
-  /**
-   * Waits for the calendar to catch up, and says whether it did.
-   *
-   * The app calls this after a change, off the path the finger is on. It
-   * answers `{ ok: true }` the moment the queue is empty, which is almost
-   * always and almost immediately; when something did not make it, it answers
-   * with the popup to draw instead.
-   *
-   * A request that hangs about waiting rather than returning nothing and
-   * being asked again. There is no polling, no interval, and no window in
-   * which a failure is known here and not yet on screen.
-   */
-  @Get('sync')
-  async sync(@CurrentUser() user: DecodedIdToken): Promise<SyncOutcome> {
-    return this.threadsService.awaitSync(user.uid, Trace.start(user.uid));
-  }
-
-  /** Pushes everything that did not make it to Google again. */
-  @Post('sync')
-  async retrySync(@CurrentUser() user: DecodedIdToken): Promise<SyncOutcome> {
-    const trace = Trace.start(user.uid);
-    trace.log('sync.retry', {});
-
-    return this.threadsService.retrySync(user.uid, trace);
   }
 
   @Get(':slug')
@@ -100,91 +73,6 @@ export class ThreadsController {
     @Param('traceId') traceId: string,
   ): Promise<unknown> {
     return this.threadsService.findTrace(user.uid, slug, traceId);
-  }
-
-  /**
-   * Writes something down on the timeline, with its hour.
-   *
-   * Declared before the `:slug` routes so `scheduled` is read as this route
-   * and not as a thread called "scheduled".
-   */
-  @Post('scheduled')
-  async createScheduled(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() dto: ScheduleDto,
-  ): Promise<ThreadSummary[]> {
-    const trace = Trace.start(user.uid);
-    trace.log('turn.begin', { kind: 'scheduled' });
-
-    return this.threadsService.createScheduled(
-      user.uid,
-      requireMessage(dto.message),
-      requireSchedule(dto),
-      trace,
-    );
-  }
-
-  /**
-   * Answers a guard.
-   *
-   * Its own route rather than an action on a thread, because a guard is about
-   * where a card goes and not about what a conversation said. Nothing here
-   * reaches the agent: the answer is arithmetic over the calendar, and the
-   * only thing that crosses to the other container is the booking itself.
-   *
-   * Declared before the `:slug` routes for the same reason `scheduled` is.
-   */
-  @Post('timing')
-  async applyTiming(
-    @CurrentUser() user: DecodedIdToken,
-    @Body() dto: TimingDto,
-  ): Promise<TimingOutcome> {
-    const action = requireTiming(dto.action ?? {});
-    const trace = Trace.start(user.uid, action.slug);
-    trace.log('timing.received', {
-      index: action.index,
-      decision: action.decision,
-    });
-
-    return this.threadsService.applyTiming(user.uid, action, trace);
-  }
-
-  /** Moves a card to a new place in the day's list. */
-  @Post(':slug/move')
-  async move(
-    @CurrentUser() user: DecodedIdToken,
-    @Param('slug') slug: string,
-    @Body() dto: MoveDto,
-  ): Promise<TimingOutcome> {
-    const trace = Trace.start(user.uid, slug);
-
-    return this.threadsService.moveThread(
-      user.uid,
-      slug,
-      requireIndex(dto.index),
-      trace,
-    );
-  }
-
-  /**
-   * Marks a thread solved, or puts a solved one back on the timeline.
-   *
-   * Separate from the move route because it is a different question: a move
-   * is when something happens, this is whether it still happens at all.
-   */
-  @Post(':slug/solved')
-  async setSolved(
-    @CurrentUser() user: DecodedIdToken,
-    @Param('slug') slug: string,
-    @Body() dto: SolvedDto,
-  ): Promise<ThreadSummary[]> {
-    if (typeof dto.solved !== 'boolean') {
-      throw new BadRequestException('solved must be a boolean');
-    }
-
-    const trace = Trace.start(user.uid, slug);
-
-    return this.threadsService.setSolved(user.uid, slug, dto.solved, trace);
   }
 
   @Post()
@@ -217,6 +105,28 @@ export class ThreadsController {
       requireMessage(dto.message),
       trace,
     );
+  }
+
+  /**
+   * Marks a thread solved, or opens a closed one again.
+   *
+   * It says nothing about the calendar. A conversation the user is done with
+   * is not an hour given back, and giving an hour back is done by finishing
+   * the block.
+   */
+  @Post(':slug/solved')
+  async setSolved(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('slug') slug: string,
+    @Body() dto: SolvedDto,
+  ): Promise<ThreadItem[]> {
+    if (typeof dto.solved !== 'boolean') {
+      throw new BadRequestException('solved must be a boolean');
+    }
+
+    const trace = Trace.start(user.uid, slug);
+
+    return this.threadsService.setSolved(user.uid, slug, dto.solved, trace);
   }
 
   /**
@@ -282,62 +192,6 @@ export class ThreadsController {
         );
     }
   }
-}
-
-/** A non-negative place in the day's list. */
-function requireIndex(index: number | undefined): number {
-  if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) {
-    throw new BadRequestException('index must be a non-negative integer');
-  }
-
-  return index;
-}
-
-/** Reads what the creation sheet said, refusing anything unusable. */
-function requireSchedule(dto: ScheduleDto): ScheduleRequest {
-  const durationMinutes = dto.durationMinutes;
-  if (
-    typeof durationMinutes !== 'number' ||
-    !Number.isFinite(durationMinutes) ||
-    durationMinutes <= 0
-  ) {
-    throw new BadRequestException('durationMinutes must be positive');
-  }
-
-  const fixed = dto.fixed === true;
-  const startTime = dto.startTime;
-  if (startTime !== undefined && Number.isNaN(Date.parse(startTime))) {
-    throw new BadRequestException('startTime must be an ISO 8601 date-time');
-  }
-
-  // Only a fixed block names its hour. Carrying one on a flexible block would
-  // be the app asking for a slot the server is about to pick anyway.
-  return { durationMinutes, fixed, startTime: fixed ? startTime : undefined };
-}
-
-/** Reads a guard's answer off the wire, refusing anything it cannot trust. */
-function requireTiming(action: {
-  slug?: string;
-  index?: number;
-  decision?: string;
-}): TimingAction {
-  const slug = action.slug?.trim() ?? '';
-  if (slug === '') throw new BadRequestException('slug is required');
-
-  const decision = action.decision;
-  if (
-    decision !== undefined &&
-    !TIMING_DECISIONS.includes(decision as TimingDecision)
-  ) {
-    throw new BadRequestException(`Unknown decision "${decision}"`);
-  }
-
-  return {
-    type: 'timing',
-    slug,
-    index: requireIndex(action.index ?? 0),
-    decision: decision as TimingDecision | undefined,
-  };
 }
 
 function requireMessage(message: string | undefined): string {

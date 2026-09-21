@@ -1,5 +1,5 @@
 import 'package:app_ui/app_ui.dart';
-import 'package:chat/src/bloc/threads_bloc.dart';
+import 'package:chat/src/bloc/timeline_bloc.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:chat/src/widgets/a2ui_renderer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -36,7 +36,7 @@ class GuardSheet extends StatelessWidget {
         Positioned.fill(
           child: GestureDetector(
             onTap: () =>
-                context.read<ThreadsBloc>().add(const GuardDismissed()),
+                context.read<TimelineBloc>().add(const GuardDismissed()),
             child: ColoredBox(color: AppColors.bg.withValues(alpha: 0.72)),
           ),
         ),
@@ -95,7 +95,7 @@ class _Panel extends StatelessWidget {
   }
 
   void _onAction(BuildContext context, Map<String, dynamic> action) {
-    final bloc = context.read<ThreadsBloc>();
+    final bloc = context.read<TimelineBloc>();
 
     // `dismiss` is the one action the app has always handled itself, and a
     // guard's Cancel is exactly that: close it, change nothing.

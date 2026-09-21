@@ -172,26 +172,17 @@ class _Threads extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final guard = context.select<ThreadsBloc, A2uiComponent?>(
+    final guard = context.select<TimelineBloc, A2uiComponent?>(
       (bloc) => bloc.state.guard,
     );
-    final busy = context.select<ThreadsBloc, bool>(
+    final busy = context.select<TimelineBloc, bool>(
       (bloc) => bloc.state.guardBusy,
     );
 
     return Stack(
       children: [
         const _MinuteRefresh(),
-        ThreadsSection(
-          onThreadTap: (slug) async {
-            await context.push<void>('/chat/$slug');
-            // The thread's preview and position both change while it is open,
-            // so the list is refetched on the way back rather than left stale.
-            if (context.mounted) {
-              context.read<ThreadsBloc>().add(const ThreadsRequested());
-            }
-          },
-        ),
+        TimelineList(onCardTap: (card) => _open(context, card)),
         // The guard is drawn over the timeline rather than pushed as a route:
         // the question is about a card that is still on screen, and the
         // answer puts it somewhere the user can see from here.
@@ -199,8 +190,29 @@ class _Threads extends StatelessWidget {
       ],
     );
   }
-}
 
+  /// Opens the conversation about a block, starting one if it has none.
+  ///
+  /// Most blocks never have a thread: a day is mostly hours, not
+  /// discussions. Tapping one is the moment that changes, and the server
+  /// writes the pairing onto the event so the next tap comes straight back
+  /// to the same conversation.
+  Future<void> _open(BuildContext context, TimelineEvent card) async {
+    final slug =
+        card.threadSlug ??
+        (await context.read<TimelineRepository>().startThread(card.id)).slug;
+
+    if (!context.mounted) return;
+
+    await context.push<void>('/chat/$slug');
+
+    // The card's preview changes while the conversation is open, so the day
+    // is refetched on the way back rather than left stale.
+    if (context.mounted) {
+      context.read<TimelineBloc>().add(const TimelineRequested());
+    }
+  }
+}
 
 /// Refetches the timeline on the minute, and draws nothing.
 ///
@@ -247,14 +259,14 @@ class _MinuteRefreshState extends State<_MinuteRefresh> {
   }
 
   void _refresh() {
-    final bloc = context.read<ThreadsBloc>();
+    final bloc = context.read<TimelineBloc>();
 
     // Not while a guard is up. The lists behind it are the ones from before
     // the drag, and replacing them under an open question would be the screen
     // answering it.
     if (bloc.state.guard != null) return;
 
-    bloc.add(const ThreadsRequested());
+    bloc.add(const TimelineRequested());
   }
 
   @override

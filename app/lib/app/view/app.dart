@@ -63,9 +63,9 @@ class App extends StatelessWidget {
         if (state.status == AppStatus.unauthenticated) {
           _router.go('/auth');
         } else {
-          // Threads are per user, so the list is fetched once the user is
-          // known rather than when the home screen happens to be built.
-          context.read<ThreadsBloc>().add(const ThreadsRequested());
+          // The day is per user, so it is fetched once the user is known
+          // rather than when the home screen happens to be built.
+          context.read<TimelineBloc>().add(const TimelineRequested());
         }
       },
       child: MaterialApp.router(

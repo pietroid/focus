@@ -53,6 +53,7 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
   );
   final userRepository = UserRepository(apiClient: apiClient);
   final chatRepository = ChatRepository(apiClient: apiClient);
+  final timelineRepository = TimelineRepository(apiClient: apiClient);
 
   final initialUser = await authRepository.user.first;
   final initialLocation = initialUser == null ? '/auth' : '/';
@@ -62,6 +63,9 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
       providers: [
         RepositoryProvider<AuthRepository>(create: (_) => authRepository),
         RepositoryProvider<ChatRepository>(create: (_) => chatRepository),
+        RepositoryProvider<TimelineRepository>(
+          create: (_) => timelineRepository,
+        ),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -71,10 +75,10 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
               initialUser: initialUser,
             ),
           ),
-          BlocProvider<ThreadsBloc>(
+          BlocProvider<TimelineBloc>(
             create: (_) =>
-                ThreadsBloc(chatRepository: chatRepository)
-                  ..add(const ThreadsRequested()),
+                TimelineBloc(repository: timelineRepository)
+                  ..add(const TimelineRequested()),
           ),
         ],
         child: App(

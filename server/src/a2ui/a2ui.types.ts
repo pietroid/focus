@@ -122,8 +122,8 @@ export type ThreadOp = 'solve' | 'reopen' | 'rename' | 'delete';
  */
 export interface TimingAction {
   type: 'timing';
-  /** The thread being moved. */
-  slug: string;
+  /** The event being moved. */
+  eventId: string;
   /** Where in the day's queue the drop left it, counting from the top. */
   index: number;
   /** What the user decided. Absent means they have not been asked yet. */

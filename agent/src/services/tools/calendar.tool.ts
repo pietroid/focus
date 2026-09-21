@@ -1,9 +1,10 @@
 import { calendar_v3 } from 'googleapis';
 import { ToolDefinition, ToolEffect } from '../../types.js';
 import {
+  calendarIdFor,
   getCalendarClient,
-  getCalendarId,
-  toEventDateTime,
+  insertEvent,
+  patchEvent,
 } from '../google-calendar.js';
 import { ToolImplementation, UserContext } from './tool.interface.js';
 
@@ -82,7 +83,7 @@ export class CalendarCheckAvailabilityTool implements ToolImplementation {
 
   async execute(
     args: Record<string, unknown>,
-    _context: UserContext,
+    context: UserContext,
   ): Promise<unknown> {
     const rawDate = String(args.date ?? '');
     const durationMinutes = Number(args.durationMinutes ?? 60);
@@ -105,7 +106,7 @@ export class CalendarCheckAvailabilityTool implements ToolImplementation {
       throw new Error(`Calendar auth failed: ${message}`);
     }
 
-    const calendarId = getCalendarId();
+    const calendarId = await calendarIdFor({ id: context.userId });
 
     // Build a freebusy request for the full day in the configured timezone.
     const timeZone = process.env.TZ ?? 'UTC';
@@ -196,7 +197,7 @@ export class CalendarCreateEventTool implements ToolImplementation {
 
   async execute(
     args: Record<string, unknown>,
-    _context: UserContext,
+    context: UserContext,
   ): Promise<unknown> {
     const title = String(args.title ?? '');
     const startTime = String(args.startTime ?? '');
@@ -208,42 +209,30 @@ export class CalendarCreateEventTool implements ToolImplementation {
       throw new Error('title, startTime, and endTime are required');
     }
 
-    let calendar: calendar_v3.Calendar;
+    // Booked through the shared helper rather than against the API directly,
+    // so it lands on this person's calendar, is stamped as one of Focus's
+    // own, and carries the conversation it was booked from. An hour the agent
+    // agreed to in a thread is openable from the timeline because of this
+    // line and nothing else: there is no record of the pairing anywhere but
+    // on the event.
+    let result;
     try {
-      calendar = await getCalendarClient();
+      result = await insertEvent(
+        { id: context.userId },
+        {
+          title,
+          startTime,
+          endTime,
+          fixed: true,
+          threadSlug: context.slug,
+        },
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[calendar_create_event] failed to create calendar client:', message);
-      throw new Error(`Calendar auth failed: ${message}`);
-    }
-
-    const calendarId = getCalendarId();
-    const requestBody = {
-      summary: title,
-      start: toEventDateTime(startTime),
-      end: toEventDateTime(endTime),
-    };
-    console.log('[calendar_create_event] events.insert request', { calendarId, requestBody });
-
-    let response;
-    try {
-      response = await calendar.events.insert({
-        calendarId,
-        requestBody,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[calendar_create_event] events.insert failed:', message);
+      console.error('[calendar_create_event] insert failed:', message);
       throw new Error(`Calendar event creation failed: ${message}`);
     }
 
-    const result = {
-      id: response.data.id,
-      title: response.data.summary,
-      startTime: response.data.start?.dateTime ?? response.data.start?.date,
-      endTime: response.data.end?.dateTime ?? response.data.end?.date,
-      htmlLink: response.data.htmlLink,
-    };
     console.log('[calendar_create_event] result', result);
     return result;
   }
@@ -289,7 +278,7 @@ export class CalendarListEventsTool implements ToolImplementation {
 
   async execute(
     args: Record<string, unknown>,
-    _context: UserContext,
+    context: UserContext,
   ): Promise<unknown> {
     const rawDate = String(args.date ?? '');
     const date = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
@@ -309,7 +298,7 @@ export class CalendarListEventsTool implements ToolImplementation {
       throw new Error(`Calendar auth failed: ${message}`);
     }
 
-    const calendarId = getCalendarId();
+    const calendarId = await calendarIdFor({ id: context.userId });
     const timeZone = process.env.TZ ?? 'UTC';
     const dayStart = new Date(`${date}T00:00:00`);
     const dayEnd = new Date(`${date}T23:59:59`);
@@ -420,7 +409,7 @@ export class CalendarUpdateEventTool implements ToolImplementation {
 
   async execute(
     args: Record<string, unknown>,
-    _context: UserContext,
+    context: UserContext,
   ): Promise<unknown> {
     const eventId = String(args.eventId ?? '');
     const title = args.title === undefined ? '' : String(args.title);
@@ -436,43 +425,19 @@ export class CalendarUpdateEventTool implements ToolImplementation {
       throw new Error('one of title, startTime, or endTime is required');
     }
 
-    let calendar: calendar_v3.Calendar;
+    let result;
     try {
-      calendar = await getCalendarClient();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('[calendar_update_event] failed to create calendar client:', message);
-      throw new Error(`Calendar auth failed: ${message}`);
-    }
-
-    const calendarId = getCalendarId();
-    const requestBody: calendar_v3.Schema$Event = {};
-    if (title !== '') requestBody.summary = title;
-    if (startTime !== '') requestBody.start = toEventDateTime(startTime);
-    if (endTime !== '') requestBody.end = toEventDateTime(endTime);
-
-    console.log('[calendar_update_event] events.patch request', { calendarId, eventId, requestBody });
-
-    let response;
-    try {
-      response = await calendar.events.patch({
-        calendarId,
-        eventId,
-        requestBody,
+      result = await patchEvent({ id: context.userId }, eventId, {
+        title: title === '' ? undefined : title,
+        startTime: startTime === '' ? undefined : startTime,
+        endTime: endTime === '' ? undefined : endTime,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[calendar_update_event] events.patch failed:', message);
+      console.error('[calendar_update_event] patch failed:', message);
       throw new Error(`Calendar event update failed: ${message}`);
     }
 
-    const result = {
-      id: response.data.id,
-      title: response.data.summary,
-      startTime: response.data.start?.dateTime ?? response.data.start?.date,
-      endTime: response.data.end?.dateTime ?? response.data.end?.date,
-      htmlLink: response.data.htmlLink,
-    };
     console.log('[calendar_update_event] result', result);
     return result;
   }
@@ -523,7 +488,7 @@ export class CalendarDeleteEventTool implements ToolImplementation {
 
   async execute(
     args: Record<string, unknown>,
-    _context: UserContext,
+    context: UserContext,
   ): Promise<unknown> {
     const eventId = String(args.eventId ?? '');
     const title = String(args.title ?? '');
@@ -543,7 +508,7 @@ export class CalendarDeleteEventTool implements ToolImplementation {
       throw new Error(`Calendar auth failed: ${message}`);
     }
 
-    const calendarId = getCalendarId();
+    const calendarId = await calendarIdFor({ id: context.userId });
     console.log('[calendar_delete_event] events.delete request', { calendarId, eventId });
 
     try {

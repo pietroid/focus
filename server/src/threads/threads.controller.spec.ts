@@ -25,24 +25,19 @@ import {
   ToolDescriptor,
   ToolTraceEntry,
 } from './agent.service';
-import { CalendarReaderService } from '../calendar/calendar-reader.service';
-import { CalendarSyncService } from '../calendar/calendar-sync.service';
-import { CalendarEvent } from '../calendar/calendar.types';
-import { CalendarWriterService } from '../calendar/calendar-writer.service';
 import { ThreadsController } from './threads.controller';
 import { ThreadsService } from './threads.service';
 import { ThreadsStore } from './threads.store';
-import { TimelineService } from './timeline.service';
-import { TimingService } from './timing.service';
-import { Thread, ThreadSummary } from './entities/thread.entity';
+import { dayFolder } from './thread-markdown';
+import { Thread, ThreadItem } from './entities/thread.entity';
 
 /** supertest types `body` as `any`; these keep the assertions typed. */
 function thread(response: { body: unknown }): Thread {
   return response.body as Thread;
 }
 
-function summaries(response: { body: unknown }): ThreadSummary[] {
-  return response.body as ThreadSummary[];
+function items(response: { body: unknown }): ThreadItem[] {
+  return response.body as ThreadItem[];
 }
 
 /** Every string the user would actually read in a rendered message. */
@@ -136,36 +131,6 @@ function toolEntry(entry: Partial<ToolTraceEntry>): ToolTraceEntry {
   };
 }
 
-/**
- * The calendar, standing still.
- *
- * Overridden so no test reaches for the agent that is not running: the real
- * reader would spend every timeline on a connection refused and fall back to
- * the same empty list this returns outright.
- */
-class StubCalendarReader {
-  private _events: CalendarEvent[] = [];
-
-  events(): Promise<CalendarEvent[]> {
-    return Promise.resolve(this._events);
-  }
-
-  replace(events: CalendarEvent[]): Promise<void> {
-    this._events = events;
-    return Promise.resolve();
-  }
-
-  upsert(event: CalendarEvent): Promise<void> {
-    this._events = [...this._events.filter((it) => it.id !== event.id), event];
-    return Promise.resolve();
-  }
-
-  remove(eventId: string): Promise<void> {
-    this._events = this._events.filter((it) => it.id !== eventId);
-    return Promise.resolve();
-  }
-}
-
 describe('ThreadsController', () => {
   let app: INestApplication<App>;
   let root: string;
@@ -176,8 +141,8 @@ describe('ThreadsController', () => {
     process.env.FOCUS_DATA_DIR = root;
 
     const moduleRef = await Test.createTestingModule({
-      // The calendar writer reads AGENT_URL and the internal key from config.
-      // Nothing in these tests reaches it, but it still has to be constructed.
+      // The prompt service reads the model name and the day's hours from
+      // config. Nothing here reaches the agent, but it is still constructed.
       imports: [ConfigModule.forRoot({ ignoreEnvFile: true })],
       controllers: [ThreadsController],
       providers: [
@@ -187,19 +152,12 @@ describe('ThreadsController', () => {
         A2uiPromptService,
         A2uiParserService,
         A2uiValidationService,
-        TimelineService,
-        TimingService,
-        CalendarReaderService,
-        CalendarSyncService,
-        CalendarWriterService,
       ],
     })
       .overrideGuard(FirebaseAuthGuard)
       .useClass(StubAuthGuard)
       .overrideProvider(AgentService)
       .useClass(StubAgentService)
-      .overrideProvider(CalendarReaderService)
-      .useClass(StubCalendarReader)
       .compile();
 
     agent = moduleRef.get(AgentService);
@@ -236,18 +194,18 @@ describe('ThreadsController', () => {
     });
   });
 
-  it('writes the thread as markdown on disk', async () => {
+  it("writes the thread as one markdown file in today's folder", async () => {
     await request(app.getHttpServer())
       .post('/threads')
       .send({ message: 'Buy milk' })
       .expect(201);
 
-    const [day] = await fs.readdir(path.join(root, 'test-user', 'buy-milk'));
     const markdown = await fs.readFile(
-      path.join(root, 'test-user', 'buy-milk', day, 'thread.md'),
+      path.join(root, 'test-user', dayFolder(new Date()), 'buy-milk.md'),
       'utf8',
     );
 
+    expect(markdown).toContain('solved: false');
     expect(markdown).toContain('# Buy milk');
     expect(markdown).toMatch(/## user @ /);
     expect(markdown).toMatch(/## agent @ /);
@@ -269,7 +227,7 @@ describe('ThreadsController', () => {
     expect(thread(response).messages[2].text).toBe('And eggs');
   });
 
-  it('gives a second thread with the same first message its own folder', async () => {
+  it('gives a second thread with the same first message its own file', async () => {
     await request(app.getHttpServer())
       .post('/threads')
       .send({ message: 'Standup' })
@@ -281,21 +239,6 @@ describe('ThreadsController', () => {
       .expect(201);
 
     expect(thread(second).slug).toBe('standup-2');
-  });
-
-  it('keeps a thread with no hour off the timeline', async () => {
-    await request(app.getHttpServer())
-      .post('/threads')
-      .send({ message: 'First' })
-      .expect(201);
-
-    const response = await request(app.getHttpServer())
-      .get('/threads')
-      .expect(200);
-
-    // A thread started from a conversation is a thing, not an hour. It has
-    // to be given a duration before the timeline has anywhere to draw it.
-    expect(summaries(response)).toEqual([]);
   });
 
   it('drops an action type the catalog does not have', async () => {
@@ -369,6 +312,64 @@ describe('ThreadsController', () => {
     const reply = thread(created).messages[1];
     expect(reply.metadata?.parseStrategy).toBe('fenced');
     expect(visibleText(reply)).toContain('On it.');
+  });
+
+  describe('the Coisas list', () => {
+    it('says nothing about when a thread happens', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'First' })
+        .expect(201);
+
+      const [item] = items(
+        await request(app.getHttpServer()).get('/threads').expect(200),
+      );
+
+      // A conversation is a conversation. An hour for it is a block on the
+      // calendar, and the row here makes no claim about one.
+      expect(item).not.toHaveProperty('startTime');
+      expect(item).not.toHaveProperty('durationMinutes');
+    });
+
+    it('lists open threads with their last reply, newest first', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Buy milk' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Call mum' })
+        .expect(201);
+
+      const list = items(
+        await request(app.getHttpServer()).get('/threads').expect(200),
+      );
+
+      expect(list.map((item) => item.slug)).toEqual(['call-mum', 'buy-milk']);
+      expect(list[0].preview).not.toBe('');
+    });
+
+    it('leaves out what has been solved', async () => {
+      await request(app.getHttpServer())
+        .post('/threads')
+        .send({ message: 'Buy milk' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/threads/buy-milk/solved')
+        .send({ solved: true })
+        .expect(201);
+
+      const list = items(
+        await request(app.getHttpServer()).get('/threads').expect(200),
+      );
+
+      expect(list).toEqual([]);
+      expect(
+        items(
+          await request(app.getHttpServer()).get('/threads/solved').expect(200),
+        ).map((item) => item.slug),
+      ).toEqual(['buy-milk']);
+    });
   });
 
   describe('solving a thread', () => {

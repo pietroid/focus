@@ -217,10 +217,10 @@ Repository variables (Settings → Secrets and variables → Actions):
    sudo mkdir -p /opt/focus/web
    sudo chown -R "$USER:$USER" /opt/focus/web
    ```
-7. Create the thread data directory. Only the backend mounts it; the agent
-   is given the thread it needs in each request.
+7. Create the data directories: the backend's threads, and the agent's map of
+   which calendar belongs to which person.
    ```bash
-   sudo mkdir -p /opt/focus/data/threads
+   sudo mkdir -p /opt/focus/data/threads /opt/focus/data/agent
    sudo chown -R "$USER:$USER" /opt/focus/data
    ```
 8. Install Docker and docker compose on the Pi.
@@ -325,13 +325,54 @@ not reach the user.
 A blocked write is not a failed one. Nothing was attempted, so the proposal the
 model wrote is exactly right and is shown as is.
 
+### Events and threads
+
+Two things, kept apart on purpose.
+
+An **event** is a block of time. It lives on Google and nowhere else, it is
+addressed by its Google id, and everything about when it happens is its own.
+`server/src/events/` owns the day: `GET /events` draws it, `POST /events`
+writes something down with an hour, `POST /events/:id/move` drags a card,
+`POST /events/:id/done` takes a block off the day.
+
+A **thread** is a conversation. It lives in a markdown file, it has a name, a
+day it started, its messages and whether the user has closed it, and it has no
+hour. `server/src/threads/` owns it: `GET /threads` is the Coisas list,
+`GET /threads/solved` the concluded one, and the rest of the routes are the
+conversation itself.
+
+**The link lives on the event.** Most blocks never have a thread — a day is
+mostly hours, not discussions. `POST /events/:id/thread` starts one when
+somebody taps into a block, names it after the block and writes the slug into
+the event's `extendedProperties.private.focusThread`. Read back on every
+timeline build, that is the only record of the pairing, which is why a thread
+file never has to remember an hour and nothing has to be kept in step.
+`threads` therefore does not import `calendar`; `events` imports both.
+
+#### The thread store
+
+```
+<FOCUS_DATA_DIR>/<userId>/<DD-MM-YYYY>/<thread-slug>.md
+<FOCUS_DATA_DIR>/<userId>/traces/<thread-slug>/<traceId>.json
+<FOCUS_DATA_DIR>/<userId>/calendar-cache.json
+```
+
+A folder is a day and a file is a conversation, whole: front matter
+(`created`, `solved`) and every message, however many days it runs over. The
+day is the day it **started**, so a thread is written once and never moves,
+and a month of folders reads as an archive of what was talked about when.
+Traces sit beside the days rather than inside them, which leaves a day folder
+readable as the list of conversations that started that day. A file with no
+front matter still parses, because hand-editing one is a thing this format is
+meant to allow.
+
 ### The timeline
 
-**Everything on the timeline has an hour.** There is one list, in clock order,
-and the headings are cut out of it by the clock rather than stored anywhere. A
-card is under "Amanhã" because it starts tomorrow, and the only way to move it
-is to change when it happens. `sectionOf` in `threads/thread-timing.ts` is the
-whole filing system:
+**Everything on the timeline is a calendar event.** There is one list, in
+clock order, and the headings are cut out of it by the clock rather than
+stored anywhere. A card is under "Amanhã" because it starts tomorrow, and the
+only way to move it is to change when it happens. `sectionOf` in
+`events/event-sections.ts` is the whole filing system:
 
 | Section | What falls in it |
 |---------|------------------|
@@ -342,18 +383,13 @@ whole filing system:
 **An hour that has run out is not a section.** A block booked 11:20 to 11:25
 is finished at 11:26: that was its hour, the hour is gone, and leaving it on
 screen would make "Agora" mean "now, and also everything now used to be".
-`ThreadsStore.sweep` marks those done on every read of the timeline — the app
-asks again on each minute boundary, so a day closes itself out with no timer
-running anywhere on the server. The booking stays on Google, because the hour
-happened; only solving something *early* gives a booking back, since that
-frees an hour still ahead.
+Nothing marks it or sweeps it: the clock decides what is drawn on every read,
+the app asks again on each minute boundary, and the event stays on Google
+because the hour happened. Only finishing something *early* takes the event
+off, since that frees an hour still ahead.
 
 Anything further out than tomorrow is not drawn. The three sections are meant
 to become one per day, which is why nothing stores one.
-
-A thread with no timing is not on the timeline at all. It exists, it is in
-Coisas, and it has simply never been given an hour — there is no half-planned
-state between the two, which is what lets every heading be literally true.
 
 ### The time system
 
@@ -364,7 +400,9 @@ server.
   spaced **5 minutes** apart. Both are constants here and nowhere else, along
   with slot-finding and conflict detection.
 - `time/scheduling.ts` — `relayout`, which is the scheduler entire.
-- `threads/timing.service.ts` — what adding and dragging do to the day.
+- `time/zone.ts` — wall-clock arithmetic in the calendar's own timezone.
+- `events/event-layout.service.ts` — what adding, dragging and finishing do to
+  the day.
 
 #### One rule
 
@@ -381,7 +419,7 @@ obstacles.
 
 Three things anchor, and the third is the subtle one:
 
-- a calendar event, which is somebody else's hour;
+- a meeting Focus did not book, which is somebody else's hour;
 - a fixed card, whose hour is the point of it;
 - **a block that has already started**, which keeps the hour it started at.
 
@@ -394,75 +432,88 @@ chose to push down — because being asked beats every reason to hold still.
 
 Two operations use it:
 
-- **Adding** (`POST /threads/scheduled`) drops something into the first gap
-  that fits *without disturbing anybody*. A fixed block instead takes the hour
-  it was given.
-- **Dragging** (`POST /threads/:slug/move`, one `index` into the one list)
+- **Adding** (`POST /events`) drops something into the first gap that fits
+  *without disturbing anybody*. A fixed block instead takes the hour it was
+  given. This is the one write that waits for Google: an event has no id until
+  it is booked, and a block Google refused is a block that does not exist.
+- **Dragging** (`POST /events/:id/move`, one `index` into the one list)
   rewrites the queue order and lets the whole thing repack.
-
-- **Solving** (`POST /threads/:slug/solved`, or the `solve` thread op) frees
-  the hour on Google, keeps it on the thread so the concluded list can say
-  when something was done, and repacks the queue without it. Finishing
-  something early is the day getting shorter, not the day growing a hole.
+- **Finishing** (`POST /events/:id/done`) takes the event off Google and
+  repacks the queue without it, and closes the conversation about it if there
+  was one. Finishing something early is the day getting shorter, not the day
+  growing a hole. Closing a *conversation*
+  (`POST /threads/:slug/solved`) does none of this: a thread you are done with
+  is not an hour given back.
 
 So all three are `relayout` with a different queue, which is why there is no
 second copy of the rules anywhere and no guard that has to agree with them.
 
-**The store goes first and Google follows.** This used to be the other way
-round — nothing was stored until the event existed — and it was correct and it
-felt broken: every drag paid for a round trip to Google before the card would
-settle. Now the day is laid out, written and answered, and the calendar catches
-up behind the response.
+**The cached day goes first and Google follows.** A drag has to land under the
+finger, and waiting for Google to agree before the card settles is what made
+it feel like a form. So a move writes the reader's cache, answers the request,
+and pushes to Google from a queue behind the response.
 
 What makes that safe is that the queued jobs are not instructions but
-**reconciliations**. Each one reads the thread as it now stands and makes
-Google match it, under one rule: *a thread should have an event exactly when it
-has an hour and is not solved.* Two drags of the same card queue two jobs and
-both see the same final state, so there is no order to get wrong and nothing to
-undo. `CalendarSyncService` runs them one at a time per user.
+**reconciliations**: each one pushes the hour the cache now holds rather than
+the hour it was queued with. Two drags of the same card queue two jobs and
+both end at the same place, so there is no order to get wrong and nothing to
+undo. `CalendarSyncService` runs them one at a time per person, one job per
+event.
 
-Three ordering rules hold the whole thing together, and each one was a bug
-first:
+The cache is a cache and never a second copy of the truth. It holds what was
+pushed so the next layout prices the day the user can see, and the next read
+from Google overwrites it whatever it said. There is no state to reconcile
+between two stores, because there is only one store.
 
-- **Write what you want before you queue the job.** The job reads the thread to
-  decide what Google should hold, so queueing first asks the question before
-  the answer is written down.
-- **Claim the event before the cache hears about it.** A created event is
-  written onto its thread and only then put in the reader's cache; the other
-  order leaves a moment where the calendar holds an event nothing claims.
-- **Read the cache before the threads.** `_unlinkedEvents` does, so an event
-  created mid-read is simply not drawn this time rather than drawn twice.
+Two writes are awaited rather than queued, and both for the same reason —
+the app needs the answer before it can draw anything: booking a block, which
+has no id until Google gives it one, and linking a conversation to one, which
+would otherwise start a second thread on the next tap.
 
-State writes are serialised per thread and written through a temp file and a
-rename. Read-modify-write on `state.json` is not atomic and no longer has the
+Thread writes are serialised per thread and written through a temp file and a
+rename. Read-modify-write on a thread file is not atomic and no longer has the
 luxury of being the only thing running: interleaved, a torn read parses as a
-thread with no hour, which is a card silently dropping off the timeline.
+conversation missing its last turn.
 
 When a job does fail, nothing is rolled back. The day on screen is the user's
-and it is right; it is the copy on Google that fell behind. `GET /threads/sync`
+and it is right; it is the copy on Google that fell behind. `GET /events/sync`
 waits for the queue and answers `{ ok: true }` or with the popup to draw —
 the app calls it after every change, off the path the finger is on, so there is
 no polling and no window where a failure is known and not yet on screen.
-`POST /threads/sync` is the retry button behind it.
+`POST /events/sync` is the retry button behind it.
 
 The first block of a day starts at *this minute* rather than the next multiple
 of five. That is what makes "Agora" ever contain anything; everything after it
 reads off a tidy five minutes.
 
-#### Two sources, one list
+#### One source
 
-The calendar is the source of truth. An event with no thread behind it is drawn as a **read-only card**: it cannot be
-dragged, opened or solved, because it is a picture of the event and the only
-way to change it is to change the event. Where a thread *is* an event only the
-thread is drawn, so the same hour never appears twice.
+**The calendar is the database.** Nothing about when something happens is
+stored anywhere else: no mirror in the thread files, no table of hours,
+nothing to reconcile. An hour exists because Google holds an event for it, and
+the only way to change one is to change the event.
+
+A card Focus did not book is a meeting: it is drawn, because the hour is not
+free, and it cannot be dragged or finished, because none of that is Focus's to
+do with it. Focus stamps the events it books (`focusOwned`), so the two are
+told apart by the event itself rather than by anything remembered here.
 
 The agent holds the credentials and the server asks for what it needs.
 `CalendarReaderService` pulls `GET /calendar/window` when it builds a timeline
-or prices a slot, caches the answer for thirty seconds, and falls back to the
-last good read when the agent is unreachable: a timeline half a minute stale
-is a small lie, one that says the afternoon is free because Google timed out
-is a large one. Moves write through `POST|PATCH|DELETE /calendar/events` on
-the same surface.
+or prices a slot, **caches the answer per person** for thirty seconds, and
+falls back to the last good read when the agent is unreachable: a timeline
+half a minute stale is a small lie, one that says the afternoon is free
+because Google timed out is a large one. The cache is a cache and never a
+copy — writes push into it so a drag lands under the finger, and the next read
+from Google overwrites whatever it said. Moves write through
+`POST|PATCH|DELETE /calendar/events` on the same surface.
+
+**One calendar per person, inside one Google account.** The agent resolves a
+secondary calendar named `Focus · <uid>`, creates it on first use and shares
+it with the person's address so they can open it in Google. That is what keeps
+one person's afternoon out of another's timeline while leaving Focus a single
+account that can see across all of them. `GOOGLE_CALENDAR_ID` still wins when
+it is set, which is the single-person deployment.
 
 **Every call runs server to agent.** The agent never calls back, holds no
 address for the server and no key: these routes are reached exactly the way
@@ -480,7 +531,7 @@ is the only move that destroys something, so it is the only one that asks:
 
 | Answer | What happens |
 |--------|--------------|
-| `solve_current` | the running thread is closed and gives its hour away |
+| `solve_current` | the running block is finished and gives its hour away |
 | `postpone_current` | it is kept, further down the day |
 
 Everything the old guards asked — how long is this, may I book it, that hour is
@@ -490,7 +541,7 @@ is `relayout`.
 
 The guard is an A2UI tree built by `a2ui/a2ui.guards.ts` and drawn by the
 renderer that draws replies. The app knows none of the rules; it draws the
-buttons and posts the one that was tapped to `POST /threads/timing`. Every
+buttons and posts the one that was tapped to `POST /events/timing`. Every
 button carries the whole move plus one `decision`, so no pending state exists
 on either side and a guard abandoned halfway leaves nothing behind.
 
@@ -523,8 +574,8 @@ neither needs the server.
 | `reply` | Server: appends the text as a user message and answers it. |
 | `confirm` | Server: the same, and the turn it starts may run writes. |
 | `thread` (`solve`/`reopen`/`rename`/`delete`) | Server alone. No agent call. |
-| `timing` | Server alone, on `POST /threads/timing`. Guards only; a model may not emit one. |
-| `sync` | App: posts `POST /threads/sync`. The retry on the sync popup; a model may not emit one either. |
+| `timing` | Server alone, on `POST /events/timing`. Guards only; a model may not emit one. |
+| `sync` | App: posts `POST /events/sync`. The retry on the sync popup; a model may not emit one either. |
 | `dismiss`, `openUrl` | App only. The server 400s if one arrives. |
 
 An action type outside the catalog is dropped by the validator, taking its
@@ -568,8 +619,10 @@ in full), `a2ui.validated`, `turn.proposedWrite`, `turn.writeFailed`,
   shows a written "could not reach my brain" message rather than a blank turn.
 - **Google Calendar** connects via a service account JSON key file pointed to
   by `GOOGLE_APPLICATION_CREDENTIALS` in `agent/.env.production`, matching the
-  backend's Application Default Credentials style. Use `GOOGLE_CALENDAR_ID` to
-  target a specific calendar (defaults to `primary`).
+  backend's Application Default Credentials style. Each person gets their own
+  secondary calendar in that account, created on first use and mapped in
+  `AGENT_DATA_DIR/calendars.json`. Set `GOOGLE_CALENDAR_ID` to put everyone on
+  one named calendar instead, which is the single-person deployment.
 - **Web Search** works best with **Serper.dev** or the **Brave Search API**.
   Set `WEB_SEARCH_API_KEY` and `WEB_SEARCH_API_BASE_URL`. Without a key it
   falls back to scraping DuckDuckGo's HTML, which is fine locally and brittle

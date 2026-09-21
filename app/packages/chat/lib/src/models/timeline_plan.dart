@@ -1,4 +1,4 @@
-import 'package:chat/src/models/thread.dart';
+import 'package:chat/src/models/timeline_event.dart';
 
 /// Where something new would land, worked out on the phone.
 ///
@@ -26,7 +26,7 @@ abstract final class TimelinePlan {
   /// the end of that card plus the gap, and a candidate that spills past the
   /// end of the day starts again at the top of the next one.
   static DateTime nextFreeStart(
-    List<ThreadSummary> cards,
+    List<TimelineEvent> cards,
     Duration duration, {
     DateTime? now,
   }) {
@@ -45,8 +45,10 @@ abstract final class TimelinePlan {
       }
 
       final hit = booked
-          .where((card) => start.isBefore(card.endTime) &&
-              card.startTime.isBefore(end))
+          .where(
+            (card) =>
+                start.isBefore(card.endTime) && card.startTime.isBefore(end),
+          )
           .firstOrNull;
       if (hit == null) return start;
 

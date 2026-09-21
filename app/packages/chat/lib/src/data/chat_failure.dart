@@ -24,9 +24,9 @@ class ChatFailure implements Exception {
     final data = error.response?.data;
     final message = data is Map<String, dynamic> ? data['message'] : null;
 
-    return ChatFailure(message is String && message.isNotEmpty
-        ? message
-        : _generic);
+    return ChatFailure(
+      message is String && message.isNotEmpty ? message : _generic,
+    );
   }
 
   static const _generic = 'Não consegui falar com o servidor.';

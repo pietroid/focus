@@ -7,9 +7,14 @@ import {
 } from './entities/message.entity';
 
 /**
- * The on-disk format for one day of a thread.
+ * The on-disk format for a thread.
  *
  * ```markdown
+ * ---
+ * created: 2026-09-15T19:23:04.123Z
+ * solved: false
+ * ---
+ *
  * # Buy milk tomorrow
  *
  * ## user @ 2026-09-15T19:23:04.123Z
@@ -21,12 +26,21 @@ import {
  * {"a2ui":{"component":"Text","text":"Noted."}}
  * ```
  *
- * Markdown rather than JSON so a day of conversation stays readable, diffable,
- * and editable by hand. An agent message stores its A2UI tree in the body,
- * alongside a `meta` object carrying the trace id, the model and what the
- * validator had to fix. Keeping that in the file rather than only in a log
- * means a turn can still be explained days later, after the container that
- * logged it is gone.
+ * One file is one whole conversation, however many days it runs over, and it
+ * lives in the folder for the day it started. Everything known about the
+ * thread is in it: there is no state file beside it and nothing about it
+ * anywhere else, so a thread is a thing you can read, diff, move and delete
+ * by hand.
+ *
+ * Markdown rather than JSON so a conversation stays readable. An agent
+ * message stores its A2UI tree in the body, alongside a `meta` object
+ * carrying the trace id, the model and what the validator had to fix. Keeping
+ * that in the file rather than only in a log means a turn can still be
+ * explained days later, after the container that logged it is gone.
+ *
+ * **No hours.** When something happens is the calendar's to say, and a thread
+ * that remembered an hour of its own would be a second answer to a question
+ * that already has one.
  */
 
 /** Matches a message header, and only a message header. */
@@ -34,6 +48,19 @@ const HEADER = /^## (user|agent|system) @ (\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/;
 
 /** Matches the thread title heading. */
 const TITLE = /^# (.+)$/;
+
+/** Matches the fence around the front matter. */
+const FENCE = '---';
+
+/** What a thread carries besides its messages. */
+export interface ThreadFront {
+  /** When the first message was written, which is also its folder. */
+  createdAt: Date;
+  /** Whether the user considers the thread closed. */
+  solved: boolean;
+  /** The title, which the user or the agent may have changed. */
+  title: string;
+}
 
 /** The body of an agent message, as written into the file. */
 interface StoredBody {
@@ -56,15 +83,23 @@ function parseBody(text: string): StoredBody | undefined {
   }
 }
 
-/**
- * Renders [title] and [messages] as the markdown for one day file.
- */
-export function serializeThreadDay(title: string, messages: Message[]): string {
+/** Renders a whole thread as the markdown of its file. */
+export function serializeThread(
+  front: ThreadFront,
+  messages: Message[],
+): string {
   const blocks = messages.map((message) => {
     return `## ${message.role} @ ${message.createdAt.toISOString()}\n\n${serializeBody(message)}`;
   });
 
-  return [`# ${title}`, ...blocks].join('\n\n') + '\n';
+  const head = [
+    FENCE,
+    `created: ${front.createdAt.toISOString()}`,
+    `solved: ${front.solved}`,
+    FENCE,
+  ].join('\n');
+
+  return [head, `# ${front.title}`, ...blocks].join('\n\n') + '\n';
 }
 
 /** One message body: the A2UI payload plus its metadata, or plain text. */
@@ -82,16 +117,22 @@ function serializeBody(message: Message): string {
 }
 
 /**
- * Reads one day file back into a title and its messages.
+ * Reads a thread file back into what it says about itself and its messages.
  *
  * A line only opens a new message when it matches [HEADER] exactly, so a `##`
  * inside a message body stays part of that body.
+ *
+ * A file with no front matter still parses. That is a thread somebody wrote
+ * by hand, which is a thing this format is meant to allow: it is open, it is
+ * called whatever its heading says, and it started when its first message
+ * did.
  */
-export function parseThreadDay(markdown: string): {
-  title: string;
+export function parseThread(markdown: string): {
+  front: { createdAt?: Date; solved: boolean; title: string };
   messages: Message[];
 } {
-  const lines = markdown.split('\n');
+  const { head, body } = splitFront(markdown);
+  const lines = body.split('\n');
 
   let title = '';
   const messages: Message[] = [];
@@ -148,7 +189,49 @@ export function parseThreadDay(markdown: string): {
 
   flush();
 
-  return { title, messages };
+  return {
+    front: {
+      createdAt: head.created,
+      solved: head.solved === true,
+      title,
+    },
+    messages,
+  };
+}
+
+/**
+ * Splits the front matter off the body.
+ *
+ * Only a fence on the very first line counts, so a `---` used as a rule
+ * inside a conversation is part of the conversation.
+ */
+function splitFront(markdown: string): {
+  head: { created?: Date; solved?: boolean };
+  body: string;
+} {
+  const lines = markdown.split('\n');
+  if (lines[0]?.trim() !== FENCE) return { head: {}, body: markdown };
+
+  const end = lines.indexOf(FENCE, 1);
+  if (end === -1) return { head: {}, body: markdown };
+
+  const head: { created?: Date; solved?: boolean } = {};
+
+  for (const line of lines.slice(1, end)) {
+    const separator = line.indexOf(':');
+    if (separator === -1) continue;
+
+    const key = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1).trim();
+
+    if (key === 'created') {
+      const created = new Date(value);
+      if (!Number.isNaN(created.getTime())) head.created = created;
+    }
+    if (key === 'solved') head.solved = value === 'true';
+  }
+
+  return { head, body: lines.slice(end + 1).join('\n') };
 }
 
 /**
@@ -162,7 +245,7 @@ export function messageId(role: MessageRole, createdAt: Date): string {
 }
 
 /**
- * Turns the first message of a thread into a folder name.
+ * Turns the first message of a thread into a file name.
  *
  * Lowercase, ASCII, hyphen-separated, and capped so a long first message does
  * not become a path the filesystem refuses.
@@ -189,14 +272,22 @@ export function titleFrom(text: string): string {
 }
 
 /**
- * The day folder a message belongs in, as `YYYY-MM-DD` in the server's local
- * timezone, so folders line up with the user's sense of a day rather than UTC's.
+ * The folder a thread started on that day belongs in.
+ *
+ * `DD-MM-YYYY`, in the server's local timezone, so the folders line up with
+ * the user's sense of a day rather than UTC's and read the way a date is
+ * written here.
  */
 export function dayFolder(date: Date): string {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return `${day}-${month}-${year}`;
+}
+
+/** Whether [name] is one of those folders. */
+export function isDayFolder(name: string): boolean {
+  return /^\d{2}-\d{2}-\d{4}$/.test(name);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { formatRange, Interval } from '../time/work-hours';
+import { Zone } from '../time/zone';
 import { A2uiComponent } from './a2ui.types';
 
 /**
@@ -33,9 +34,10 @@ function cancelButton(): A2uiComponent {
  * what it displaced: finished, or further down the day.
  */
 export function startNowGuard(
-  slug: string,
+  eventId: string,
   index: number,
   current: { title: string; interval: Interval },
+  zone: Zone,
 ): A2uiComponent {
   return {
     component: 'Column',
@@ -45,7 +47,7 @@ export function startNowGuard(
         component: 'ListItem',
         icon: 'alarm',
         title: 'Começar agora?',
-        subtitle: `${current.title} está rodando, ${formatRange(current.interval)}.`,
+        subtitle: `${current.title} está rodando, ${formatRange(current.interval, zone)}.`,
       },
       {
         component: 'AppButton',
@@ -55,7 +57,7 @@ export function startNowGuard(
         expand: true,
         action: {
           type: 'timing',
-          slug,
+          eventId,
           index,
           decision: 'solve_current',
         },
@@ -67,7 +69,7 @@ export function startNowGuard(
         expand: true,
         action: {
           type: 'timing',
-          slug,
+          eventId,
           index,
           decision: 'postpone_current',
         },

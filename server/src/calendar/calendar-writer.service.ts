@@ -1,10 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Trace } from '../common/trace';
-import { CalendarEvent } from './calendar.types';
+import {
+  CalendarEvent,
+  CalendarUser,
+  readCalendarEvent,
+} from './calendar.types';
 
 /** Raised when the calendar could not be changed. */
 export class CalendarWriteError extends Error {}
+
+/** What a create or a patch says about an event. */
+export interface EventPatch {
+  title?: string;
+  startTime?: string;
+  endTime?: string;
+  fixed?: boolean;
+  /** Links a conversation to this event. Only ever set, never cleared. */
+  threadSlug?: string;
+}
 
 /**
  * Changes to the calendar, made through the agent.
@@ -14,44 +28,71 @@ export class CalendarWriteError extends Error {}
  * same lack of ceremony as `/generate`. The routes it calls run no model and
  * have no prompt, so a guard that reserves a block is a plain HTTP call and
  * not a turn, which is what keeps a reorder from costing a generation.
+ *
+ * Every call names the person, because every person has their own calendar
+ * inside the one account.
  */
 @Injectable()
 export class CalendarWriterService {
   constructor(private readonly _config: ConfigService) {}
 
-  /** Books [event] on the focus calendar and returns it with its new id. */
+  /** Books [event] on this person's calendar and returns it with its id. */
   async create(
-    event: { title: string; startTime: string; endTime: string },
+    user: CalendarUser,
+    event: EventPatch,
     trace: Trace,
   ): Promise<CalendarEvent> {
     return trace.span('calendar.create', { title: event.title }, async () =>
-      this._fetch<CalendarEvent>('POST', '/calendar/events', event),
-    );
-  }
-
-  /** Moves an event already on the calendar. */
-  async move(
-    eventId: string,
-    when: { startTime: string; endTime: string },
-    trace: Trace,
-  ): Promise<CalendarEvent> {
-    return trace.span('calendar.move', { eventId }, async () =>
-      this._fetch<CalendarEvent>(
-        'PATCH',
-        `/calendar/events/${encodeURIComponent(eventId)}`,
-        when,
+      this._event(
+        await this._fetch<unknown>('POST', '/calendar/events', {
+          ...event,
+          userId: user.id,
+          userEmail: user.email,
+        }),
       ),
     );
   }
 
-  /** Takes an event off the calendar entirely. */
-  async remove(eventId: string, trace: Trace): Promise<void> {
+  /** Changes an event already on the calendar. */
+  async patch(
+    user: CalendarUser,
+    eventId: string,
+    patch: EventPatch,
+    trace: Trace,
+  ): Promise<CalendarEvent> {
+    return trace.span('calendar.patch', { eventId }, async () =>
+      this._event(
+        await this._fetch<unknown>(
+          'PATCH',
+          `/calendar/events/${encodeURIComponent(eventId)}`,
+          { ...patch, userId: user.id, userEmail: user.email },
+        ),
+      ),
+    );
+  }
+
+  /** Takes one event off the calendar entirely. */
+  async remove(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+  ): Promise<void> {
     await trace.span('calendar.remove', { eventId }, async () =>
       this._fetch<unknown>(
         'DELETE',
-        `/calendar/events/${encodeURIComponent(eventId)}`,
+        `/calendar/events/${encodeURIComponent(eventId)}?userId=${encodeURIComponent(user.id)}`,
       ),
     );
+  }
+
+  /** What the agent answered, refused if it is not an event. */
+  private _event(body: unknown): CalendarEvent {
+    const event = readCalendarEvent(body);
+    if (event === null) {
+      throw new CalendarWriteError('The calendar returned an unusable event');
+    }
+
+    return event;
   }
 
   private async _fetch<T>(

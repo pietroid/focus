@@ -3,36 +3,33 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { Injectable } from '@nestjs/common';
 import { Message } from './entities/message.entity';
-import {
-  Thread,
-  ThreadItem,
-  ThreadState,
-  ThreadSummary,
-  ThreadTiming,
-} from './entities/thread.entity';
+import { Thread, ThreadItem } from './entities/thread.entity';
 import {
   dayFolder,
-  parseThreadDay,
+  isDayFolder,
+  parseThread,
   previewFrom,
-  serializeThreadDay,
-  titleFrom,
+  serializeThread,
 } from './thread-markdown';
-import { intervalOf, isSpent, sectionOf } from './thread-timing';
 
 /**
  * The thread store: a directory of markdown files.
  *
  * ```
- * <root>/<userId>/<thread-slug>/<YYYY-MM-DD>/thread.md
- * <root>/<userId>/<thread-slug>/state.json
+ * <root>/<userId>/<DD-MM-YYYY>/<thread-slug>.md
+ * <root>/<userId>/traces/<thread-slug>/<traceId>.json
  * ```
  *
- * A thread is a folder of days, so appending to a conversation only ever
- * rewrites today's file no matter how long the thread has run. Threads are
- * filed under the user who owns them: the layout below that is exactly the
- * per-thread shape, and the extra segment keeps one user's threads from being
- * readable by another.
+ * A folder is a day and a file is a conversation: one file holds a thread
+ * whole, front matter and every message, however many days it goes on for.
+ * The day is the day it started, so a thread is written once and never moves,
+ * and a month of them reads as an archive of what was talked about when.
  *
+ * Threads are filed under the user who owns them, which keeps one person's
+ * conversations from being readable by another.
+ *
+ * **Nothing here knows about hours.** That is the calendar's, and a thread
+ * that remembered one would be the mirror this layout exists to be rid of.
  */
 @Injectable()
 export class ThreadsStore {
@@ -41,255 +38,204 @@ export class ThreadsStore {
     process.env.FOCUS_DATA_DIR ?? path.join(process.cwd(), 'data', 'threads');
 
   /** The newest queued write per thread, so two never interleave. */
-  private readonly _writes = new Map<string, Promise<void>>();
+  private readonly _writes = new Map<string, Promise<unknown>>();
 
   private _userDir(userId: string): string {
     return path.join(this._root, sanitizeSegment(userId));
   }
 
-  private _threadDir(userId: string, slug: string): string {
-    return path.join(this._userDir(userId), sanitizeSegment(slug));
-  }
+  /** Every day folder the user has, newest first. */
+  private async _days(userId: string): Promise<string[]> {
+    const names = (await readDirNames(this._userDir(userId))).filter(
+      isDayFolder,
+    );
 
-  private _stateFile(userId: string, slug: string): string {
-    return path.join(this._threadDir(userId, slug), 'state.json');
-  }
-
-  /** Whether a thread folder already exists. */
-  async exists(userId: string, slug: string): Promise<boolean> {
-    return exists(this._threadDir(userId, slug));
-  }
-
-  /** Every thread slug the user owns. */
-  async listSlugs(userId: string): Promise<string[]> {
-    return readDirNames(this._userDir(userId));
+    return names.sort((a, b) => dayKey(b) - dayKey(a));
   }
 
   /**
-   * Reads a thread whole, merging every day folder in date order.
+   * The file a thread lives in, or null when there is no such thread.
+   *
+   * Found by looking rather than by being told, because a slug is the whole
+   * of what the API addresses a thread by and the day it started is not
+   * something the app should have to carry around. Newest day first, since a
+   * thread being opened is far more often today's than last month's.
+   */
+  private async _file(userId: string, slug: string): Promise<string | null> {
+    const name = `${sanitizeSegment(slug)}.md`;
+
+    for (const day of await this._days(userId)) {
+      const file = path.join(this._userDir(userId), day, name);
+      if (await exists(file)) return file;
+    }
+
+    return null;
+  }
+
+  /** Whether the user already has a thread by this name. */
+  async exists(userId: string, slug: string): Promise<boolean> {
+    return (await this._file(userId, slug)) !== null;
+  }
+
+  /** Every thread slug the user owns, newest day first. */
+  async listSlugs(userId: string): Promise<string[]> {
+    const slugs: string[] = [];
+
+    for (const day of await this._days(userId)) {
+      const dir = path.join(this._userDir(userId), day);
+      for (const name of await readFileNames(dir)) {
+        if (name.endsWith('.md')) slugs.push(name.slice(0, -3));
+      }
+    }
+
+    return slugs;
+  }
+
+  /**
+   * Starts a thread, in the folder for the day it started.
+   *
+   * The file exists from here on and is only ever appended to. Nothing else
+   * creates one: a thread that appeared as a side effect of a write is a
+   * thread nobody can say the age of.
+   */
+  async create(
+    userId: string,
+    slug: string,
+    title: string,
+    createdAt = new Date(),
+  ): Promise<void> {
+    const dir = path.join(this._userDir(userId), dayFolder(createdAt));
+    await fs.mkdir(dir, { recursive: true });
+
+    await writeAtomic(
+      path.join(dir, `${sanitizeSegment(slug)}.md`),
+      serializeThread({ createdAt, solved: false, title }, []),
+    );
+  }
+
+  /**
+   * Reads a thread whole.
    *
    * Returns `null` when the thread does not exist, so the caller decides
    * whether that is a 404 or a thread to create.
    */
   async read(userId: string, slug: string): Promise<Thread | null> {
-    const dir = this._threadDir(userId, slug);
-    if (!(await exists(dir))) return null;
+    const file = await this._file(userId, slug);
+    if (file === null) return null;
 
-    const days = (await readDirNames(dir)).sort();
-    const messages: Message[] = [];
-    let title = '';
+    const markdown = await readFileOrNull(file);
+    if (markdown === null) return null;
 
-    for (const day of days) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-
-      const file = path.join(dir, day, 'thread.md');
-      const markdown = await readFileOrNull(file);
-      if (markdown === null) continue;
-
-      const parsed = parseThreadDay(markdown);
-      if (parsed.title !== '') title = parsed.title;
-      messages.push(...parsed.messages);
-    }
-
-    messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-    const state = await this.readState(userId, slug);
-
-    if (state.title !== undefined && state.title !== '') {
-      title = state.title;
-    } else if (title === '') {
-      const first = messages.find((message) => message.role === 'user');
-      title = first === undefined ? slug : titleFrom(first.text);
-    }
-
-    const createdAt = messages[0]?.createdAt ?? new Date();
-
-    return {
-      slug,
-      title,
-      messages,
-      solved: state.solved,
-      timing: state.timing,
-      createdAt,
-      updatedAt: messages[messages.length - 1]?.createdAt ?? new Date(),
-    };
+    return toThread(slug, file, markdown);
   }
 
-  /** Every thread the user owns, whether or not it happens at an hour. */
+  /** Every thread the user owns, in no particular order. */
   async readAll(userId: string): Promise<Thread[]> {
-    const slugs = await this.listSlugs(userId);
-    const threads = await Promise.all(
-      slugs.map((slug) => this.read(userId, slug)),
-    );
+    const threads: Thread[] = [];
 
-    return threads.filter((thread): thread is Thread => thread !== null);
-  }
+    for (const day of await this._days(userId)) {
+      const dir = path.join(this._userDir(userId), day);
 
-  /**
-   * Marks everything whose hour has run out as done, and says what it closed.
-   *
-   * A block is a promise about a stretch of clock. When the clock passes the
-   * end of it the block is spent: 11:20 to 11:25 is over at 11:26, and it is
-   * neither running nor still to come. Rather than leave it on the screen
-   * under a heading that is no longer true of it, it goes where everything
-   * finished goes.
-   *
-   * The booking on Google is left exactly where it is. The hour happened, and
-   * deleting a past event would be rewriting the day rather than closing it —
-   * unlike solving something early, which frees an hour that is still ahead
-   * and so has to give the booking back.
-   */
-  async sweep(userId: string, now = new Date()): Promise<string[]> {
-    const spent: string[] = [];
+      for (const name of await readFileNames(dir)) {
+        if (!name.endsWith('.md')) continue;
 
-    for (const thread of await this.readAll(userId)) {
-      if (thread.solved) continue;
+        const markdown = await readFileOrNull(path.join(dir, name));
+        if (markdown === null) continue;
 
-      const interval = intervalOf(thread.timing);
-      if (interval === undefined || !isSpent(now, interval)) continue;
-
-      await this.updateState(userId, thread.slug, { solved: true });
-      spent.push(thread.slug);
+        threads.push(
+          toThread(name.slice(0, -3), path.join(dir, name), markdown),
+        );
+      }
     }
 
-    return spent;
+    return threads;
   }
 
   /**
-   * Every thread that is on the timeline, earliest first.
+   * Appends [messages] to a thread.
    *
-   * A thread with no timing is left out. It exists, it is in Coisas, and it
-   * is simply not a thing that happens at an hour yet.
-   */
-  async readAllSummaries(
-    userId: string,
-    now = new Date(),
-  ): Promise<ThreadSummary[]> {
-    return (await this.readAll(userId))
-      .map((thread) => toSummary(thread, now))
-      .filter((summary): summary is ThreadSummary => summary !== null)
-      .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
-  }
-
-  /**
-   * Appends [messages] to the thread, writing each into the day file it
-   * belongs to.
-   *
-   * Grouping by day before writing means a batch that straddles midnight lands
-   * in two files rather than backdating the later message.
+   * The whole file is rewritten, which is what one file per conversation
+   * costs and what it buys: there is one place a thread can be, so there is
+   * no question of which day's copy is the real one. A conversation is a few
+   * kilobytes, and the rewrite is atomic.
    */
   async append(
     userId: string,
     slug: string,
-    title: string,
     messages: Message[],
   ): Promise<void> {
-    const byDay = new Map<string, Message[]>();
-    for (const message of messages) {
-      const day = dayFolder(message.createdAt);
-      byDay.set(day, [...(byDay.get(day) ?? []), message]);
-    }
+    await this._serialize(userId, slug, async () => {
+      const file = await this._file(userId, slug);
+      if (file === null) return;
 
-    for (const [day, dayMessages] of byDay) {
-      const dir = path.join(this._threadDir(userId, slug), day);
-      await fs.mkdir(dir, { recursive: true });
+      const markdown = (await readFileOrNull(file)) ?? '';
+      const parsed = parseThread(markdown);
 
-      const file = path.join(dir, 'thread.md');
-      const existing = await readFileOrNull(file);
-      const previous =
-        existing === null ? [] : parseThreadDay(existing).messages;
+      const ordered = [...parsed.messages, ...messages].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+      );
 
       await writeAtomic(
         file,
-        serializeThreadDay(title, [...previous, ...dayMessages]),
+        serializeThread(
+          {
+            createdAt:
+              parsed.front.createdAt ?? ordered[0]?.createdAt ?? new Date(),
+            solved: parsed.front.solved,
+            title: parsed.front.title,
+          },
+          ordered,
+        ),
       );
-    }
-  }
-
-  /** The thread's stored state, defaulting to an open thread. */
-  async readState(userId: string, slug: string): Promise<ThreadState> {
-    const content = await readFileOrNull(this._stateFile(userId, slug));
-    if (content === null) return { solved: false };
-
-    try {
-      const parsed = JSON.parse(content) as Partial<ThreadState>;
-      return {
-        solved: parsed.solved === true,
-        title: parsed.title,
-        timing: readTiming(parsed.timing),
-      };
-    } catch {
-      return { solved: false };
-    }
+    });
   }
 
   /**
-   * Merges [changes] into the thread's state.
+   * Changes what the thread says about itself.
    *
-   * Read, merge, write — and one thread at a time, because that sequence is
-   * not atomic and no longer has the luxury of being the only thing running.
-   * A request laying the day out and a calendar job writing back the event id
-   * it was just given are two of these on the same file, and interleaved they
-   * lose whichever change read first: the id lands on top of the old hour, or
-   * the hour lands on top of the missing id, and the thread ends up pointing
-   * at an event that is somewhere else.
-   *
-   * Serialising per thread rather than globally, so one slow thread does not
-   * hold up the rest of the day. One process holds the lock, which is all
-   * there is: the store is a directory on a Pi with a single backend on it.
+   * Read, merge, write, one thread at a time, because that sequence is not
+   * atomic and the file is also being appended to by the turn that is
+   * running. Serialising per thread rather than globally, so one slow thread
+   * does not hold up the rest. One process holds the lock, which is all there
+   * is: the store is a directory on a Pi with a single backend on it.
    */
   async updateState(
     userId: string,
     slug: string,
-    changes: Partial<ThreadState>,
-  ): Promise<ThreadState> {
-    const key = `${sanitizeSegment(userId)}/${sanitizeSegment(slug)}`;
-    const previous = this._writes.get(key) ?? Promise.resolve();
+    changes: { solved?: boolean; title?: string },
+  ): Promise<void> {
+    await this._serialize(userId, slug, async () => {
+      const file = await this._file(userId, slug);
+      if (file === null) return;
 
-    const next = previous
-      .catch(() => undefined)
-      .then(() => this._writeState(userId, slug, changes));
+      const markdown = (await readFileOrNull(file)) ?? '';
+      const parsed = parseThread(markdown);
 
-    // The tail swallows failures: one write that throws must not take the
-    // writes queued behind it with it.
-    const tail = next.then(
-      () => undefined,
-      () => undefined,
-    );
-    this._writes.set(key, tail);
-
-    try {
-      return await next;
-    } finally {
-      // Only the last write for a thread clears the entry. One that is still
-      // holding a queue keeps its place, and the map stays the size of what
-      // is actually in flight.
-      if (this._writes.get(key) === tail) this._writes.delete(key);
-    }
+      await writeAtomic(
+        file,
+        serializeThread(
+          {
+            createdAt:
+              parsed.front.createdAt ??
+              parsed.messages[0]?.createdAt ??
+              new Date(),
+            solved: changes.solved ?? parsed.front.solved,
+            title: changes.title ?? parsed.front.title,
+          },
+          parsed.messages,
+        ),
+      );
+    });
   }
 
-  private async _writeState(
-    userId: string,
-    slug: string,
-    changes: Partial<ThreadState>,
-  ): Promise<ThreadState> {
-    const next = { ...(await this.readState(userId, slug)), ...changes };
-    await fs.mkdir(this._threadDir(userId, slug), { recursive: true });
-    await writeAtomic(
-      this._stateFile(userId, slug),
-      JSON.stringify(next, null, 2),
-    );
-    return next;
-  }
-
-  /** Writes a turn's trace next to the thread it explains. */
+  /** Writes a turn's trace where the thread's traces go. */
   async saveTrace(
     userId: string,
     slug: string,
     traceId: string,
     payload: unknown,
   ): Promise<void> {
-    const dir = path.join(this._threadDir(userId, slug), 'traces');
+    const dir = this._traceDir(userId, slug);
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(
       path.join(dir, `${sanitizeSegment(traceId)}.json`),
@@ -303,13 +249,13 @@ export class ThreadsStore {
     userId: string,
     slug: string,
     traceId: string,
-  ): Promise<unknown | null> {
-    const file = path.join(
-      this._threadDir(userId, slug),
-      'traces',
-      `${sanitizeSegment(traceId)}.json`,
+  ): Promise<unknown> {
+    const content = await readFileOrNull(
+      path.join(
+        this._traceDir(userId, slug),
+        `${sanitizeSegment(traceId)}.json`,
+      ),
     );
-    const content = await readFileOrNull(file);
     if (content === null) return null;
 
     try {
@@ -319,76 +265,80 @@ export class ThreadsStore {
     }
   }
 
-  /** Removes a thread and everything in it. */
+  /** Removes a thread and the traces that explain it. */
   async remove(userId: string, slug: string): Promise<void> {
-    await fs.rm(this._threadDir(userId, slug), {
+    const file = await this._file(userId, slug);
+    if (file !== null) await fs.rm(file, { force: true });
+
+    await fs.rm(this._traceDir(userId, slug), {
       recursive: true,
       force: true,
     });
   }
-}
 
-/**
- * The stored timing, or undefined when it is not all there.
- *
- * Timing is all or nothing on purpose. Half a span was the old half-planned
- * state, and it is what let a card sit under a heading that was not true of
- * it.
- */
-function readTiming(value: unknown): ThreadTiming | undefined {
-  if (value === null || typeof value !== 'object') return undefined;
-
-  const raw = value as Record<string, unknown>;
-  if (
-    typeof raw.durationMinutes !== 'number' ||
-    raw.durationMinutes <= 0 ||
-    typeof raw.startTime !== 'string' ||
-    typeof raw.endTime !== 'string'
-  ) {
-    return undefined;
+  /**
+   * Traces live beside the days rather than inside them.
+   *
+   * A thread's folder is a date, and a trace is not about a date: keeping
+   * them out of the day folders is what leaves a day folder readable as a
+   * list of the conversations that started that day.
+   */
+  private _traceDir(userId: string, slug: string): string {
+    return path.join(this._userDir(userId), 'traces', sanitizeSegment(slug));
   }
 
-  const timing: ThreadTiming = {
-    durationMinutes: raw.durationMinutes,
-    startTime: raw.startTime,
-    endTime: raw.endTime,
-    fixed: raw.fixed === true,
-    calendarEventId:
-      typeof raw.calendarEventId === 'string' ? raw.calendarEventId : undefined,
-  };
+  /** Runs [work] after everything already queued for this thread. */
+  private async _serialize(
+    userId: string,
+    slug: string,
+    work: () => Promise<void>,
+  ): Promise<void> {
+    const key = `${sanitizeSegment(userId)}/${sanitizeSegment(slug)}`;
+    const previous = this._writes.get(key) ?? Promise.resolve();
 
-  return intervalOf(timing) === undefined ? undefined : timing;
+    const next = previous.catch(() => undefined).then(work);
+
+    // The tail swallows failures: one write that throws must not take the
+    // writes queued behind it with it.
+    const tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    this._writes.set(key, tail);
+
+    try {
+      await next;
+    } finally {
+      // Only the last write for a thread clears the entry. One that is still
+      // holding a queue keeps its place, and the map stays the size of what
+      // is actually in flight.
+      if (this._writes.get(key) === tail) this._writes.delete(key);
+    }
+  }
 }
 
-/** [thread] as a card, or null when it has no hour to be drawn at. */
-function toSummary(thread: Thread, now: Date): ThreadSummary | null {
-  const interval = intervalOf(thread.timing);
-  if (thread.timing === undefined || interval === undefined) return null;
+/** One file, read as a thread. */
+function toThread(slug: string, file: string, markdown: string): Thread {
+  const parsed = parseThread(markdown);
+  const messages = parsed.messages;
 
-  // Out past tomorrow the timeline draws nothing, which the caller decides by
-  // asking the same question. Here it only has to be some section, so the
-  // furthest one stands in.
-  const section = sectionOf(now, interval) ?? 'amanha';
-  const last = thread.messages[thread.messages.length - 1];
+  const createdAt =
+    parsed.front.createdAt ??
+    messages[0]?.createdAt ??
+    dayOf(path.basename(path.dirname(file))) ??
+    new Date();
 
   return {
-    kind: 'thread',
-    slug: thread.slug,
-    title: thread.title,
-    preview: last === undefined ? '' : previewFrom(last),
-    messageCount: thread.messages.length,
-    solved: thread.solved,
-    section,
-    startTime: thread.timing.startTime,
-    endTime: thread.timing.endTime,
-    durationMinutes: thread.timing.durationMinutes,
-    fixed: thread.timing.fixed,
-    createdAt: thread.createdAt,
-    updatedAt: thread.updatedAt,
+    slug,
+    title: parsed.front.title === '' ? slug : parsed.front.title,
+    messages,
+    solved: parsed.front.solved,
+    createdAt,
+    updatedAt: messages[messages.length - 1]?.createdAt ?? createdAt,
   };
 }
 
-/** [thread] in a plain list, hour or no hour. */
+/** [thread] as a row in a list. */
 export function toItem(thread: Thread): ThreadItem {
   const last = thread.messages[thread.messages.length - 1];
 
@@ -398,12 +348,23 @@ export function toItem(thread: Thread): ThreadItem {
     preview: last === undefined ? '' : previewFrom(last),
     messageCount: thread.messages.length,
     solved: thread.solved,
-    startTime: thread.timing?.startTime,
-    endTime: thread.timing?.endTime,
-    durationMinutes: thread.timing?.durationMinutes,
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
   };
+}
+
+/** A day folder as a sortable number. */
+function dayKey(name: string): number {
+  const [day, month, year] = name.split('-');
+  return Number(`${year}${month}${day}`);
+}
+
+/** A day folder as the moment it began, or undefined when it is not one. */
+function dayOf(name: string): Date | undefined {
+  if (!isDayFolder(name)) return undefined;
+
+  const [day, month, year] = name.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 /**
@@ -423,11 +384,8 @@ function sanitizeSegment(value: string): string {
  *
  * Through a temporary file and a rename, because a plain write is not one
  * step: it truncates and then fills, and anything reading in between gets
- * half a file. That used to be impossible here, when every write was awaited
- * by the only thing running. Now the calendar queue writes while requests
- * read, and a torn `state.json` parses as a thread with no hour, which is a
- * card silently dropping off the timeline. Rename is atomic on the same
- * filesystem, so a reader sees either the old file whole or the new one.
+ * half a file. Rename is atomic on the same filesystem, so a reader sees
+ * either the old file whole or the new one.
  */
 async function writeAtomic(file: string, contents: string): Promise<void> {
   const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
@@ -456,6 +414,15 @@ async function readDirNames(dir: string): Promise<string[]> {
     return entries
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+async function readFileNames(dir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
   } catch {
     return [];
   }

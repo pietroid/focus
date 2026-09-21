@@ -1,31 +1,50 @@
 import 'package:app_ui/app_ui.dart';
+import 'package:chat/chat.dart';
+import 'package:go_router/go_router.dart';
 
 /// {@template things_page}
-/// Coisas. The screen is not built yet; the destination is, so the bar has
-/// somewhere to go.
+/// Coisas: every conversation, cut into the days they were last replied to.
+///
+/// The orb on this tab starts a conversation, and this is where the ones
+/// already started stay. Tapping a row opens the thread where it was left.
 /// {@endtemplate}
 class ThingsPage extends StatelessWidget {
   /// {@macro things_page}
-  const ThingsPage({super.key});
+  const ThingsPage({this.reloadToken = 0, super.key});
+
+  /// Bumped by the shell when a conversation was started from the orb.
+  final int reloadToken;
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.s6,
-          AppSpacing.s5,
-          AppSpacing.s6,
-          0,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Coisas', style: AppTypography.headline),
-            const SizedBox(height: AppSpacing.s5),
-            Text('Em breve.', style: AppTypography.label),
-          ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppSpacing.maxContentWidth,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: AppSpacing.s5,
+                    bottom: AppSpacing.s2,
+                  ),
+                  child: Text('Coisas', style: AppTypography.headline),
+                ),
+                Expanded(
+                  child: ThingsSection(
+                    reloadToken: reloadToken,
+                    onThreadTap: (slug) => context.push<void>('/chat/$slug'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

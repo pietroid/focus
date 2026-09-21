@@ -34,6 +34,12 @@ class _ShellPageState extends State<ShellPage> {
 
   int _index = 0;
 
+  /// How many conversations have been started from the orb.
+  ///
+  /// Coisas is kept alive behind the bar, so it cannot notice a thread that
+  /// appeared while it was off screen. This is how it is told.
+  int _conversations = 0;
+
   Future<void> _onOrbTapped() async {
     if (_index == _timelineIndex) {
       await _schedule();
@@ -45,7 +51,7 @@ class _ShellPageState extends State<ShellPage> {
 
   /// Writes something down with an hour on it. No conversation.
   Future<void> _schedule() async {
-    final bloc = context.read<ThreadsBloc>();
+    final bloc = context.read<TimelineBloc>();
     final result = await AppPromptSheet.show(
       context,
       // The sheet asks where something would land while the user is still
@@ -57,8 +63,8 @@ class _ShellPageState extends State<ShellPage> {
     if (result == null) return;
 
     bloc.add(
-      ThreadScheduled(
-        message: result.text,
+      EventCreated(
+        title: result.text,
         durationMinutes: result.duration.inMinutes,
         fixed: result.fixed,
         startTime: result.startTime,
@@ -73,7 +79,8 @@ class _ShellPageState extends State<ShellPage> {
 
     await context.push<void>('/chat', extra: text);
     if (mounted) {
-      context.read<ThreadsBloc>().add(const ThreadsRequested());
+      context.read<TimelineBloc>().add(const TimelineRequested());
+      setState(() => _conversations++);
     }
   }
 
@@ -84,11 +91,11 @@ class _ShellPageState extends State<ShellPage> {
       extendBody: true,
       body: IndexedStack(
         index: _index,
-        children: const [
-          HomePage(),
-          ThingsPage(),
-          RecommendationsPage(),
-          MenuPage(),
+        children: [
+          const HomePage(),
+          ThingsPage(reloadToken: _conversations),
+          const RecommendationsPage(),
+          const MenuPage(),
         ],
       ),
       bottomNavigationBar: AppBottomBar(

@@ -1,8 +1,15 @@
 import { PlannedBlock, relayout } from './scheduling';
 import { Interval } from './work-hours';
+import { formatTimeIn, instantOf } from './zone';
+
+/** A zone that is not the machine's, so the suite reads the same anywhere. */
+const ZONE = 'America/Sao_Paulo';
 
 function at(hour: number, minute = 0): Date {
-  return new Date(2026, 8, 21, hour, minute, 0, 0);
+  return instantOf(
+    { year: 2026, month: 9, day: 21, hour, minute, second: 0 },
+    ZONE,
+  );
 }
 
 function block(
@@ -23,17 +30,14 @@ function reads(placed: Map<string, Interval>, id: string): string {
   const slot = placed.get(id);
   if (slot === undefined) return 'unplaced';
 
-  const hhmm = (date: Date) =>
-    `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-
-  return `${hhmm(slot.start)}-${hhmm(slot.end)}`;
+  return `${formatTimeIn(slot.start, ZONE)}-${formatTimeIn(slot.end, ZONE)}`;
 }
 
 describe('laying the day out', () => {
   it('packs the queue from now, with a gap between blocks', () => {
     const queue = [block('a', at(15), 30), block('b', at(16), 45)];
 
-    const placed = relayout(queue, [], at(9));
+    const placed = relayout(queue, [], at(9), ZONE);
 
     expect(reads(placed, 'a')).toBe('09:00-09:30');
     expect(reads(placed, 'b')).toBe('09:35-10:20');
@@ -43,7 +47,7 @@ describe('laying the day out', () => {
     const anchor = block('meeting', at(10), 60, true);
     const queue = [block('a', at(9), 30), anchor];
 
-    const placed = relayout(queue, [anchor.interval], at(9));
+    const placed = relayout(queue, [anchor.interval], at(9), ZONE);
 
     expect(placed.has('meeting')).toBe(false);
     expect(reads(placed, 'a')).toBe('09:00-09:30');
@@ -53,7 +57,7 @@ describe('laying the day out', () => {
     const anchor = block('meeting', at(11), 60, true);
     const queue = [anchor, block('a', at(14), 45)];
 
-    const placed = relayout(queue, [anchor.interval], at(9));
+    const placed = relayout(queue, [anchor.interval], at(9), ZONE);
 
     // Queued after the meeting, but the meeting is an anchor rather than a
     // cursor, so the morning is still free and that is where it goes.
@@ -64,7 +68,7 @@ describe('laying the day out', () => {
     const anchor = block('meeting', at(9, 30), 60, true);
     const queue = [block('a', at(14), 60), anchor];
 
-    const placed = relayout(queue, [anchor.interval], at(9));
+    const placed = relayout(queue, [anchor.interval], at(9), ZONE);
 
     expect(reads(placed, 'a')).toBe('10:35-11:35');
   });
@@ -76,7 +80,7 @@ describe('laying the day out', () => {
       block('second', at(11), 30),
     ];
 
-    const placed = relayout(queue, [], at(8));
+    const placed = relayout(queue, [], at(8), ZONE);
 
     expect(reads(placed, 'third')).toBe('08:00-08:30');
     expect(reads(placed, 'first')).toBe('08:35-09:05');

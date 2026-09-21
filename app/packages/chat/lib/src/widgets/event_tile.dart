@@ -1,8 +1,8 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/models/models.dart';
 
-/// {@template thread_tile}
-/// One card on the timeline.
+/// {@template event_tile}
+/// One card on the timeline: a block of time.
 ///
 /// The title and the hour. Every card has an hour now, so the line beside the
 /// title is always the same thing and never has to stand in for a missing
@@ -10,7 +10,7 @@ import 'package:chat/src/models/models.dart';
 /// that will not move when the day is rearranged, and that is worth knowing
 /// before rearranging it.
 ///
-/// A card read off the calendar looks the same and behaves differently: it
+/// A meeting Focus did not book looks the same and behaves differently: it
 /// carries a small mark saying where it came from, and the list above ignores
 /// every gesture on it.
 ///
@@ -18,9 +18,9 @@ import 'package:chat/src/models/models.dart';
 /// are read by one listener over the whole list, which tells each card how it
 /// is being touched through [pressed], [hidden], and [lifted].
 /// {@endtemplate}
-class ThreadTile extends StatelessWidget {
-  /// {@macro thread_tile}
-  const ThreadTile({
+class EventTile extends StatelessWidget {
+  /// {@macro event_tile}
+  const EventTile({
     required this.card,
     this.pressed = false,
     this.hidden = false,
@@ -29,7 +29,7 @@ class ThreadTile extends StatelessWidget {
   });
 
   /// The card to draw.
-  final ThreadSummary card;
+  final TimelineEvent card;
 
   /// Whether a finger is resting on it.
   final bool pressed;
@@ -92,7 +92,7 @@ class ThreadTile extends StatelessWidget {
 
   /// The small icon in front of the title, when the card has earned one.
   AppIconData? get _mark {
-    if (card.kind == CardKind.calendar) return AppIcons.calendar;
+    if (!card.managed) return AppIcons.calendar;
     return card.fixed ? AppIcons.pin : null;
   }
 

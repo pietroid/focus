@@ -10,27 +10,22 @@ void main() {
   runApp(const _PreviewApp());
 }
 
-ThreadSummary _card(
-  String slug,
+TimelineEvent _card(
+  String id,
   String title,
   TimelineSection section,
   DateTime start,
   int minutes, {
   bool fixed = false,
 }) {
-  return ThreadSummary(
-    slug: slug,
+  return TimelineEvent(
+    id: id,
     title: title,
-    preview: '',
-    messageCount: 2,
-    solved: false,
     section: section,
     startTime: start,
     endTime: start.add(Duration(minutes: minutes)),
     durationMinutes: minutes,
     fixed: fixed,
-    createdAt: start,
-    updatedAt: start,
   );
 }
 
@@ -46,7 +41,7 @@ DateTime _at(int hour, int minute, {int addDays = 0}) {
   );
 }
 
-final _cards = <ThreadSummary>[
+final _cards = <TimelineEvent>[
   _card('focus', 'Fazendo Focus', TimelineSection.agora, _at(9, 0), 60),
   _card(
     'mercado',
@@ -73,12 +68,12 @@ final _cards = <ThreadSummary>[
 ];
 
 /// A repository that answers from memory and forgets every write.
-class _FakeChatRepository implements ChatRepository {
+class _FakeTimelineRepository implements TimelineRepository {
   @override
-  Future<List<ThreadSummary>> fetchThreads() async => _cards;
+  Future<List<TimelineEvent>> fetchEvents() async => _cards;
 
   @override
-  Future<TimelineOutcome> moveThread(String slug, int index) async =>
+  Future<TimelineOutcome> moveEvent(String id, int index) async =>
       TimelineOutcome(cards: _cards);
 
   @override
@@ -98,10 +93,10 @@ class _PreviewApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: BlocProvider<ThreadsBloc>(
+      home: BlocProvider<TimelineBloc>(
         create: (_) =>
-            ThreadsBloc(chatRepository: _FakeChatRepository())
-              ..add(const ThreadsRequested()),
+            TimelineBloc(repository: _FakeTimelineRepository())
+              ..add(const TimelineRequested()),
         child: const _PreviewHome(),
       ),
     );
@@ -154,7 +149,7 @@ class _PreviewHome extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Expanded(child: ThreadsSection(onThreadTap: (_) {})),
+                    Expanded(child: TimelineList(onCardTap: (_) {})),
                   ],
                 ),
                 Positioned(

@@ -1,46 +1,47 @@
 import 'package:bloc/bloc.dart';
 import 'package:chat/src/data/chat_failure.dart';
-import 'package:chat/src/data/chat_repository.dart';
+import 'package:chat/src/data/timeline_repository.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:equatable/equatable.dart';
 
-part 'threads_event.dart';
-part 'threads_state.dart';
+part 'timeline_event.dart';
+part 'timeline_state.dart';
 
-/// {@template threads_bloc}
-/// Holds the timeline.
+/// {@template timeline_bloc}
+/// Holds the day.
 ///
-/// Everything about when things happen is worked out on the server, so this
-/// mostly forwards and redraws. There is one optimistic write left, solving,
-/// because the card has already flown off the screen by the time the request
-/// goes out.
+/// Every card is a block of time on the calendar, and everything about when
+/// things happen is worked out on the server, so this mostly forwards and
+/// redraws. There is one optimistic write left, finishing a block, because
+/// the card has already flown off the screen by the time the request goes
+/// out.
 /// {@endtemplate}
-class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
-  /// {@macro threads_bloc}
-  ThreadsBloc({required this._chatRepository}) : super(const ThreadsState()) {
-    on<ThreadsRequested>(_onRequested);
-    on<ThreadScheduled>(_onScheduled);
-    on<ThreadMoved>(_onMoved);
-    on<ThreadSolved>(_onSolved);
+class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
+  /// {@macro timeline_bloc}
+  TimelineBloc({required this._repository}) : super(const TimelineState()) {
+    on<TimelineRequested>(_onRequested);
+    on<EventCreated>(_onCreated);
+    on<EventMoved>(_onMoved);
+    on<EventFinished>(_onFinished);
     on<GuardAnswered>(_onGuardAnswered);
     on<GuardDismissed>(_onGuardDismissed);
     on<SyncWatched>(_onSyncWatched);
     on<SyncRetried>(_onSyncRetried);
   }
 
-  final ChatRepository _chatRepository;
+  final TimelineRepository _repository;
 
   Future<void> _onRequested(
-    ThreadsRequested event,
-    Emitter<ThreadsState> emit,
+    TimelineRequested event,
+    Emitter<TimelineState> emit,
   ) async {
-    emit(state.copyWith(status: ThreadsStatus.loading, clearFailure: true));
+    emit(state.copyWith(status: TimelineStatus.loading, clearFailure: true));
 
     try {
       emit(
         state.copyWith(
-          status: ThreadsStatus.success,
-          cards: await _chatRepository.fetchThreads(),
+          status: TimelineStatus.success,
+          cards: await _repository.fetchEvents(),
           clearFailure: true,
         ),
       );
@@ -54,23 +55,23 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// The refusal is kept as the server wrote it, because the server is the
   /// one that knows what went wrong. Every write on this screen is all or
   /// nothing, so the cards already on it are still the true ones.
-  ThreadsState _failed(Object error) {
+  TimelineState _failed(Object error) {
     return state.copyWith(
-      status: ThreadsStatus.failure,
+      status: TimelineStatus.failure,
       failure: ChatFailure.from(error).message,
       guardBusy: false,
       clearGuard: true,
     );
   }
 
-  /// Writes something down, and draws the timeline with it already in place.
-  Future<void> _onScheduled(
-    ThreadScheduled event,
-    Emitter<ThreadsState> emit,
+  /// Writes something down, and draws the day with it already in place.
+  Future<void> _onCreated(
+    EventCreated event,
+    Emitter<TimelineState> emit,
   ) async {
     try {
-      final cards = await _chatRepository.createScheduled(
-        message: event.message,
+      final cards = await _repository.createEvent(
+        title: event.title,
         durationMinutes: event.durationMinutes,
         fixed: event.fixed,
         startTime: event.startTime,
@@ -78,13 +79,11 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
 
       emit(
         state.copyWith(
-          status: ThreadsStatus.success,
+          status: TimelineStatus.success,
           cards: cards,
           clearFailure: true,
         ),
       );
-
-      add(const SyncWatched());
     } on Object catch (error) {
       emit(_failed(error));
     }
@@ -96,15 +95,12 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// everything it displaced and only the server knows what those hours are,
   /// so guessing at them would mean drawing a day that is about to be
   /// replaced by a different one.
-  Future<void> _onMoved(ThreadMoved event, Emitter<ThreadsState> emit) async {
-    final card = state.bySlug(event.slug);
+  Future<void> _onMoved(EventMoved event, Emitter<TimelineState> emit) async {
+    final card = state.byId(event.id);
     if (card == null || !card.isInteractive) return;
 
     try {
-      final outcome = await _chatRepository.moveThread(
-        event.slug,
-        event.index,
-      );
+      final outcome = await _repository.moveEvent(event.id, event.index);
 
       // A guard means the server did not move anything, so the cards that
       // come back are the ones that were already on screen.
@@ -133,10 +129,10 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// nothing to say, which is nearly always, it emits nothing at all.
   Future<void> _onSyncWatched(
     SyncWatched event,
-    Emitter<ThreadsState> emit,
+    Emitter<TimelineState> emit,
   ) async {
     try {
-      final outcome = await _chatRepository.awaitSync();
+      final outcome = await _repository.awaitSync();
       if (outcome.ok || outcome.guard == null) return;
 
       // Never over an open question. The user is in the middle of answering
@@ -153,12 +149,12 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// Pushes the day at the calendar again, from the popup's one button.
   Future<void> _onSyncRetried(
     SyncRetried event,
-    Emitter<ThreadsState> emit,
+    Emitter<TimelineState> emit,
   ) async {
     emit(state.copyWith(guardBusy: true));
 
     try {
-      final outcome = await _chatRepository.retrySync();
+      final outcome = await _repository.retrySync();
 
       emit(
         outcome.ok || outcome.guard == null
@@ -173,12 +169,12 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   /// Sends the button the user tapped on a guard, and draws what comes back.
   Future<void> _onGuardAnswered(
     GuardAnswered event,
-    Emitter<ThreadsState> emit,
+    Emitter<TimelineState> emit,
   ) async {
     emit(state.copyWith(guardBusy: true));
 
     try {
-      final outcome = await _chatRepository.applyTiming(event.action);
+      final outcome = await _repository.applyTiming(event.action);
 
       emit(
         outcome.guard == null
@@ -199,42 +195,40 @@ class ThreadsBloc extends Bloc<ThreadsEvent, ThreadsState> {
   }
 
   /// Drops a guard without answering it, which changes nothing anywhere.
-  void _onGuardDismissed(GuardDismissed event, Emitter<ThreadsState> emit) {
+  void _onGuardDismissed(GuardDismissed event, Emitter<TimelineState> emit) {
     emit(state.copyWith(clearGuard: true, guardBusy: false));
   }
 
-  /// Takes a thread off the timeline, then writes it.
+  /// Takes a block off the day, then writes it.
   ///
   /// This one lands on screen first: the card has already been thrown off by
   /// the time the request goes out, and a failure puts it back rather than
-  /// leaving a thread the user thinks is solved.
-  Future<void> _onSolved(ThreadSolved event, Emitter<ThreadsState> emit) async {
+  /// leaving an hour the user thinks they gave back.
+  Future<void> _onFinished(
+    EventFinished event,
+    Emitter<TimelineState> emit,
+  ) async {
     final before = state.cards;
-    final card = state.bySlug(event.slug);
+    final card = state.byId(event.id);
     if (card == null || !card.isInteractive) return;
 
-    if (event.solved) {
-      emit(
-        state.copyWith(
-          cards: before.where((it) => it.slug != event.slug).toList(),
-        ),
-      );
-    }
+    emit(
+      state.copyWith(
+        cards: before.where((it) => it.id != event.id).toList(),
+      ),
+    );
 
     try {
       emit(
         state.copyWith(
-          cards: await _chatRepository.setSolved(
-            event.slug,
-            solved: event.solved,
-          ),
+          cards: await _repository.finishEvent(event.id),
           clearFailure: true,
         ),
       );
 
       add(const SyncWatched());
     } on Object catch (error) {
-      // Solving is the one write that lands on screen first, so it is also
+      // Finishing is the one write that lands on screen first, so it is also
       // the one that has to be put back.
       emit(_failed(error).copyWith(cards: before));
     }

@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { A2uiParserService } from '../a2ui/a2ui-parser.service';
 import { A2uiPromptService } from '../a2ui/a2ui-prompt.service';
 import { A2uiValidationService } from '../a2ui/a2ui-validation.service';
@@ -12,13 +8,7 @@ import {
   unavailableUi,
   writeFailedUi,
 } from '../a2ui/a2ui.builders';
-import { syncFailedUi } from '../a2ui/a2ui.guards';
-import { A2uiComponent, TimingAction } from '../a2ui/a2ui.types';
-import {
-  CalendarSyncService,
-  SyncFailure,
-} from '../calendar/calendar-sync.service';
-import { isCalendarSlug } from '../calendar/calendar.types';
+import { A2uiComponent } from '../a2ui/a2ui.types';
 import { Trace } from '../common/trace';
 import {
   AgentUnavailableError,
@@ -27,22 +17,9 @@ import {
   ToolDescriptor,
 } from './agent.service';
 import { Message, MessageMetadata, ToolRun } from './entities/message.entity';
-import { Thread, ThreadItem, ThreadSummary } from './entities/thread.entity';
+import { Thread, ThreadItem } from './entities/thread.entity';
 import { messageId, slugify, titleFrom } from './thread-markdown';
 import { toItem, ThreadsStore } from './threads.store';
-import { TimelineService } from './timeline.service';
-import {
-  ScheduleRequest,
-  TimingOutcome,
-  TimingService,
-} from './timing.service';
-
-/** How the calendar catch-up went: nothing to say, or something to draw. */
-export interface SyncOutcome {
-  ok: boolean;
-  /** The popup, when the calendar did not keep up. */
-  guard?: A2uiComponent;
-}
 
 /**
  * A thread, end to end.
@@ -64,14 +41,20 @@ export class ThreadsService {
     private readonly prompt: A2uiPromptService,
     private readonly parser: A2uiParserService,
     private readonly validator: A2uiValidationService,
-    private readonly timeline: TimelineService,
-    private readonly timing: TimingService,
-    private readonly syncs: CalendarSyncService,
   ) {}
 
-  /** Every card the timeline draws: the threads, and the calendar beside them. */
-  async findAll(userId: string): Promise<ThreadSummary[]> {
-    return this.timeline.cards(userId);
+  /**
+   * Every open thread as a row, most recently replied to first.
+   *
+   * What Coisas draws, and all of what it draws: every conversation the user
+   * has open, whether or not any hour was ever set aside for it. Solved
+   * threads are left out because they have a screen of their own.
+   */
+  async findItems(userId: string): Promise<ThreadItem[]> {
+    return (await this.store.readAll(userId))
+      .filter((thread) => !thread.solved)
+      .map(toItem)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
   }
 
   /** Everything the user has closed, most recently touched first. */
@@ -83,9 +66,14 @@ export class ThreadsService {
   }
 
   async findOne(userId: string, slug: string): Promise<Thread> {
-    const thread = await this.store.read(userId, slug);
+    const thread = await this.find(userId, slug);
     if (thread === null) throw new NotFoundException(`No thread "${slug}"`);
     return thread;
+  }
+
+  /** One thread, or null when there is no such conversation. */
+  async find(userId: string, slug: string): Promise<Thread | null> {
+    return this.store.read(userId, slug);
   }
 
   /** One turn's trace, for debugging a reply after the fact. */
@@ -110,7 +98,8 @@ export class ThreadsService {
     trace.attachSlug(slug);
     trace.log('thread.create', { slug });
 
-    await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
+    await this.store.create(userId, slug, titleFrom(text));
+    await this.store.append(userId, slug, [userMessage(text)]);
     // Nothing has been proposed yet, so the first turn of a thread can only
     // read and propose.
     await this._answer(userId, slug, trace, { allowWrites: false });
@@ -119,39 +108,17 @@ export class ThreadsService {
   }
 
   /**
-   * Writes something down and puts it straight on the timeline.
+   * Starts a thread with a name and nothing said in it yet.
    *
-   * The Tempo half of the app, and deliberately not a conversation: the user
-   * said what it is and how long it takes, which is everything needed to give
-   * it an hour. No agent runs, nothing is proposed, and the card is on screen
-   * by the time the sheet closes.
+   * What opening a block of time gives you: a conversation about it, called
+   * whatever the block is called, with the field waiting. No agent runs,
+   * because nobody has said anything for it to answer.
    */
-  async createScheduled(
-    userId: string,
-    text: string,
-    request: ScheduleRequest,
-    trace: Trace,
-  ): Promise<ThreadSummary[]> {
-    const slug = await this._freeSlug(userId, slugify(text));
-    trace.attachSlug(slug);
-    trace.log('thread.createScheduled', {
-      slug,
-      durationMinutes: request.durationMinutes,
-      fixed: request.fixed,
-    });
+  async createEmpty(userId: string, title: string): Promise<Thread> {
+    const slug = await this._freeSlug(userId, slugify(title));
+    await this.store.create(userId, slug, titleFrom(title));
 
-    await this.store.append(userId, slug, titleFrom(text), [userMessage(text)]);
-
-    try {
-      return await this.timing.schedule(userId, slug, request, trace);
-    } catch (error) {
-      // The thread exists on disk by now but never got an hour, so it would
-      // sit in Coisas as a ghost of something the user thinks failed. A
-      // refused add leaves nothing behind.
-      trace.error('thread.createScheduledFailed', { slug });
-      await this.store.remove(userId, slug);
-      throw error;
-    }
+    return this.findOne(userId, slug);
   }
 
   /**
@@ -175,7 +142,7 @@ export class ThreadsService {
     const allowWrites =
       armWrites || this._awaitingConfirmation(thread.messages);
 
-    await this.store.append(userId, slug, thread.title, [userMessage(text)]);
+    await this.store.append(userId, slug, [userMessage(text)]);
     await this._answer(userId, slug, trace, { allowWrites });
 
     return this.findOne(userId, slug);
@@ -203,93 +170,25 @@ export class ThreadsService {
   }
 
   /**
-   * Moves one thread to [index] in the day's queue.
+   * Marks a thread solved, or opens a closed one again.
    *
-   * One index rather than a whole placement. The old screen had three
-   * hand-ordered lists and a drop changed the index of everything below it in
-   * two of them at once, so the only safe thing to send was the result. There
-   * is one list now and it is ordered by the clock, so a drop is a single
-   * number and the server works out every hour from it.
+   * Nothing happens to the calendar. A conversation being finished with says
+   * nothing about an hour, and an hour that is finished with is taken off the
+   * day by finishing the block, which is a different act on a different
+   * screen.
    */
-  async moveThread(
-    userId: string,
-    slug: string,
-    index: number,
-    trace: Trace,
-  ): Promise<TimingOutcome> {
-    if (isCalendarSlug(slug)) {
-      throw new BadRequestException('A calendar event cannot be moved here');
-    }
-
-    trace.log('thread.move', { slug, index });
-
-    return this.timing.move(userId, { type: 'timing', slug, index }, trace);
-  }
-
-  async applyTiming(
-    userId: string,
-    action: TimingAction,
-    trace: Trace,
-  ): Promise<TimingOutcome> {
-    return this.timing.move(userId, action, trace);
-  }
-
-  /** Marks a thread solved, or puts an already solved one back. */
   async setSolved(
     userId: string,
     slug: string,
     solved: boolean,
     trace: Trace,
-  ): Promise<ThreadSummary[]> {
+  ): Promise<ThreadItem[]> {
     await this.findOne(userId, slug);
     trace.log('thread.solved', { slug, solved });
 
-    // A solved thread gives its hour back, so the calendar and the screen go
-    // on saying the same thing, and the day closes up over the space it left.
-    // Reopening one puts it in Coisas with no hour, which is honest: the time
-    // it had is long gone.
-    if (solved) {
-      await this.timing.solve(userId, slug, trace);
-    } else {
-      await this.store.updateState(userId, slug, { solved: false });
-    }
+    await this.store.updateState(userId, slug, { solved });
 
-    return this.findAll(userId);
-  }
-
-  /**
-   * Waits for the queued calendar work and reports what the user should see.
-   *
-   * Nothing to say is the usual answer and the good one. When there is
-   * something, it is a tree rather than an error: the day is not wrong, only
-   * its copy on Google, and the user needs a button rather than an apology.
-   */
-  async awaitSync(userId: string, trace: Trace): Promise<SyncOutcome> {
-    const failure = await this.syncs.settle(userId);
-    if (failure !== undefined) {
-      trace.warn('sync.behind', { slug: failure.slug, error: failure.error });
-    }
-
-    return this._syncOutcome(userId, failure);
-  }
-
-  /** Runs the failed calendar work again. */
-  async retrySync(userId: string, trace: Trace): Promise<SyncOutcome> {
-    return this._syncOutcome(userId, await this.syncs.retry(userId, trace));
-  }
-
-  private async _syncOutcome(
-    userId: string,
-    failure: SyncFailure | undefined,
-  ): Promise<SyncOutcome> {
-    if (failure === undefined) return { ok: true };
-
-    const thread = await this.store.read(userId, failure.slug);
-
-    return {
-      ok: false,
-      guard: syncFailedUi(thread?.title ?? failure.slug),
-    };
+    return this.findItems(userId);
   }
 
   /** Applies a thread-level change the app asked for. */
@@ -304,10 +203,8 @@ export class ThreadsService {
     trace.log('thread.op', { slug, op, title });
 
     switch (op) {
-      // The same act as dragging the card aside, so the same path: the hour
-      // goes back and the rest of the day moves up into it.
       case 'solve':
-        await this.timing.solve(userId, slug, trace);
+        await this.store.updateState(userId, slug, { solved: true });
         break;
       case 'reopen':
         await this.store.updateState(userId, slug, { solved: false });
@@ -372,7 +269,7 @@ export class ThreadsService {
         trace,
       );
     } catch (error) {
-      await this._handleUnavailable(userId, slug, thread.title, trace, error);
+      await this._handleUnavailable(userId, slug, trace, error);
       return;
     }
 
@@ -403,7 +300,6 @@ export class ThreadsService {
       await this._appendUi(
         userId,
         slug,
-        thread.title,
         writeFailedUi(failure.summary, failure.error ?? ''),
         {
           contentType: 'a2ui',
@@ -441,7 +337,7 @@ export class ThreadsService {
         toolsRun: toolRuns.map((run) => run.name),
       });
 
-      await this._appendUi(userId, slug, thread.title, emptyReplyUi(), {
+      await this._appendUi(userId, slug, emptyReplyUi(), {
         contentType: 'a2ui',
         model: result.model,
         latencyMs: result.latencyMs,
@@ -479,7 +375,7 @@ export class ThreadsService {
     const proposedWrite = containsConfirm(validated.component);
     if (proposedWrite) trace.log('turn.proposedWrite', {});
 
-    await this._appendUi(userId, slug, thread.title, validated.component, {
+    await this._appendUi(userId, slug, validated.component, {
       contentType: 'a2ui',
       model: result.model,
       latencyMs: result.latencyMs,
@@ -512,7 +408,6 @@ export class ThreadsService {
   private async _handleUnavailable(
     userId: string,
     slug: string,
-    title: string,
     trace: Trace,
     error: unknown,
   ): Promise<void> {
@@ -522,7 +417,7 @@ export class ThreadsService {
       kind: error instanceof AgentUnavailableError ? 'agent' : 'server',
     });
 
-    await this._appendUi(userId, slug, title, unavailableUi(), {
+    await this._appendUi(userId, slug, unavailableUi(), {
       contentType: 'a2ui',
       traceId: trace.id,
       model: 'unavailable',
@@ -534,13 +429,12 @@ export class ThreadsService {
   private async _appendUi(
     userId: string,
     slug: string,
-    title: string,
     component: A2uiComponent,
     metadata: MessageMetadata,
   ): Promise<void> {
     const createdAt = new Date();
 
-    await this.store.append(userId, slug, title, [
+    await this.store.append(userId, slug, [
       {
         id: messageId('agent', createdAt),
         role: 'agent',
@@ -574,8 +468,8 @@ export class ThreadsService {
   /**
    * The first slug not already taken, suffixed `-2`, `-3`, and so on.
    *
-   * Two threads can genuinely start with the same sentence, and neither should
-   * silently land in the other's folder.
+   * Two threads can genuinely start with the same sentence, and neither
+   * should silently land in the other's file.
    */
   private async _freeSlug(userId: string, base: string): Promise<string> {
     if (!(await this.store.exists(userId, base))) return base;

@@ -61,7 +61,10 @@ describe('ToolExecutorService', () => {
 
     assert.equal(entry.ok, false);
     assert.notEqual(entry.blocked, true);
-    assert.match(entry.error ?? '', /Calendar auth failed/);
+    // The booking is attempted through the shared calendar helper, so the
+    // missing credential surfaces as the create failing rather than as a
+    // refusal.
+    assert.match(entry.error ?? '', /Calendar event creation failed/);
   });
 
   it('runs a read on an unconfirmed turn', async () => {

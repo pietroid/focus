@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ToolDescriptor } from '../threads/agent.service';
 import { Message } from '../threads/entities/message.entity';
+import { systemZone, Zone } from '../time/zone';
 import { buildActionPrompt, buildCatalogPrompt } from './a2ui.catalog';
 import { A2uiComponent } from './a2ui.types';
 
@@ -29,6 +30,14 @@ export interface PromptInput {
   allowWrites: boolean;
   /** Appended verbatim as a final system note, for post-tool composition. */
   note?: string;
+  /**
+   * The zone the dates in the prompt are written in.
+   *
+   * The user's calendar zone, when the caller knows it, so "today" in the
+   * prompt is the same day the timeline calls "hoje". Left out, it falls back
+   * to the server's own zone.
+   */
+  zone?: Zone;
 }
 
 /** How the assistant is told to behave, before anything about format. */
@@ -136,7 +145,11 @@ export class A2uiPromptService {
     const messages: PromptMessage[] = [
       {
         role: 'system',
-        content: this._systemPrompt(input.tools, input.allowWrites),
+        content: this._systemPrompt(
+          input.tools,
+          input.allowWrites,
+          input.zone ?? systemZone(),
+        ),
       },
     ];
 
@@ -191,11 +204,15 @@ export class A2uiPromptService {
     return parts.join('\n');
   }
 
-  private _systemPrompt(tools: ToolDescriptor[], allowWrites: boolean): string {
+  private _systemPrompt(
+    tools: ToolDescriptor[],
+    allowWrites: boolean,
+    zone: Zone,
+  ): string {
     return [
       PERSONA,
       '',
-      this._now(),
+      this._now(zone),
       '',
       this._toolsPrompt(tools, allowWrites),
       '',
@@ -223,8 +240,7 @@ export class A2uiPromptService {
    * dates a year and a half in the past. Naming the two dates it will actually
    * need leaves nothing to arithmetic.
    */
-  private _now(): string {
-    const timeZone = process.env.TZ ?? 'UTC';
+  private _now(timeZone: Zone): string {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const day = (date: Date): string =>
