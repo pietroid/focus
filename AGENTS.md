@@ -200,24 +200,30 @@ Repository variables (Settings → Secrets and variables → Actions):
    cp .env.example .env.production
    # fill in the production values
    ```
-4. Create the agent environment file:
+4. Place the Google Calendar service account key on the Pi:
+   ```bash
+   # copy focus-calendar-prod.json to /opt/focus/secrets/
+   ```
+   Then set `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/focus-calendar-prod.json`
+   in `agent/.env.production`.
+5. Create the agent environment file:
    ```bash
    cd agent
    cp .env.example .env.production
    # fill in the production values
    ```
-5. Ensure the SSH user can write to `/opt/focus/web`:
+6. Ensure the SSH user can write to `/opt/focus/web`:
    ```bash
    sudo mkdir -p /opt/focus/web
    sudo chown -R "$USER:$USER" /opt/focus/web
    ```
-6. Create the thread data directory. Only the backend mounts it; the agent
+7. Create the thread data directory. Only the backend mounts it; the agent
    is given the thread it needs in each request.
    ```bash
    sudo mkdir -p /opt/focus/data/threads
    sudo chown -R "$USER:$USER" /opt/focus/data
    ```
-7. Install Docker and docker compose on the Pi.
+8. Install Docker and docker compose on the Pi.
 
 After the first server deploy, the `focus-web` nginx container will be running.
 Subsequent app deploys will sync new web files and reload nginx.
@@ -538,11 +544,10 @@ in full), `a2ui.validated`, `turn.proposedWrite`, `turn.writeFailed`,
   Configure `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in
   `agent/.env.production`. Without a key the agent returns 502 and the server
   shows a written "could not reach my brain" message rather than a blank turn.
-- **Google Calendar** connects via a service account or OAuth2 refresh token.
-  Set `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` /
-  `GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY` or `GOOGLE_CALENDAR_REFRESH_TOKEN`
-  plus client credentials. Use `GOOGLE_CALENDAR_ID` to target a specific
-  calendar (defaults to `primary`).
+- **Google Calendar** connects via a service account JSON key file pointed to
+  by `GOOGLE_APPLICATION_CREDENTIALS` in `agent/.env.production`, matching the
+  backend's Application Default Credentials style. Use `GOOGLE_CALENDAR_ID` to
+  target a specific calendar (defaults to `primary`).
 - **Web Search** works best with **Serper.dev** or the **Brave Search API**.
   Set `WEB_SEARCH_API_KEY` and `WEB_SEARCH_API_BASE_URL`. Without a key it
   falls back to scraping DuckDuckGo's HTML, which is fine locally and brittle

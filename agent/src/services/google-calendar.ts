@@ -21,70 +21,36 @@ export interface CalendarEvent {
 /**
  * Builds an authenticated Google Calendar client from environment variables.
  *
- * Supports two authentication methods:
- *   1. Service account: set GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON to the raw
- *      JSON key or GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY to a file path.
- *   2. OAuth2 refresh token: set GOOGLE_CALENDAR_REFRESH_TOKEN,
- *      GOOGLE_CALENDAR_CLIENT_ID, and GOOGLE_CALENDAR_CLIENT_SECRET.
+ * The credential is read from the file pointed to by GOOGLE_APPLICATION_CREDENTIALS,
+ * matching the backend's Application Default Credentials style. On the Pi the
+ * JSON key is mounted into the container at a known path.
  */
 export async function getCalendarClient(): Promise<calendar_v3.Calendar> {
-  const serviceAccountJson = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
-  const serviceAccountKeyPath = process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY;
-  const refreshToken = process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-  if (serviceAccountJson !== undefined && serviceAccountJson !== '') {
-    try {
-      const credentials = JSON.parse(serviceAccountJson) as Record<string, unknown>;
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-      return google.calendar({ version: 'v3', auth });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON: ${message}`);
-    }
+  if (credentialsPath === undefined || credentialsPath === '') {
+    throw new Error('Google Calendar credentials are not configured. Set GOOGLE_APPLICATION_CREDENTIALS to a service account JSON key file.');
   }
 
-  if (serviceAccountKeyPath !== undefined && serviceAccountKeyPath !== '') {
-    let content: string;
-    try {
-      content = await fs.readFile(serviceAccountKeyPath, 'utf8');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to read service account key file "${serviceAccountKeyPath}": ${message}`);
-    }
-    try {
-      const credentials = JSON.parse(content) as Record<string, unknown>;
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/calendar'],
-      });
-      return google.calendar({ version: 'v3', auth });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to parse service account key file "${serviceAccountKeyPath}": ${message}`);
-    }
+  let content: string;
+  try {
+    content = await fs.readFile(credentialsPath, 'utf8');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read GOOGLE_APPLICATION_CREDENTIALS file "${credentialsPath}": ${message}`);
   }
 
-  if (refreshToken !== undefined && refreshToken !== '') {
-    const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID ?? '';
-    const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET ?? '';
-
-    if (clientId === '' || clientSecret === '') {
-      throw new Error(
-        'GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET are required when using refresh token auth',
-      );
-    }
-
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    return google.calendar({ version: 'v3', auth: oauth2Client });
+  try {
+    const credentials = JSON.parse(content) as Record<string, unknown>;
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    });
+    return google.calendar({ version: 'v3', auth });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse GOOGLE_APPLICATION_CREDENTIALS file "${credentialsPath}": ${message}`);
   }
-
-  throw new Error(
-    'Google Calendar credentials are not configured. Set GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON, GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY, or GOOGLE_CALENDAR_REFRESH_TOKEN.',
-  );
 }
 
 /** Which calendar "the calendar" is. */

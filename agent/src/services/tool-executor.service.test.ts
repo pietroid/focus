@@ -47,9 +47,7 @@ describe('ToolExecutorService', () => {
   it('lets a write through once the turn is confirmed', async () => {
     // No calendar credentials in a test run, so the call reaches the tool and
     // fails there. That is the point: it was attempted, not blocked.
-    delete process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON;
-    delete process.env.GOOGLE_CALENDAR_SERVICE_ACCOUNT_KEY;
-    delete process.env.GOOGLE_CALENDAR_REFRESH_TOKEN;
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
     const entry = await executor.execute(
       call('calendar_create_event', {

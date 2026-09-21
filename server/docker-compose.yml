@@ -27,6 +27,12 @@ services:
       # The agent has its own environment file. It never sees the backend's
       # Firebase credentials or allowed-email list.
       - ../agent/.env.production
+    volumes:
+      # Google Calendar service account key, kept outside the repo and outside
+      # the container just like the backend Firebase key. Place it on the Pi at
+      # this path before deploying and set GOOGLE_APPLICATION_CREDENTIALS in
+      # agent/.env.production.
+      - /opt/focus/secrets/focus-calendar-prod.json:/run/secrets/focus-calendar-prod.json:ro
 
   focus-web:
     image: nginx:alpine
