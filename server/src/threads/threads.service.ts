@@ -9,7 +9,9 @@ import {
   writeFailedUi,
 } from '../a2ui/a2ui.builders';
 import { A2uiComponent } from '../a2ui/a2ui.types';
+import { CalendarReaderService } from '../calendar/calendar-reader.service';
 import { Trace } from '../common/trace';
+import { Zone } from '../time/zone';
 import {
   AgentUnavailableError,
   AgentService,
@@ -41,6 +43,7 @@ export class ThreadsService {
     private readonly prompt: A2uiPromptService,
     private readonly parser: A2uiParserService,
     private readonly validator: A2uiValidationService,
+    private readonly calendar: CalendarReaderService,
   ) {}
 
   /**
@@ -255,6 +258,7 @@ export class ThreadsService {
         tools,
         allowWrites: options.allowWrites,
         note: options.note,
+        zone: await this._zone(userId, trace),
       });
 
       trace.log('prompt.built', {
@@ -387,6 +391,25 @@ export class ThreadsService {
     });
 
     await this._saveTrace(userId, slug, trace);
+  }
+
+  /**
+   * The zone the prompt's "now" line is written in.
+   *
+   * The calendar's own zone, so the model reads the same clock the user does
+   * rather than whatever zone the container happens to run in. It is only a
+   * date in a sentence, so a calendar that cannot be reached costs the turn
+   * nothing: the prompt falls back to the server's zone on its own.
+   */
+  private async _zone(userId: string, trace: Trace): Promise<Zone | undefined> {
+    try {
+      return await this.calendar.zone({ id: userId });
+    } catch (error) {
+      trace.log('prompt.zone.unavailable', {
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   /**

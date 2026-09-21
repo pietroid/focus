@@ -16,6 +16,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { FirebaseAuthGuard } from '../auth/firebase-auth.guard';
+import { CalendarReaderService } from '../calendar/calendar-reader.service';
+import { systemZone, Zone } from '../time/zone';
 import { A2uiParserService } from '../a2ui/a2ui-parser.service';
 import { A2uiPromptService } from '../a2ui/a2ui-prompt.service';
 import { A2uiValidationService } from '../a2ui/a2ui-validation.service';
@@ -131,6 +133,18 @@ function toolEntry(entry: Partial<ToolTraceEntry>): ToolTraceEntry {
   };
 }
 
+/**
+ * The calendar, as far as a thread is concerned: one zone and nothing else.
+ *
+ * The machine's, because every date in this file is written as a local one.
+ * The real reader would ask the agent, which is not running here.
+ */
+class StubCalendarReader {
+  zone(): Promise<Zone> {
+    return Promise.resolve(systemZone());
+  }
+}
+
 describe('ThreadsController', () => {
   let app: INestApplication<App>;
   let root: string;
@@ -152,12 +166,15 @@ describe('ThreadsController', () => {
         A2uiPromptService,
         A2uiParserService,
         A2uiValidationService,
+        CalendarReaderService,
       ],
     })
       .overrideGuard(FirebaseAuthGuard)
       .useClass(StubAuthGuard)
       .overrideProvider(AgentService)
       .useClass(StubAgentService)
+      .overrideProvider(CalendarReaderService)
+      .useClass(StubCalendarReader)
       .compile();
 
     agent = moduleRef.get(AgentService);
