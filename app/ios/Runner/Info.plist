@@ -86,6 +86,14 @@
 				</array>
 			</dict>
 		</array>
+		<key>BGTaskSchedulerPermittedIdentifiers</key>
+		<array>
+			<string>focus.notifications.refresh</string>
+		</array>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>fetch</string>
+		</array>
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Focus needs to connect to the development server on your local network.</string>
 		<key>NSAppTransportSecurity</key>

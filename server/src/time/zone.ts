@@ -182,3 +182,25 @@ export function formatDayIn(at: Date, zone: Zone): string {
 
   return `${pad(wall.day)}-${pad(wall.month)}-${wall.year}`;
 }
+
+/**
+ * [at] as ISO 8601 with the offset [zone] has at that instant:
+ * "2026-09-21T14:00:00-03:00".
+ *
+ * For anything handed to a device that fires on its own clock. An instant in
+ * UTC is correct and still leaves the reader to work out which wall clock was
+ * meant, which is the arithmetic this file exists to keep in one place.
+ */
+export function isoIn(at: Date, zone: Zone): string {
+  const wall = wallOf(at, zone);
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const offsetMinutes = Math.round(offsetAt(at, zone) / 60_000);
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+
+  return (
+    `${wall.year}-${pad(wall.month)}-${pad(wall.day)}` +
+    `T${pad(wall.hour)}:${pad(wall.minute)}:${pad(wall.second)}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+  );
+}

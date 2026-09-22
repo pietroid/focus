@@ -523,6 +523,13 @@ leaving Focus a single account that can see across all of them.
 `GOOGLE_CALENDAR_ID` still wins when it is set, which is the single-person
 deployment.
 
+`GOOGLE_CALENDAR_MAP` comes next and assigns a Google address to a calendar
+somebody chose, as `email=calendar` pairs. A value with an `@` is a calendar
+id, typically one another account owns and shared with the service account.
+Anything else is a name, looked up in the service account's list and created
+there if missing. The assignment is also written into the uid map, because
+the model's tools call with a uid and no address.
+
 The name is a title somebody reads, so the uid lives in the calendar's
 **description** instead, and that is what a lookup matches on when the
 uid-to-calendar map is lost. A calendar still carrying the old `Focus · <uid>`

@@ -202,12 +202,19 @@ function firstNameOf(user: CalendarUser): string | undefined {
  * GOOGLE_CALENDAR_ID still wins when it is set, which is the single-person
  * deployment: one calendar, shared with the service account by hand, and no
  * calendars created behind anyone's back.
+ *
+ * Next comes GOOGLE_CALENDAR_MAP, which assigns a Google address to a
+ * calendar by name or by id. It is how a person is put on a calendar
+ * somebody chose, rather than the one Focus would have made them.
  */
 export async function calendarIdFor(user: CalendarUser): Promise<string> {
   const configured = process.env.GOOGLE_CALENDAR_ID;
   if (configured !== undefined && configured !== '') return configured;
 
   await loadMap();
+
+  const assigned = await assignedCalendarFor(user);
+  if (assigned !== undefined) return assigned;
 
   const known = _calendars.get(user.id);
   if (known !== undefined) {
@@ -227,6 +234,176 @@ export async function calendarIdFor(user: CalendarUser): Promise<string> {
 
   _resolving.set(user.id, resolution);
   return resolution;
+}
+
+/** The assignments, read once per process. Undefined until then. */
+let _assignments: Map<string, string> | undefined;
+
+/** The id each assigned address resolved to, so a name is listed once. */
+const _assignedIds = new Map<string, string>();
+
+/** Calendars this process has already put in order for an assignment. */
+const _prepared = new Set<string>();
+
+/**
+ * Reads GOOGLE_CALENDAR_MAP: `email=calendar` pairs, separated by commas.
+ *
+ *     pietro@example.com=Pietro,ana@example.com=abc123@group.calendar.google.com
+ *
+ * A calendar is an id when it looks like one (it has an `@`, or it is
+ * `primary`) and a name otherwise. The pair splits on its first `=`, which an
+ * address never contains, so a name is free to have spaces. Addresses are
+ * matched without case, because Firebase and a hand-written line will not
+ * agree on it. A malformed pair is skipped rather than failing the others.
+ */
+export function parseAssignments(value: string): Map<string, string> {
+  const assignments = new Map<string, string>();
+
+  for (const pair of value.split(',')) {
+    const at = pair.indexOf('=');
+    if (at < 0) continue;
+
+    const email = pair.slice(0, at).trim().toLowerCase();
+    const calendar = pair.slice(at + 1).trim();
+    if (email === '' || calendar === '') continue;
+
+    assignments.set(email, calendar);
+  }
+
+  return assignments;
+}
+
+/** Whether an assignment names a calendar by id rather than by name. */
+export function isCalendarId(value: string): boolean {
+  return value === 'primary' || value.includes('@');
+}
+
+function loadAssignments(): Map<string, string> {
+  _assignments ??= parseAssignments(process.env.GOOGLE_CALENDAR_MAP ?? '');
+  return _assignments;
+}
+
+/**
+ * The calendar this person's address was assigned in GOOGLE_CALENDAR_MAP.
+ *
+ * An assignment beats the uid map, because it is somebody's decision and the
+ * uid map is only a memory of an older one. The answer is written into the
+ * uid map as well, since the model's tools call with a uid and no address and
+ * have to land on the same calendar the timeline reads.
+ */
+async function assignedCalendarFor(user: CalendarUser): Promise<string | undefined> {
+  const email = user.email?.trim().toLowerCase();
+  if (email === undefined || email === '') return undefined;
+
+  const known = _assignedIds.get(email);
+  if (known !== undefined) return known;
+
+  const assigned = loadAssignments().get(email);
+  if (assigned === undefined) return undefined;
+
+  // Keyed apart from the uid resolutions, which share the map but not this
+  // path, so two reads cannot both create the named calendar.
+  const key = `assigned:${email}`;
+  const inFlight = _resolving.get(key);
+  if (inFlight !== undefined) return inFlight;
+
+  const resolution = resolveAssigned(assigned, email, user).finally(() => {
+    _resolving.delete(key);
+  });
+
+  _resolving.set(key, resolution);
+  return resolution;
+}
+
+async function resolveAssigned(
+  assigned: string,
+  email: string,
+  user: CalendarUser,
+): Promise<string> {
+  const id = isCalendarId(assigned)
+    ? assigned
+    : await calendarNamed(assigned, user);
+
+  await prepareAssigned(id, email);
+  if (_calendars.get(user.id) !== id) await rememberCalendar(user.id, id);
+  _assignedIds.set(email, id);
+  return id;
+}
+
+/**
+ * The calendar called [name] in the account, created if there is none.
+ *
+ * Only calendars in the service account's own list are found, which is the
+ * ones it created and the ones added to its list by id. A calendar somebody
+ * else owns and merely shared is not in that list until it has been assigned
+ * by id once.
+ */
+async function calendarNamed(name: string, user: CalendarUser): Promise<string> {
+  const calendar = await getCalendarClient();
+  const listed = await calendar.calendarList.list({ maxResults: 250 });
+  const found = (listed.data.items ?? []).find((entry) => entry.summary === name);
+
+  if (typeof found?.id === 'string') return found.id;
+
+  const created = await calendar.calendars.insert({
+    requestBody: {
+      summary: name,
+      description: ownerMark(user.id),
+      timeZone: fallbackTimeZone(),
+    },
+  });
+
+  if (typeof created.data.id !== 'string') {
+    throw new Error(`Could not create the calendar "${name}"`);
+  }
+  return created.data.id;
+}
+
+/**
+ * Makes an assigned calendar usable and visible, once per process.
+ *
+ * It goes into the service account's calendar list, so a calendar shared in
+ * from another account can be named rather than id'd from then on. And when
+ * the service account owns it, the person it is assigned to is given write
+ * access, so they can open it in their own Google. A share that is already
+ * there is left alone, which is what keeps a restart from mailing them again.
+ *
+ * Best effort: Focus can read and write the calendar whether or not either
+ * of these went through.
+ */
+async function prepareAssigned(calendarId: string, email: string): Promise<void> {
+  const key = `${calendarId} ${email}`;
+  if (_prepared.has(key)) return;
+  _prepared.add(key);
+
+  const calendar = await getCalendarClient();
+
+  try {
+    await calendar.calendarList.insert({ requestBody: { id: calendarId } });
+  } catch {
+    // Already in the list, or not shared with the service account at all, in
+    // which case the read that follows says so far more clearly.
+  }
+
+  try {
+    const entry = await calendar.calendarList.get({ calendarId });
+    if (entry.data.accessRole !== 'owner') return;
+
+    const ruleId = `user:${email}`;
+    try {
+      await calendar.acl.get({ calendarId, ruleId });
+      return;
+    } catch {
+      // No rule for them yet.
+    }
+
+    await calendar.acl.insert({
+      calendarId,
+      requestBody: { role: 'writer', scope: { type: 'user', value: email } },
+    });
+  } catch (error) {
+    console.warn('[calendar] could not share the assigned calendar', calendarId, email, String(error));
+  }
 }
 
 /** Finds this person's calendar by name, or makes them one. */

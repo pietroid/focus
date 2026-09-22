@@ -4,6 +4,7 @@ import {
   formatDayIn,
   formatTimeIn,
   instantOf,
+  isoIn,
   sameDayIn,
   systemZone,
   wallOf,
@@ -97,5 +98,29 @@ describe('two instants on one day', () => {
 describe('the fallback zone', () => {
   it('is a zone something can actually be formatted in', () => {
     expect(() => formatTimeIn(new Date(), systemZone())).not.toThrow();
+  });
+});
+
+describe('an instant with its offset', () => {
+  it('carries the offset the zone has at that instant', () => {
+    const at = new Date('2026-09-21T17:00:00.000Z');
+
+    expect(isoIn(at, SAO_PAULO)).toBe('2026-09-21T14:00:00-03:00');
+    expect(isoIn(at, 'UTC')).toBe('2026-09-21T17:00:00+00:00');
+  });
+
+  it('follows a daylight-saving change', () => {
+    expect(isoIn(new Date('2026-07-01T16:00:00.000Z'), NEW_YORK)).toBe(
+      '2026-07-01T12:00:00-04:00',
+    );
+    expect(isoIn(new Date('2026-12-01T17:00:00.000Z'), NEW_YORK)).toBe(
+      '2026-12-01T12:00:00-05:00',
+    );
+  });
+
+  it('reads back as the same instant', () => {
+    const at = new Date('2026-09-21T17:04:05.000Z');
+
+    expect(new Date(isoIn(at, SAO_PAULO)).getTime()).toBe(at.getTime());
   });
 });

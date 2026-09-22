@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app_ui/app_ui.dart';
 import 'package:auth/auth.dart';
 import 'package:chat/chat.dart';
@@ -7,6 +9,7 @@ import 'package:focus/l10n/l10n.dart';
 import 'package:focus/shell/shell.dart';
 import 'package:focus/solved/solved.dart';
 import 'package:go_router/go_router.dart';
+import 'package:notifications/notifications.dart';
 
 /// {@template app}
 /// Root widget for the Focus application.
@@ -72,6 +75,8 @@ class App extends StatelessWidget {
           // The day is per user, so it is fetched once the user is known
           // rather than when the home screen happens to be built.
           context.read<TimelineBloc>().add(const TimelineRequested());
+          // The reminder queue is per user too, and mirrors the day.
+          unawaited(context.read<NotificationScheduler>().sync());
         }
       },
       child: MaterialApp.router(

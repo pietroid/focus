@@ -3,6 +3,7 @@ import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/home/home.dart';
 import 'package:focus/menu/menu.dart';
+import 'package:focus/notifications/notifications.dart';
 import 'package:focus/recommendations/recommendations.dart';
 import 'package:focus/things/things.dart';
 import 'package:go_router/go_router.dart';
@@ -86,34 +87,36 @@ class _ShellPageState extends State<ShellPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // The bar fogs whatever runs under it, so the body runs under it.
-      extendBody: true,
-      body: IndexedStack(
-        index: _index,
-        children: [
-          const HomePage(),
-          ThingsPage(reloadToken: _conversations),
-          const RecommendationsPage(),
-          const MenuPage(),
-        ],
-      ),
-      bottomNavigationBar: AppBottomBar(
-        currentIndex: _index,
-        onSelected: (index) => setState(() => _index = index),
-        center: AppOrb(onTap: _onOrbTapped),
-        items: const [
-          AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
-          AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
-          // "Sugestões" rather than "Recomendações": the longer word does
-          // not fit a quarter of a phone's width at this size without being
-          // cut, and a cut label is worse than a shorter one.
-          AppBottomBarItem(
-            iconData: AppIcons.recommendations,
-            label: 'Sugestões',
-          ),
-          AppBottomBarItem(iconData: AppIcons.menu, label: 'Menu'),
-        ],
+    return RemindersListener(
+      child: Scaffold(
+        // The bar fogs whatever runs under it, so the body runs under it.
+        extendBody: true,
+        body: IndexedStack(
+          index: _index,
+          children: [
+            const HomePage(),
+            ThingsPage(reloadToken: _conversations),
+            const RecommendationsPage(),
+            const MenuPage(),
+          ],
+        ),
+        bottomNavigationBar: AppBottomBar(
+          currentIndex: _index,
+          onSelected: (index) => setState(() => _index = index),
+          center: AppOrb(onTap: _onOrbTapped),
+          items: const [
+            AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
+            AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
+            // "Sugestões" rather than "Recomendações": the longer word does
+            // not fit a quarter of a phone's width at this size without being
+            // cut, and a cut label is worse than a shorter one.
+            AppBottomBarItem(
+              iconData: AppIcons.recommendations,
+              label: 'Sugestões',
+            ),
+            AppBottomBarItem(iconData: AppIcons.menu, label: 'Menu'),
+          ],
+        ),
       ),
     );
   }

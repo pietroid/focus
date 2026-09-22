@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:api_client/api_client.dart';
 import 'package:auth/auth.dart';
 import 'package:chat/chat.dart';
@@ -6,30 +8,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
+import 'package:focus/auth_token_provider.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:focus/firebase_options_production.dart' as prod;
+import 'package:focus/notifications/background_refresh.dart';
+import 'package:notifications/notifications.dart';
 import 'package:user/user.dart';
 
 const _kGoogleSignInClientId = String.fromEnvironment(
   'GOOGLE_SIGN_IN_CLIENT_ID',
 );
 const _kApiBaseUrl = String.fromEnvironment('API_BASE_URL');
-
-class _AuthTokenProvider implements TokenProvider {
-  _AuthTokenProvider(this._authRepository);
-
-  final AuthRepository _authRepository;
-
-  @override
-  Future<String?> getToken() async {
-    return _authRepository.currentUser?.getIdToken();
-  }
-
-  @override
-  Future<String?> refreshToken() async {
-    return _authRepository.currentUser?.getIdToken(true);
-  }
-}
 
 Future<void> main() async {
   // The development Firebase project is no longer used; both flavors talk to
@@ -49,11 +38,16 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
   );
   final apiClient = ApiClient(
     baseUrl: _kApiBaseUrl,
-    tokenProvider: _AuthTokenProvider(authRepository),
+    tokenProvider: AuthTokenProvider(authRepository),
   );
   final userRepository = UserRepository(apiClient: apiClient);
   final chatRepository = ChatRepository(apiClient: apiClient);
   final timelineRepository = TimelineRepository(apiClient: apiClient);
+  final notificationScheduler = NotificationScheduler(
+    repository: NotificationsRepository(apiClient: apiClient),
+  );
+  await notificationScheduler.initialize();
+  unawaited(registerBackgroundRefresh());
 
   final initialUser = await authRepository.user.first;
   final initialLocation = initialUser == null ? '/auth' : '/';
@@ -65,6 +59,9 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
         RepositoryProvider<ChatRepository>(create: (_) => chatRepository),
         RepositoryProvider<TimelineRepository>(
           create: (_) => timelineRepository,
+        ),
+        RepositoryProvider<NotificationScheduler>(
+          create: (_) => notificationScheduler,
         ),
       ],
       child: MultiBlocProvider(

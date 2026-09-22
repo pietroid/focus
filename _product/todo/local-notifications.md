@@ -2,8 +2,43 @@
 
 How Focus reminds someone of a block without an Apple Developer account.
 
-Status: proposal, nothing built. No dependency added, no target created.
+Status: phases 1 to 3 built on 22/09/2026. Phase 4 not started.
 Written 21/09/2026.
+
+## Built, and where it differs from the proposal
+
+- **Kinds.** `starting`, `almostFinishing`, `morning`, `evening`. There is
+  no `upcoming` and no `overdue`. `almostFinishing` ships on, with no flag,
+  and is skipped for any block under 20 minutes and for a paused block,
+  whose end moves every minute.
+- **Morning and evening.** 07:00 (`WORK_DAY_START_HOUR`) and 21:00 every
+  day, weekends included. Ten messages each in
+  `server/src/notifications/notification-copy.ts`, picked by a hash of the
+  date so a re-sync never swaps the text of one already queued.
+- **Blocks** are the events Focus booked (`managed`). Finishing or deleting
+  a block removes the event, so its reminders drop out of the next plan.
+- **Ids** also carry a short hash of the title and body, so a renamed block
+  gets a new id and the old title does not stay on the queue.
+- **Horizon.** Block reminders only reach as far as the calendar read does,
+  which is the rest of today and tomorrow (`LOOK_AHEAD_HOURS` in
+  `calendar-reader.service.ts`). The daily ones go the full 7 days.
+- **Time zone** is always the calendar's, from the server. The app does not
+  read the device zone and `flutter_timezone` is not used.
+- **Time-sensitive does not work on a free team.** Xcode refuses the
+  entitlement: "Personal development teams do not support the Time
+  Sensitive Notifications capability." The app still asks for the
+  time-sensitive level on `starting`, and iOS delivers it at the normal
+  level. Adding `com.apple.developer.usernotifications.time-sensitive` to a
+  `Runner.entitlements` turns it on once the account is paid.
+- **Permission** is asked through a one-line sheet the first time a new
+  block appears on an already loaded day, from the creation sheet or a
+  conversation. "Agora não" is remembered like a system no. There is no
+  toggle to turn reminders on later yet.
+- **Background refresh** uses `workmanager`, pinned to 0.9.2+1 with
+  overrides, because the newer iOS package needs the iOS 26 SDK and this
+  machine is on Xcode 16.2. The iOS deployment target is now 14.0.
+- **Tap** opens `/chat/<threadSlug>` when the block has a conversation and
+  just opens the app otherwise.
 
 ## 0. Why local and not push
 
@@ -56,13 +91,12 @@ Three kinds, all in pt-BR:
 | Kind | When it fires | Example |
 | --- | --- | --- |
 | `starting` | at the block's start time | **Revisão de código** / Começa agora, até 15:00 |
-| `almost finishing` | 10 minutes before a block end, to remind the user | **Revisão de código** / Finaliza em 10 minutos |
-| `overdue` | 10 minutes after a block's end, if unsolved | **Revisão de código** / Ainda em aberto |
+| `almostFinishing` | 10 minutes before a block ends, for blocks of 20 minutes or more | **Revisão de código** / Finaliza em 10 minutos |
+| `morning` | 07:00 every day | **Bom dia** / one of ten messages |
+| `evening` | 21:00 every day | **Boa noite** / one of ten messages |
 
-`starting` is the one that should be
-time-sensitive, because it is the one whose whole purpose is to arrive while
-the phone is in a Focus mode. `overdue` `almost finishing` is worth building last and may turn
-out to be noise, so it ships behind a flag.
+`starting` is the one that should be time-sensitive, because it is the one
+whose whole purpose is to arrive while the phone is in a Focus mode.
 
 Calendar-only cards (`CardKind.calendar` in
 `app/packages/chat/lib/src/models/thread.dart`) get no notification from
@@ -87,12 +121,12 @@ GET /notifications/schedule?horizonDays=7
   "timeZone": "America/Sao_Paulo",
   "items": [
     {
-      "id": "upcoming:thread:revisao-de-codigo:1758470700",
-      "kind": "upcoming",
-      "fireAt": "2026-09-21T13:55:00-03:00",
+      "id": "starting:<eventId>:1758474000:3f9a21c0",
+      "kind": "starting",
+      "fireAt": "2026-09-21T14:00:00-03:00",
       "title": "Revisão de código",
-      "body": "Começa em 5 minutos",
-      "timeSensitive": false,
+      "body": "Começa agora, até 15:00",
+      "timeSensitive": true,
       "threadSlug": "revisao-de-codigo"
     }
   ]
