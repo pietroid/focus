@@ -52,7 +52,7 @@ abstract final class TimelinePlan {
           .firstOrNull;
       if (hit == null) return start;
 
-      start = _roundToFive(hit.endTime.add(gap));
+      start = _toMinute(hit.endTime.add(gap));
     }
 
     return start;
@@ -71,17 +71,9 @@ abstract final class TimelinePlan {
     return DateTime(at.year, at.month, at.day + 1, startHour);
   }
 
-  /// The next minute divisible by five, so the day reads tidily.
-  static DateTime _roundToFive(DateTime at) {
-    final rest = at.minute % 5;
-    final rounded = rest == 0 ? at : at.add(Duration(minutes: 5 - rest));
-
-    return DateTime(
-      rounded.year,
-      rounded.month,
-      rounded.day,
-      rounded.hour,
-      rounded.minute,
-    );
+  /// [at] with its seconds dropped. Exactly the gap after what it hit, not
+  /// the next five, which is what the server does too.
+  static DateTime _toMinute(DateTime at) {
+    return DateTime(at.year, at.month, at.day, at.hour, at.minute);
   }
 }

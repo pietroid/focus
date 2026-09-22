@@ -41,20 +41,32 @@ DateTime _at(int hour, int minute, {int addDays = 0}) {
   );
 }
 
-final _cards = <TimelineEvent>[
-  _card('focus', 'Fazendo Focus', TimelineSection.agora, _at(9, 0), 60),
+final _now = DateTime.now();
+
+/// `?rest` draws the break between two blocks instead of one running.
+final bool _resting = Uri.base.queryParameters.containsKey('rest');
+
+List<TimelineEvent> _cards = [
+  if (!_resting)
+    _card(
+      'focus',
+      'Fazendo Focus',
+      TimelineSection.agora,
+      _now.subtract(const Duration(minutes: 1)),
+      45,
+    ),
   _card(
     'mercado',
     'Comprar leite e ovos',
     TimelineSection.hoje,
-    _at(14, 30),
+    _now.add(const Duration(minutes: 25)),
     30,
   ),
   _card(
     'standup',
     'Standup',
     TimelineSection.hoje,
-    _at(16, 0),
+    _now.add(const Duration(hours: 2)),
     15,
     fixed: true,
   ),
@@ -67,7 +79,7 @@ final _cards = <TimelineEvent>[
   ),
 ];
 
-/// A repository that answers from memory and forgets every write.
+/// A repository that answers from memory, well enough to press the buttons.
 class _FakeTimelineRepository implements TimelineRepository {
   @override
   Future<List<TimelineEvent>> fetchEvents() async => _cards;
@@ -79,6 +91,71 @@ class _FakeTimelineRepository implements TimelineRepository {
   @override
   Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async =>
       TimelineOutcome(cards: _cards);
+
+  @override
+  Future<SyncOutcome> awaitSync() async => const SyncOutcome(ok: true);
+
+  @override
+  Future<Thread> startThread(String id) async =>
+      Thread.fromJson({'slug': id, 'title': id, 'messages': const <dynamic>[]});
+
+  @override
+  Future<List<TimelineEvent>> pauseEvent(String id) async => _cards = [
+    for (final card in _cards)
+      card.id == id ? card.copyWith(pausedAt: DateTime.now()) : card,
+  ];
+
+  @override
+  Future<List<TimelineEvent>> resumeEvent(String id) async => _cards = [
+    for (final card in _cards)
+      card.id == id ? card.copyWith(clearPause: true) : card,
+  ];
+
+  @override
+  Future<List<TimelineEvent>> extendEvent(String id, int minutes) async =>
+      _cards;
+
+  @override
+  Future<List<TimelineEvent>> finishEvent(String id) async =>
+      _cards = _cards.where((card) => card.id != id).toList();
+
+  @override
+  Future<List<TimelineEvent>> deleteEvent(String id) async =>
+      _cards = _cards.where((card) => card.id != id).toList();
+
+  @override
+  Future<List<TimelineEvent>> editEvent(
+    String id, {
+    String? title,
+    int? workMinutes,
+    DateTime? startTime,
+  }) async => _cards;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName} is not previewed');
+}
+
+/// A chat that answers every message with the same line.
+class _FakeChatRepository implements ChatRepository {
+  final _messages = <Map<String, dynamic>>[];
+
+  @override
+  Future<Thread> sendMessage(String slug, String message) async {
+    _messages
+      ..add({'id': '${_messages.length}', 'role': 'user', 'text': message})
+      ..add({
+        'id': '${_messages.length + 1}',
+        'role': 'agent',
+        'text': 'Entendi. Vamos por partes.',
+      });
+
+    return Thread.fromJson({
+      'slug': slug,
+      'title': 'Fazendo Focus',
+      'messages': _messages,
+    });
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -93,12 +170,23 @@ class _PreviewApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: BlocProvider<TimelineBloc>(
-        create: (_) =>
-            TimelineBloc(repository: _FakeTimelineRepository())
-              ..add(const TimelineRequested()),
-        child: const _PreviewHome(),
+      builder: (context, child) => MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider<TimelineRepository>(
+            create: (_) => _FakeTimelineRepository(),
+          ),
+          RepositoryProvider<ChatRepository>(
+            create: (_) => _FakeChatRepository(),
+          ),
+        ],
+        child: BlocProvider<TimelineBloc>(
+          create: (context) =>
+              TimelineBloc(repository: context.read<TimelineRepository>())
+                ..add(const TimelineRequested()),
+          child: child,
+        ),
       ),
+      home: const _PreviewHome(),
     );
   }
 }
@@ -149,7 +237,15 @@ class _PreviewHome extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Expanded(child: TimelineList(onCardTap: (_) {})),
+                    Expanded(
+                      child: TimelineList(
+                        onCardTap: (card) => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => EventPage(id: card.id),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 Positioned(

@@ -49,6 +49,18 @@ export interface CalendarEvent {
   fixed: boolean;
   /** The conversation about this block, when one has been started. */
   threadSlug?: string;
+  /**
+   * ISO 8601, when the block was paused. Absent while it runs.
+   *
+   * A paused block still owes its work, so its end is dragged along with the
+   * clock: every minute it stays paused is a minute later that it finishes,
+   * and everything after it moves with it.
+   */
+  pausedAt?: string;
+  /** Seconds of work still owed at the moment it was paused. */
+  remainingSeconds?: number;
+  /** Seconds spent paused before the current pause, so progress skips them. */
+  pausedSeconds?: number;
 }
 
 /** What the agent last reported for one person, and when it was asked. */
@@ -99,5 +111,27 @@ export function readCalendarEvent(value: unknown): CalendarEvent | null {
     managed,
     fixed: managed ? raw.fixed === true : true,
     threadSlug: typeof slug === 'string' && slug !== '' ? slug : undefined,
+    ...pauseOf(raw),
+  };
+}
+
+/** The pause fields on [raw], dropping anything that does not read. */
+function pauseOf(
+  raw: Record<string, unknown>,
+): Pick<CalendarEvent, 'pausedAt' | 'remainingSeconds' | 'pausedSeconds'> {
+  const pausedAt =
+    typeof raw.pausedAt === 'string' && !Number.isNaN(Date.parse(raw.pausedAt))
+      ? raw.pausedAt
+      : undefined;
+  const remaining = raw.remainingSeconds;
+  const total = raw.pausedSeconds;
+
+  return {
+    pausedAt,
+    remainingSeconds:
+      pausedAt !== undefined && typeof remaining === 'number'
+        ? remaining
+        : undefined,
+    pausedSeconds: typeof total === 'number' && total > 0 ? total : undefined,
   };
 }

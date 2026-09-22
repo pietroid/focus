@@ -35,7 +35,8 @@ typedef _Flying = ({
 /// rather than only on something it managed to hit.
 ///
 /// A drag picks an axis as soon as it starts moving and keeps it. Up and down
-/// reorders; left and right carries the card out of the day and finishes it.
+/// reorders; right carries the card out of the day and marks it done, and
+/// left deletes it once the user has confirmed.
 /// Nothing does both at once, because a card that slid sideways while
 /// being reordered would be asking which of the two the finger meant, and the
 /// finger has already said.
@@ -80,6 +81,10 @@ class _TimelineListState extends State<TimelineList> {
 
   /// One key per card, so the laid-out list can be measured.
   final _cardKeys = <String, GlobalKey>{};
+
+  /// One key per row of buttons on a running card, so a tap on a button is
+  /// left to the button rather than read as a tap on the card.
+  final _actionKeys = <String, GlobalKey>{};
 
   Timer? _hold;
   Offset? _down;
@@ -218,6 +223,11 @@ class _TimelineListState extends State<TimelineList> {
   }
 
   void _onDown(PointerDownEvent event) {
+    final onButton = _actionKeys.values.any(
+      (key) => _rectOf(key)?.contains(event.position) ?? false,
+    );
+    if (onButton) return;
+
     _down = event.position;
     final id = _cardAt(event.position);
     if (id == null) return;
@@ -311,10 +321,15 @@ class _TimelineListState extends State<TimelineList> {
       return;
     }
 
-    // Let go out to the side and the block is finished: it leaves the day,
-    // the hour goes back, and the card is thrown after it.
+    // Let go out to the right and the block is done: it leaves the day, the
+    // hour goes back, and the card is thrown after it. Out to the left is a
+    // delete, which asks first because it cannot be taken back.
     if (solving && card != null && rect != null) {
-      _finish(id, card, rect, travel);
+      if (travel.dx.isNegative) {
+        unawaited(_delete(card));
+      } else {
+        _finish(id, card, rect, travel);
+      }
       return;
     }
 
@@ -352,6 +367,16 @@ class _TimelineListState extends State<TimelineList> {
     }
 
     context.read<TimelineBloc>().add(EventFinished(id));
+  }
+
+  /// Asks, and takes the block off the calendar if the answer was yes.
+  Future<void> _delete(TimelineEvent card) async {
+    unawaited(HapticFeedback.mediumImpact());
+    final bloc = context.read<TimelineBloc>();
+
+    if (await confirmDelete(context, card.title)) {
+      bloc.add(EventDeleted(card.id));
+    }
   }
 
   void _cancel() {
@@ -443,6 +468,30 @@ class _TimelineListState extends State<TimelineList> {
 
     TimelineSection? section;
 
+    // Nothing running, and something still ahead today: the gap is the break,
+    // and "Agora" says so rather than disappearing.
+    final next = _restBefore(state.cards, DateTime.now());
+    if (next != null) {
+      final dy = dragging == null ? 0.0 : _shift(0);
+      rows
+        ..add(
+          _Slid(
+            dy: dy,
+            child: _Heading(label: TimelineSection.agora.label, first: first),
+          ),
+        )
+        ..add(
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.s1),
+            child: _Slid(
+              dy: dy,
+              child: RestTile(next: next),
+            ),
+          ),
+        );
+      first = false;
+    }
+
     for (var index = 0; index < state.cards.length; index++) {
       final card = state.cards[index];
 
@@ -474,6 +523,14 @@ class _TimelineListState extends State<TimelineList> {
               // The card in the air is drawn over the list, so the one left
               // behind only holds its place open.
               hidden: card.id == dragging,
+              actionsKey: _actionKeys.putIfAbsent(card.id, GlobalKey.new),
+              onPauseToggled: () => context.read<TimelineBloc>().add(
+                EventPauseToggled(card.id),
+              ),
+              onAdjusted: (minutes) =>
+                  unawaited(adjustTime(context, card, minutes)),
+              onDone: () =>
+                  context.read<TimelineBloc>().add(EventFinished(card.id)),
             ),
           ),
         ),
@@ -481,6 +538,24 @@ class _TimelineListState extends State<TimelineList> {
     }
 
     return rows;
+  }
+
+  /// The block the break is before, when "Agora" is a break.
+  ///
+  /// Only inside the working day, and only when the next thing is today: a
+  /// gap before tomorrow morning is the evening, not a break.
+  TimelineEvent? _restBefore(List<TimelineEvent> cards, DateTime now) {
+    final hour = now.hour + now.minute / 60;
+    if (hour < AppDay.startHour || hour >= AppDay.endHour) return null;
+    if (cards.any((card) => card.section == TimelineSection.agora)) {
+      return null;
+    }
+
+    for (final card in cards) {
+      if (card.section == TimelineSection.hoje) return card;
+    }
+
+    return null;
   }
 
   Widget _lifted(TimelineState state, String id) {
@@ -580,7 +655,7 @@ class _Lifted extends StatelessWidget {
                 : Alignment.centerLeft,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-              child: _SolveMark(progress: progress),
+              child: _SolveMark(progress: progress, delete: dx.isNegative),
             ),
           ),
         ),
@@ -602,9 +677,12 @@ class _Lifted extends StatelessWidget {
 /// does it. It never turns green here: green is the block being finished, and
 /// that does not happen until the finger comes off.
 class _SolveMark extends StatelessWidget {
-  const _SolveMark({required this.progress});
+  const _SolveMark({required this.progress, required this.delete});
 
   final double progress;
+
+  /// Whether the card is on its way to being deleted rather than done.
+  final bool delete;
 
   @override
   Widget build(BuildContext context) {
@@ -615,7 +693,7 @@ class _SolveMark extends StatelessWidget {
       child: Transform.scale(
         scale: 0.8 + 0.2 * progress,
         child: AppIcon(
-          iconData: AppIcons.check,
+          iconData: delete ? AppIcons.trash : AppIcons.check,
           color: armed ? AppColors.ink : AppColors.ink3,
         ),
       ),

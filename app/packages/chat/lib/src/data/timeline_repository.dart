@@ -79,13 +79,57 @@ class TimelineRepository {
     }
   }
 
-  /// Takes a block off the day.
+  /// Marks a block done.
   ///
-  /// Returns the whole list, because the hour it gives back is an hour the
-  /// rest of the day moves up into.
-  Future<List<TimelineEvent>> finishEvent(String id) async {
+  /// A running block keeps the hour it really took and the next thing starts
+  /// five minutes later. Returns the whole list, because the hour it gives
+  /// back is an hour the rest of the day moves up into.
+  Future<List<TimelineEvent>> finishEvent(String id) =>
+      _day(() => apiClient.post<List<dynamic>>('/events/$id/done'));
+
+  /// Takes a block off the calendar entirely.
+  Future<List<TimelineEvent>> deleteEvent(String id) =>
+      _day(() => apiClient.delete<List<dynamic>>('/events/$id'));
+
+  /// Pauses the running block. Its end then moves with the clock.
+  Future<List<TimelineEvent>> pauseEvent(String id) =>
+      _day(() => apiClient.post<List<dynamic>>('/events/$id/pause'));
+
+  /// Runs a paused block again.
+  Future<List<TimelineEvent>> resumeEvent(String id) =>
+      _day(() => apiClient.post<List<dynamic>>('/events/$id/resume'));
+
+  /// Gives a block [minutes] more, pushing whatever comes after it.
+  Future<List<TimelineEvent>> extendEvent(String id, int minutes) => _day(
+    () => apiClient.post<List<dynamic>>(
+      '/events/$id/extend',
+      data: {'minutes': minutes},
+    ),
+  );
+
+  /// Renames a block, re-estimates it, or pins it to [startTime].
+  Future<List<TimelineEvent>> editEvent(
+    String id, {
+    String? title,
+    int? workMinutes,
+    DateTime? startTime,
+  }) => _day(
+    () => apiClient.patch<List<dynamic>>(
+      '/events/$id',
+      data: {
+        'title': ?title,
+        'workMinutes': ?workMinutes,
+        if (startTime != null) 'startTime': startTime.toUtc().toIso8601String(),
+      },
+    ),
+  );
+
+  /// Runs a request that answers with the whole day, and reads the day.
+  Future<List<TimelineEvent>> _day(
+    Future<Response<List<dynamic>>> Function() request,
+  ) async {
     try {
-      final response = await apiClient.post<List<dynamic>>('/events/$id/done');
+      final response = await request();
 
       return (response.data ?? <dynamic>[])
           .map((e) => TimelineEvent.fromJson(e as Map<String, dynamic>))

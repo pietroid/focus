@@ -166,6 +166,9 @@ export function createServer(): express.Express {
           endTime: body.endTime,
           fixed: body.fixed,
           threadSlug: body.threadSlug,
+          pausedAt: body.pausedAt,
+          remainingSeconds: body.remainingSeconds,
+          pausedSeconds: body.pausedSeconds,
         }),
       );
     } catch (error) {
@@ -203,6 +206,9 @@ interface EventBody {
   endTime?: string;
   fixed?: boolean;
   threadSlug?: string;
+  pausedAt?: string;
+  remainingSeconds?: number;
+  pausedSeconds?: number;
 }
 
 /** The person a calendar write is for, or null when none was named. */

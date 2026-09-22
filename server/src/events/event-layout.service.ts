@@ -7,15 +7,18 @@ import { ThreadsStore } from '../threads/threads.store';
 import { moved, PlannedBlock, relayout } from '../time/scheduling';
 import {
   addMinutes,
+  BLOCK_GAP_MINUTES,
   earliestStart,
+  floorToMinute,
   Interval,
   nextFreeSlot,
   roundUpToFiveMinutes,
 } from '../time/work-hours';
 import { Zone } from '../time/zone';
-import { EventCard, EventRequest } from './entities/event.entity';
-import { isRunning } from './event-sections';
-import { EventsService, TimeBlock } from './events.service';
+import { CalendarEvent } from '../calendar/calendar.types';
+import { EventCard, EventEdit, EventRequest } from './entities/event.entity';
+import { intervalOf, isRunning } from './event-sections';
+import { EventsService, TimeBlock, workSecondsOf } from './events.service';
 
 /** What a move produced: the timeline, and a question if one is still open. */
 export interface TimingOutcome {
@@ -150,7 +153,7 @@ export class EventLayoutService {
     const thawed =
       action.decision === 'postpone_current' ? running?.id : action.eventId;
 
-    if (closed !== undefined) await this._finish(user, closed, trace);
+    if (closed !== undefined) await this._complete(user, closed, trace, now);
 
     // The block that was just closed is out of the day, so it is out of the
     // queue too. Laying it out again would leave a hole in the afternoon the
@@ -167,21 +170,19 @@ export class EventLayoutService {
   }
 
   /**
-   * Takes a block off the day and closes the hole it leaves.
+   * Marks a block done.
    *
-   * Finishing something early gives its hour back, and an afternoon with a
-   * gap in it where a finished thing used to be is a day that has stopped
-   * describing itself. So the rest of the queue is laid out again from now:
-   * everything flexible moves up into the space, around whatever is fixed, by
-   * the same function a drag uses. Finishing is a rearrangement like any
-   * other; it just happens to be the one where a block leaves the queue.
+   * A block that is running is cut off at this minute and stays on the
+   * calendar as what actually happened. The rest of the day then starts five
+   * minutes from now, which is the break between one thing and the next. A
+   * block that never started had no hour to keep, so it simply leaves.
    *
    * A calendar that refuses does not put the block back. It is done whatever
    * Google thinks, and having the card spring back onto the timeline because
    * a rebooking timed out would be the app arguing with the user about
    * something they already know.
    */
-  async finish(
+  async done(
     user: CalendarUser,
     eventId: string,
     trace: Trace,
@@ -189,69 +190,379 @@ export class EventLayoutService {
   ): Promise<EventCard[]> {
     const zone = await this._events.zone(user, now);
     const cards = await this._events.cards(user, now);
+    const wasRunning = await this._complete(user, eventId, trace, now);
 
-    await this._finish(user, eventId, trace);
+    await this._safeRepack(
+      user,
+      blocksOf(cards, now, { closed: eventId }),
+      trace,
+      wasRunning ? addMinutes(now, BLOCK_GAP_MINUTES) : now,
+      zone,
+    );
 
-    try {
-      await this._repack(
+    return this._events.cards(user, now);
+  }
+
+  /**
+   * Takes a block off the calendar entirely, as if it had never been booked.
+   *
+   * Unlike [done] nothing of it is kept, and the day closes up over the space
+   * from now, with no break: nothing was finished, so there is nothing to
+   * rest from.
+   */
+  async remove(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    const zone = await this._events.zone(user, now);
+    const cards = await this._events.cards(user, now);
+    const event = await this._managed(user, eventId);
+
+    trace.log('event.remove', { eventId, slug: event.threadSlug });
+    await this._events.erase(user, event, trace);
+    await this._closeThread(user, event);
+
+    await this._safeRepack(
+      user,
+      blocksOf(cards, now, { closed: eventId }),
+      trace,
+      now,
+      zone,
+    );
+
+    return this._events.cards(user, now);
+  }
+
+  /**
+   * Pauses the block that is running.
+   *
+   * Nothing moves yet. What is written down is the moment it stopped and how
+   * much work was still owed, and from then on [catchUp] drags its end along
+   * with the clock so the owed work is always still ahead of it.
+   */
+  async pause(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    const event = await this._managed(user, eventId);
+    const interval = intervalOf(event);
+    if (interval === undefined || !isRunning(now, interval)) {
+      throw new BadRequestException('Só dá para pausar o que está rodando.');
+    }
+
+    if (event.pausedAt === undefined) {
+      trace.log('event.pause', { eventId });
+      await this._events.revise(
         user,
-        blocksOf(cards, now, { closed: eventId }),
+        event,
+        {
+          pausedAt: now.toISOString(),
+          remainingSeconds: Math.max(
+            0,
+            (interval.end.getTime() - now.getTime()) / 1000,
+          ),
+        },
         trace,
-        now,
-        zone,
       );
-    } catch (error) {
-      trace.warn('event.repackFailed', {
-        eventId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    }
+
+    return this._events.cards(user, now);
+  }
+
+  /** Runs a paused block again, owing exactly what it owed when it stopped. */
+  async resume(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    const event = await this._managed(user, eventId);
+    if (event.pausedAt === undefined) return this._events.cards(user, now);
+
+    const pausedFor = Math.max(
+      0,
+      (now.getTime() - Date.parse(event.pausedAt)) / 1000,
+    );
+
+    trace.log('event.resume', { eventId, pausedFor });
+    await this._events.revise(
+      user,
+      event,
+      {
+        endTime: pausedEnd(event, now).toISOString(),
+        pausedAt: undefined,
+        remainingSeconds: undefined,
+        pausedSeconds: (event.pausedSeconds ?? 0) + pausedFor,
+      },
+      trace,
+    );
+
+    return this._relayout(user, trace, now);
+  }
+
+  /**
+   * Gives a block [minutes] more, and pushes whatever comes after it.
+   *
+   * The estimate was wrong, which is the whole of it: the end moves, and the
+   * day repacks behind it. A paused block owes the extra minutes too.
+   */
+  async extend(
+    user: CalendarUser,
+    eventId: string,
+    minutes: number,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    const event = await this._managed(user, eventId);
+    const end = addMinutes(new Date(event.endTime), minutes);
+
+    if (end <= now || end.getTime() <= Date.parse(event.startTime)) {
+      throw new BadRequestException('Essa duração já passou.');
+    }
+
+    trace.log('event.extend', { eventId, minutes });
+    await this._events.revise(
+      user,
+      event,
+      {
+        endTime: end.toISOString(),
+        ...(event.pausedAt === undefined
+          ? {}
+          : {
+              remainingSeconds: Math.max(
+                0,
+                (event.remainingSeconds ?? 0) + minutes * 60,
+              ),
+            }),
+      },
+      trace,
+    );
+
+    return this._relayout(user, trace, now);
+  }
+
+  /**
+   * Renames a block, changes how long it takes, or pins it to an hour.
+   *
+   * The duration is the work, pauses left out, so it goes through [extend]
+   * as the difference from what it was. An hour can only be named for
+   * something that has not started: a running block's start is a fact.
+   */
+  async edit(
+    user: CalendarUser,
+    eventId: string,
+    edit: EventEdit,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    let event = await this._managed(user, eventId);
+
+    if (edit.title !== undefined && edit.title !== event.title) {
+      event = await this._events.revise(
+        user,
+        event,
+        { title: edit.title },
+        trace,
+      );
+    }
+
+    if (edit.startTime !== undefined) {
+      const interval = intervalOf(event);
+      if (interval !== undefined && interval.start <= now) {
+        throw new BadRequestException(
+          'Não dá para mudar o início de algo que já começou.',
+        );
+      }
+
+      const start = floorToMinute(new Date(edit.startTime));
+      const work = edit.workMinutes ?? Math.round(workSecondsOf(event) / 60);
+
+      trace.log('event.pin', { eventId, start: start.toISOString() });
+      await this._events.revise(
+        user,
+        event,
+        {
+          startTime: start.toISOString(),
+          endTime: addMinutes(start, work).toISOString(),
+          fixed: true,
+          pausedAt: undefined,
+          remainingSeconds: undefined,
+          pausedSeconds: undefined,
+        },
+        trace,
+      );
+
+      return this._relayout(user, trace, now);
+    }
+
+    if (edit.workMinutes !== undefined) {
+      const delta = edit.workMinutes - Math.round(workSecondsOf(event) / 60);
+      if (delta !== 0) return this.extend(user, eventId, delta, trace, now);
     }
 
     return this._events.cards(user, now);
   }
 
   /**
-   * Off the calendar, and the conversation about it closed with it.
+   * Drags every paused block's end along with the clock.
+   *
+   * Run by the minute tick and before every read of the day, and safe to run
+   * any number of times: the end is always now plus what is still owed, so a
+   * second call in the same minute changes nothing and a call after the
+   * server was down for an hour catches the whole hour up at once.
+   */
+  async catchUp(
+    user: CalendarUser,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<boolean> {
+    let changed = false;
+
+    for (const event of await this._events.paused(user)) {
+      const end = pausedEnd(event, now);
+      if (end.getTime() === Date.parse(event.endTime)) continue;
+
+      await this._events.revise(
+        user,
+        event,
+        { endTime: end.toISOString() },
+        trace,
+      );
+      changed = true;
+    }
+
+    if (changed) await this._relayout(user, trace, now);
+
+    return changed;
+  }
+
+  /**
+   * Off the day, as done.
+   *
+   * Returns whether it was running, which is what decides whether the next
+   * thing waits five minutes for it.
+   */
+  private async _complete(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now: Date,
+  ): Promise<boolean> {
+    const event = await this._managed(user, eventId);
+    const interval = intervalOf(event);
+    const running = interval !== undefined && isRunning(now, interval);
+
+    trace.log('event.done', { eventId, running, slug: event.threadSlug });
+
+    // Kept on the calendar as the hour it really took. A block that started
+    // this very second has no hour to keep, so it goes like one that never
+    // started.
+    if (running && interval.start < now) {
+      await this._events.revise(
+        user,
+        event,
+        {
+          endTime: now.toISOString(),
+          pausedAt: undefined,
+          remainingSeconds: undefined,
+        },
+        trace,
+      );
+    } else {
+      await this._events.erase(user, event, trace);
+    }
+
+    await this._closeThread(user, event);
+
+    return running;
+  }
+
+  /**
+   * The conversation about a block, closed with it.
    *
    * The thread is not a mirror of the block, but it is about it: a block the
    * user has finished with is not something they still have an open question
    * about, and leaving the conversation in Coisas would be the app asking
    * them to close the same thing twice.
    */
-  private async _finish(
+  private async _closeThread(
+    user: CalendarUser,
+    event: CalendarEvent,
+  ): Promise<void> {
+    if (event.threadSlug === undefined) return;
+
+    await this._threads.updateState(user.id, event.threadSlug, {
+      solved: true,
+    });
+  }
+
+  /** One event Focus booked, or a refusal. */
+  private async _managed(
     user: CalendarUser,
     eventId: string,
-    trace: Trace,
-  ): Promise<void> {
+  ): Promise<CalendarEvent> {
     const event = await this._events.require(user, eventId);
     if (!event.managed) {
-      throw new BadRequestException('A meeting cannot be finished here');
+      throw new BadRequestException('Uma reunião não pode ser mudada aqui.');
     }
 
-    trace.log('event.finish', { eventId, slug: event.threadSlug });
+    return event;
+  }
 
-    await this._events.erase(user, event, trace);
+  /** The day as it stands, repacked from now, and then read back. */
+  private async _relayout(
+    user: CalendarUser,
+    trace: Trace,
+    now: Date,
+  ): Promise<EventCard[]> {
+    const zone = await this._events.zone(user, now);
+    const cards = await this._events.cards(user, now);
 
-    if (event.threadSlug !== undefined) {
-      await this._threads.updateState(user.id, event.threadSlug, {
-        solved: true,
+    await this._safeRepack(user, blocksOf(cards, now), trace, now, zone);
+
+    return this._events.cards(user, now);
+  }
+
+  /**
+   * [_repack], with a failure logged rather than raised.
+   *
+   * By the time this runs the change the user asked for has landed, and a
+   * rearrangement that could not be written is not a reason to tell them it
+   * did not.
+   */
+  private async _safeRepack(
+    user: CalendarUser,
+    queue: PlannedBlock[],
+    trace: Trace,
+    from: Date,
+    zone: Zone,
+  ): Promise<void> {
+    try {
+      await this._repack(user, queue, trace, from, zone);
+    } catch (error) {
+      trace.warn('event.repackFailed', {
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
-  /** Lays the queue out from [now] and writes everything that moved. */
+  /** Lays the queue out from [from] and writes everything that moved. */
   private async _repack(
     user: CalendarUser,
     queue: PlannedBlock[],
     trace: Trace,
-    now: Date,
+    from: Date,
     zone: Zone,
   ): Promise<void> {
     const anchors = queue
       .filter((block) => block.fixed)
       .map((block) => block.interval);
 
-    const placed = relayout(queue, anchors, earliestStart(now, zone), zone);
+    const placed = relayout(queue, anchors, earliestStart(from, zone), zone);
 
     for (const block of queue) {
       const slot = placed.get(block.id);
@@ -263,14 +574,44 @@ export class EventLayoutService {
         to: slot.start.toISOString(),
       });
 
-      await this._events.moveTo(
+      const event = await this._events.require(user, block.id);
+
+      // A paused block only ever moves when the user pushed it down the day,
+      // and a block that is no longer running is no longer paused: it starts
+      // again later owing what it owed.
+      await this._events.revise(
         user,
-        await this._events.require(user, block.id),
-        slot,
+        event,
+        {
+          startTime: slot.start.toISOString(),
+          endTime: slot.end.toISOString(),
+          ...(event.pausedAt === undefined
+            ? {}
+            : {
+                pausedAt: undefined,
+                remainingSeconds: undefined,
+                pausedSeconds: undefined,
+              }),
+        },
         trace,
       );
     }
   }
+}
+
+/**
+ * Where a paused block ends at [now]: what it still owes, from now.
+ *
+ * Rounded up to the minute, so the tick moves the calendar once a minute and
+ * not once a second.
+ */
+function pausedEnd(event: CalendarEvent, now: Date): Date {
+  const end = new Date(now.getTime() + (event.remainingSeconds ?? 0) * 1000);
+  if (end.getSeconds() !== 0 || end.getMilliseconds() !== 0) {
+    end.setSeconds(60, 0);
+  }
+
+  return end;
 }
 
 /** The hour a new block gets. */

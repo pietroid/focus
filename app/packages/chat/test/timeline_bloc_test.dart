@@ -343,6 +343,81 @@ void main() {
     );
 
     blocTest<TimelineBloc, TimelineState>(
+      'takes a deleted card off at once, and puts it back on a refusal',
+      build: () {
+        when(() => repository.deleteEvent(any())).thenThrow(Exception('nope'));
+        return build();
+      },
+      seed: () => TimelineState(status: TimelineStatus.success, cards: _cards),
+      act: (bloc) => bloc.add(const EventDeleted('b')),
+      wait: const Duration(milliseconds: 10),
+      expect: () => [
+        isA<TimelineState>().having(order, 'order', ['a', 'c', 'd']),
+        isA<TimelineState>()
+            .having(order, 'order', ['a', 'b', 'c', 'd'])
+            .having((s) => s.status, 'status', TimelineStatus.failure),
+      ],
+    );
+
+    blocTest<TimelineBloc, TimelineState>(
+      'pauses a running card and draws it paused before the server answers',
+      build: () {
+        when(() => repository.pauseEvent(any())).thenAnswer((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return _cards;
+        });
+        return build();
+      },
+      seed: () => TimelineState(status: TimelineStatus.success, cards: _cards),
+      act: (bloc) => bloc.add(const EventPauseToggled('a')),
+      wait: const Duration(milliseconds: 5),
+      verify: (bloc) {
+        expect(bloc.state.byId('a')!.isPaused, isTrue);
+        verify(() => repository.pauseEvent('a')).called(1);
+      },
+    );
+
+    blocTest<TimelineBloc, TimelineState>(
+      'resumes a paused card with the same button',
+      build: () {
+        when(
+          () => repository.resumeEvent(any()),
+        ).thenAnswer((_) async => _cards);
+        return build();
+      },
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
+        cards: [
+          _cards.first.copyWith(pausedAt: _at(9, minute: 10)),
+          ..._cards.skip(1),
+        ],
+      ),
+      act: (bloc) => bloc.add(const EventPauseToggled('a')),
+      wait: const Duration(milliseconds: 10),
+      verify: (bloc) {
+        verify(() => repository.resumeEvent('a')).called(1);
+        expect(bloc.state.byId('a')!.isPaused, isFalse);
+      },
+    );
+
+    blocTest<TimelineBloc, TimelineState>(
+      'gives fifteen more minutes and draws the day that comes back',
+      build: () {
+        when(
+          () => repository.extendEvent(any(), any()),
+        ).thenAnswer((_) async => _cards.reversed.toList());
+        return build();
+      },
+      seed: () => TimelineState(status: TimelineStatus.success, cards: _cards),
+      act: (bloc) => bloc.add(const EventExtended('a')),
+      wait: const Duration(milliseconds: 10),
+      verify: (bloc) {
+        verify(() => repository.extendEvent('a', 15)).called(1);
+        expect(order(bloc.state), ['d', 'c', 'b', 'a']);
+      },
+    );
+
+    blocTest<TimelineBloc, TimelineState>(
       'writes something down and draws the day it came back in',
       build: () {
         when(
@@ -419,6 +494,52 @@ void main() {
       );
 
       expect(start, _at(7, addDays: 1));
+    });
+  });
+
+  group('TimelineEvent progress', () {
+    final card = _card('a', section: TimelineSection.agora, start: _at(9));
+
+    test('is barely started one minute into a block the server sent', () {
+      final now = DateTime.now();
+      final started = TimelineEvent.fromJson({
+        'id': 'a',
+        'title': 'a',
+        'section': 'agora',
+        'startTime': now
+            .subtract(const Duration(minutes: 1))
+            .toUtc()
+            .toIso8601String(),
+        'endTime': now
+            .add(const Duration(minutes: 29))
+            .toUtc()
+            .toIso8601String(),
+        'durationMinutes': 30,
+        'workMinutes': 30,
+        'pausedSeconds': 0,
+      });
+
+      expect(started.progressAt(now), closeTo(1 / 30, 0.001));
+    });
+
+    test('fills with the clock while it runs', () {
+      expect(card.progressAt(_at(9, minute: 15)), 0.5);
+    });
+
+    test('stands still while paused, and skips the time spent paused', () {
+      final paused = TimelineEvent(
+        id: 'a',
+        title: 'a',
+        section: TimelineSection.agora,
+        startTime: _at(9),
+        endTime: _at(9, minute: 50),
+        durationMinutes: 50,
+        workMinutes: 30,
+        pausedSeconds: 10 * 60,
+        pausedAt: _at(9, minute: 25),
+      );
+
+      expect(paused.progressAt(_at(9, minute: 40)), 0.5);
     });
   });
 }

@@ -46,8 +46,19 @@ class ChatPage extends StatelessWidget {
   }
 }
 
-class _ChatView extends StatelessWidget {
-  const _ChatView();
+/// {@template chat_conversation}
+/// The messages and the composer, without a page around them.
+///
+/// The chat screen draws it under its app bar, and the detail screen of a
+/// block draws it under the block's header when the user wants to talk about
+/// it. It reads the [ChatBloc] above it and nothing else.
+/// {@endtemplate}
+class ChatConversation extends StatelessWidget {
+  /// {@macro chat_conversation}
+  const ChatConversation({this.emptyText, super.key});
+
+  /// What the conversation says before anything has been said in it.
+  final String? emptyText;
 
   @override
   Widget build(BuildContext context) {
@@ -60,51 +71,59 @@ class _ChatView extends StatelessWidget {
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(state.errorMessage!)));
       },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: AppIconButton(
-            iconData: AppIcons.back,
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-          title: BlocBuilder<ChatBloc, ChatState>(
-            buildWhen: (previous, current) => previous.title != current.title,
-            builder: (context, state) => Text(
-              state.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          actions: [
-            BlocBuilder<ChatBloc, ChatState>(
-              buildWhen: (previous, current) =>
-                  previous.solved != current.solved,
-              builder: (context, state) => state.solved
-                  ? const Padding(
-                      padding: EdgeInsets.only(right: AppSpacing.s4),
-                      child: AppBadge(
-                        text: 'Feito',
-                        color: AppColors.success,
-                        iconData: AppIconData.phosphor(Icons.check),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+      child: Column(
+        children: [
+          Expanded(child: _Messages(emptyText: emptyText)),
+          const _Composer(),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatView extends StatelessWidget {
+  const _ChatView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: AppIconButton(
+          iconData: AppIcons.back,
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        body: SafeArea(
-          top: false,
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: AppSpacing.maxContentWidth,
-              ),
-              child: const Column(
-                children: [
-                  Expanded(child: _Messages()),
-                  _Composer(),
-                ],
-              ),
+        title: BlocBuilder<ChatBloc, ChatState>(
+          buildWhen: (previous, current) => previous.title != current.title,
+          builder: (context, state) => Text(
+            state.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        actions: [
+          BlocBuilder<ChatBloc, ChatState>(
+            buildWhen: (previous, current) => previous.solved != current.solved,
+            builder: (context, state) => state.solved
+                ? const Padding(
+                    padding: EdgeInsets.only(right: AppSpacing.s4),
+                    child: AppBadge(
+                      text: 'Feito',
+                      color: AppColors.success,
+                      iconData: AppIconData.phosphor(Icons.check),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppSpacing.maxContentWidth,
             ),
+            child: const ChatConversation(),
           ),
         ),
       ),
@@ -113,7 +132,9 @@ class _ChatView extends StatelessWidget {
 }
 
 class _Messages extends StatelessWidget {
-  const _Messages();
+  const _Messages({this.emptyText});
+
+  final String? emptyText;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +151,19 @@ class _Messages extends StatelessWidget {
         }
 
         final typingCount = state.isAwaiting ? 1 : 0;
+
+        if (emptyText != null && state.messages.isEmpty && typingCount == 0) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.s6),
+              child: Text(
+                emptyText!,
+                textAlign: TextAlign.center,
+                style: AppTypography.body.copyWith(color: AppColors.ink3),
+              ),
+            ),
+          );
+        }
         final actionsEnabled = !state.isAwaitingAction;
 
         // Reversed so the list sits at the newest message without measuring

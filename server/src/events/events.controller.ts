@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -19,12 +21,15 @@ import { CalendarUser } from '../calendar/calendar.types';
 import { Trace } from '../common/trace';
 import { Thread } from '../threads/entities/thread.entity';
 import { CreateEventDto } from './dto/create-event.dto';
+import { EditEventDto } from './dto/edit-event.dto';
+import { ExtendEventDto } from './dto/extend-event.dto';
 import { MoveEventDto } from './dto/move-event.dto';
 import { TimingDto } from './dto/timing.dto';
-import { EventCard, EventRequest } from './entities/event.entity';
+import { EventCard, EventEdit, EventRequest } from './entities/event.entity';
 import { EventLayoutService, TimingOutcome } from './event-layout.service';
 import { EventsService, SyncOutcome } from './events.service';
 import { EventThreadsService } from './event-threads.service';
+import { PauseTickerService } from './pause-ticker.service';
 
 type DecodedIdToken = adminAuth.DecodedIdToken;
 
@@ -43,12 +48,22 @@ export class EventsController {
     private readonly events: EventsService,
     private readonly layout: EventLayoutService,
     private readonly threads: EventThreadsService,
+    private readonly ticker: PauseTickerService,
   ) {}
 
-  /** Every card the timeline draws, earliest first. */
+  /**
+   * Every card the timeline draws, earliest first.
+   *
+   * A paused block is caught up first, so the day read back is the one the
+   * clock says rather than the one from the last tick.
+   */
   @Get()
   async findAll(@CurrentUser() user: DecodedIdToken): Promise<EventCard[]> {
-    return this.events.cards(owner(user));
+    const who = owner(user);
+    this.ticker.watch(who);
+    await this.layout.catchUp(who, Trace.start(user.uid));
+
+    return this.events.cards(who);
   }
 
   /**
@@ -134,11 +149,80 @@ export class EventsController {
    * is when something happens, this is whether it still happens at all.
    */
   @Post(':id/done')
-  async finish(
+  async done(
     @CurrentUser() user: DecodedIdToken,
     @Param('id') id: string,
   ): Promise<EventCard[]> {
-    return this.layout.finish(owner(user), id, Trace.start(user.uid, id));
+    return this.layout.done(owner(user), id, Trace.start(user.uid, id));
+  }
+
+  /** Takes a block off the calendar, keeping nothing of it. */
+  @Delete(':id')
+  async remove(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ): Promise<EventCard[]> {
+    return this.layout.remove(owner(user), id, Trace.start(user.uid, id));
+  }
+
+  /** Pauses the running block, which then keeps its work owed. */
+  @Post(':id/pause')
+  async pause(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ): Promise<EventCard[]> {
+    const who = owner(user);
+    this.ticker.watch(who);
+
+    return this.layout.pause(who, id, Trace.start(user.uid, id));
+  }
+
+  /** Runs a paused block again. */
+  @Post(':id/resume')
+  async resume(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ): Promise<EventCard[]> {
+    return this.layout.resume(owner(user), id, Trace.start(user.uid, id));
+  }
+
+  /** Gives a block more time, pushing what comes after it. */
+  @Post(':id/extend')
+  async extend(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+    @Body() dto: ExtendEventDto,
+  ): Promise<EventCard[]> {
+    const minutes = dto.minutes;
+    if (
+      typeof minutes !== 'number' ||
+      !Number.isInteger(minutes) ||
+      minutes === 0
+    ) {
+      throw new BadRequestException('minutes must be a non-zero integer');
+    }
+
+    return this.layout.extend(
+      owner(user),
+      id,
+      minutes,
+      Trace.start(user.uid, id),
+    );
+  }
+
+  /** Renames a block, changes its duration, or pins it to an hour. */
+  @Patch(':id')
+  async edit(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+    @Body() dto: EditEventDto,
+  ): Promise<EventCard[]> {
+    return this.layout.edit(
+      owner(user),
+      id,
+      requireEdit(dto),
+      Trace.start(user.uid, id),
+    );
   }
 
   /**
@@ -200,6 +284,41 @@ function requireEvent(dto: CreateEventDto): EventRequest {
     fixed,
     startTime: fixed ? startTime : undefined,
   };
+}
+
+/** Reads what the detail screen changed, refusing anything unusable. */
+function requireEdit(dto: EditEventDto): EventEdit {
+  const edit: EventEdit = {};
+
+  if (dto.title !== undefined) {
+    const title = typeof dto.title === 'string' ? dto.title.trim() : '';
+    if (title === '') throw new BadRequestException('title cannot be empty');
+    edit.title = title;
+  }
+
+  if (dto.workMinutes !== undefined) {
+    const minutes = dto.workMinutes;
+    if (
+      typeof minutes !== 'number' ||
+      !Number.isInteger(minutes) ||
+      minutes <= 0
+    ) {
+      throw new BadRequestException('workMinutes must be a positive integer');
+    }
+    edit.workMinutes = minutes;
+  }
+
+  if (dto.startTime !== undefined) {
+    if (
+      typeof dto.startTime !== 'string' ||
+      Number.isNaN(Date.parse(dto.startTime))
+    ) {
+      throw new BadRequestException('startTime must be an ISO 8601 date-time');
+    }
+    edit.startTime = dto.startTime;
+  }
+
+  return edit;
 }
 
 /** Reads a guard's answer off the wire, refusing anything it cannot trust. */

@@ -46,6 +46,28 @@ export class EventCard {
   preview: string;
   /** How many messages it holds. Zero when nothing has been said yet. */
   messageCount: number;
+  /** ISO 8601, when it was paused. Absent while it runs or has not started. */
+  pausedAt?: string;
+  /** Seconds of work still owed, while paused. */
+  remainingSeconds?: number;
+  /** Seconds spent paused before the current pause. */
+  pausedSeconds: number;
+  /**
+   * How long the work itself takes, pauses left out.
+   *
+   * [durationMinutes] is the span on the calendar, which a pause stretches.
+   * This is what the user estimated and what a progress bar fills against.
+   */
+  workMinutes: number;
+}
+
+/** What the detail screen can change about a block. */
+export interface EventEdit {
+  title?: string;
+  /** The work, pauses left out. */
+  workMinutes?: number;
+  /** ISO 8601. Naming an hour pins the block to it. */
+  startTime?: string;
 }
 
 /** What the creation sheet said when the user wrote something down. */

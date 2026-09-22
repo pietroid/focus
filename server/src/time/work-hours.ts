@@ -103,6 +103,13 @@ function conflictsWith(candidate: Interval, busy: Interval[]): Interval[] {
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
+/** [at] with its seconds dropped. */
+export function floorToMinute(at: Date): Date {
+  const result = new Date(at);
+  result.setSeconds(0, 0);
+  return result;
+}
+
 /** The next minute divisible by five, so a proposal never reads "14:07". */
 export function roundUpToFiveMinutes(at: Date): Date {
   const result = new Date(at);
@@ -150,7 +157,10 @@ export function nextFreeSlot(
     const hit = conflictsWith(candidate, busy)[0];
     if (hit === undefined) return candidate;
 
-    start = roundUpToFiveMinutes(addMinutes(hit.end, BLOCK_GAP_MINUTES));
+    // Exactly the gap after whatever it hit, not the next tidy five. A
+    // paused block ends on whatever minute the clock dragged it to, and
+    // snapping what follows to the grid would open a gap nobody asked for.
+    start = floorToMinute(addMinutes(hit.end, BLOCK_GAP_MINUTES));
   }
 
   return { start, end: addMinutes(start, durationMinutes) };

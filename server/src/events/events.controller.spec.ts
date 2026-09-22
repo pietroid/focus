@@ -42,6 +42,7 @@ import { EventLayoutService } from './event-layout.service';
 import { EventThreadsService } from './event-threads.service';
 import { EventsController } from './events.controller';
 import { EventsService, SyncOutcome } from './events.service';
+import { PauseTickerService } from './pause-ticker.service';
 
 class StubAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
@@ -131,6 +132,7 @@ class StubCalendarWriter {
       managed: current?.managed ?? true,
       fixed: patch.fixed ?? current?.fixed ?? false,
       threadSlug: patch.threadSlug ?? current?.threadSlug,
+      ...pauseAfter(patch, current),
     };
 
     this._events.set(eventId, next);
@@ -143,6 +145,26 @@ class StubCalendarWriter {
     this._events.delete(eventId);
     return Promise.resolve();
   }
+}
+
+/** The pause an event carries after [patch], the way the agent stores it. */
+function pauseAfter(
+  patch: EventPatch,
+  current: CalendarEvent | undefined,
+): Pick<CalendarEvent, 'pausedAt' | 'remainingSeconds' | 'pausedSeconds'> {
+  const pausedAt =
+    patch.pausedAt === undefined
+      ? current?.pausedAt
+      : patch.pausedAt || undefined;
+
+  return {
+    pausedAt,
+    remainingSeconds:
+      pausedAt === undefined
+        ? undefined
+        : (patch.remainingSeconds ?? current?.remainingSeconds),
+    pausedSeconds: patch.pausedSeconds ?? current?.pausedSeconds,
+  };
 }
 
 /**
@@ -329,6 +351,7 @@ describe('the day', () => {
         EventsService,
         EventLayoutService,
         EventThreadsService,
+        PauseTickerService,
         ThreadsService,
         ThreadsStore,
         AgentService,
@@ -900,6 +923,172 @@ describe('the day', () => {
       await request(app.getHttpServer())
         .post('/events/nope/thread')
         .expect(404);
+    });
+  });
+
+  describe('while something is running', () => {
+    /** Moves the frozen clock forward by [minutes]. */
+    function later(minutes: number): void {
+      jest.setSystemTime(new Date(Date.now() + minutes * 60_000));
+    }
+
+    afterEach(() => {
+      jest.setSystemTime(NOW);
+    });
+
+    function post(pathname: string, body?: object) {
+      return request(app.getHttpServer()).post(pathname).send(body);
+    }
+
+    it('spaces blocks exactly five minutes apart, off the grid', async () => {
+      later(2);
+      await add('Primeiro', 32).expect(201);
+      await add('Segundo', 30).expect(201);
+
+      const [first, second] = await timeline();
+      expect(hhmm(first.startTime)).toBe('10:02');
+      expect(hhmm(second.startTime)).toBe('10:39');
+    });
+
+    it('drags the rest of the day while paused, a minute per minute', async () => {
+      const [running] = cards(await add('Escrever', 30).expect(201));
+      await add('Depois', 30).expect(201);
+
+      later(10);
+      const paused = cards(
+        await post(`/events/${running.id}/pause`).expect(201),
+      );
+      expect(paused[0].pausedAt).toBeDefined();
+      expect(paused[0].workMinutes).toBe(30);
+
+      later(7);
+      const [stretched, next] = await timeline();
+      expect(hhmm(stretched.endTime)).toBe('10:37');
+      expect(stretched.workMinutes).toBe(30);
+      expect(gapBetween(stretched, next)).toBe(5);
+    });
+
+    it('owes exactly the same work after resuming', async () => {
+      const [running] = cards(await add('Escrever', 30).expect(201));
+
+      later(10);
+      await post(`/events/${running.id}/pause`).expect(201);
+      later(15);
+      const [resumed] = cards(
+        await post(`/events/${running.id}/resume`).expect(201),
+      );
+
+      expect(resumed.pausedAt).toBeUndefined();
+      expect(resumed.pausedSeconds).toBe(15 * 60);
+      expect(hhmm(resumed.endTime)).toBe('10:45');
+      expect(resumed.workMinutes).toBe(30);
+    });
+
+    it('refuses to pause what has not started', async () => {
+      await add('Primeiro', 30).expect(201);
+      const [, second] = cards(await add('Segundo', 30).expect(201));
+
+      await post(`/events/${second.id}/pause`).expect(400);
+    });
+
+    it('gives fifteen more minutes and pushes what follows', async () => {
+      const [running] = cards(await add('Escrever', 30).expect(201));
+      const [, before] = cards(await add('Depois', 30).expect(201));
+
+      const [extended, after] = cards(
+        await post(`/events/${running.id}/extend`, { minutes: 15 }).expect(201),
+      );
+
+      expect(extended.workMinutes).toBe(45);
+      expect(Date.parse(after.startTime) - Date.parse(before.startTime)).toBe(
+        15 * 60_000,
+      );
+    });
+
+    it('takes fifteen minutes off and pulls what follows up', async () => {
+      const [running] = cards(await add('Escrever', 45).expect(201));
+      const [, before] = cards(await add('Depois', 30).expect(201));
+
+      const [shortened, after] = cards(
+        await post(`/events/${running.id}/extend`, { minutes: -15 }).expect(
+          201,
+        ),
+      );
+
+      expect(shortened.workMinutes).toBe(30);
+      expect(Date.parse(before.startTime) - Date.parse(after.startTime)).toBe(
+        15 * 60_000,
+      );
+    });
+
+    it('refuses to shorten a block into the past', async () => {
+      const [running] = cards(await add('Escrever', 30).expect(201));
+
+      later(20);
+      await post(`/events/${running.id}/extend`, { minutes: -15 }).expect(400);
+    });
+
+    it('keeps a finished block as the hour it took, and rests five minutes', async () => {
+      const [running] = cards(await add('Escrever', 30).expect(201));
+      await add('Depois', 30).expect(201);
+
+      later(12);
+      const after = cards(await post(`/events/${running.id}/done`).expect(201));
+
+      expect(after.map((it) => it.title)).toEqual(['Depois']);
+      expect(hhmm(after[0].startTime)).toBe('10:17');
+
+      await sync();
+      expect(calendar.removed).toEqual([]);
+      expect(
+        calendar.patched.find((it) => it.id === running.id)?.patch.endTime,
+      ).toBe(new Date(Date.now()).toISOString());
+    });
+
+    it('deletes a block outright and closes the day up', async () => {
+      await add('Primeiro', 30).expect(201);
+      const [, second] = cards(await add('Segundo', 30).expect(201));
+      await add('Terceiro', 30).expect(201);
+
+      const after = cards(
+        await request(app.getHttpServer())
+          .delete(`/events/${second.id}`)
+          .expect(200),
+      );
+
+      expect(after.map((it) => it.title)).toEqual(['Primeiro', 'Terceiro']);
+      expect(gapBetween(after[0], after[1])).toBe(5);
+
+      await sync();
+      expect(calendar.removed).toEqual([second.id]);
+    });
+
+    it('renames, re-estimates and pins from the detail screen', async () => {
+      await add('Primeiro', 30).expect(201);
+      const [, second] = cards(await add('Segundo', 30).expect(201));
+
+      const renamed = cards(
+        await request(app.getHttpServer())
+          .patch(`/events/${second.id}`)
+          .send({ title: 'Outro nome', workMinutes: 45 })
+          .expect(200),
+      );
+      expect(renamed[1]).toMatchObject({
+        title: 'Outro nome',
+        workMinutes: 45,
+      });
+
+      const at = new Date();
+      at.setHours(at.getHours() + 3, 0, 0, 0);
+      const pinned = cards(
+        await request(app.getHttpServer())
+          .patch(`/events/${second.id}`)
+          .send({ startTime: at.toISOString() })
+          .expect(200),
+      );
+      const moved = pinned.find((it) => it.id === second.id);
+      expect(moved).toMatchObject({ fixed: true, workMinutes: 45 });
+      expect(hhmm(moved!.startTime)).toBe(hhmm(at.toISOString()));
     });
   });
 });

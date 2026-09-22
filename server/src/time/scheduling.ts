@@ -1,9 +1,9 @@
 import {
   addMinutes,
   BLOCK_GAP_MINUTES,
+  floorToMinute,
   Interval,
   nextFreeSlot,
-  roundUpToFiveMinutes,
 } from './work-hours';
 import { Zone } from './zone';
 
@@ -45,9 +45,10 @@ export function relayout(
 
     const slot = nextFreeSlot(cursor, block.minutes, anchors, zone);
     placed.set(block.id, slot);
-    // Everything after the first block reads off a tidy five minutes; only
-    // the one that starts now is allowed an odd number on it.
-    cursor = roundUpToFiveMinutes(addMinutes(slot.end, BLOCK_GAP_MINUTES));
+    // Five minutes apart, and not snapped to a grid of five. The day slides
+    // a minute at a time while something is paused, and a grid would turn
+    // that slide into jumps.
+    cursor = floorToMinute(addMinutes(slot.end, BLOCK_GAP_MINUTES));
   }
 
   return placed;

@@ -55,19 +55,21 @@ Three kinds, all in pt-BR:
 
 | Kind | When it fires | Example |
 | --- | --- | --- |
-| `upcoming` | 5 minutes before a block starts | **Revisão de código** / Começa em 5 minutos |
 | `starting` | at the block's start time | **Revisão de código** / Começa agora, até 15:00 |
+| `almost finishing` | 10 minutes before a block end, to remind the user | **Revisão de código** / Finaliza em 10 minutos |
 | `overdue` | 10 minutes after a block's end, if unsolved | **Revisão de código** / Ainda em aberto |
 
-`upcoming` is the one that matters. `starting` is the one that should be
+`starting` is the one that should be
 time-sensitive, because it is the one whose whole purpose is to arrive while
-the phone is in a Focus mode. `overdue` is worth building last and may turn
+the phone is in a Focus mode. `overdue` `almost finishing` is worth building last and may turn
 out to be noise, so it ships behind a flag.
 
 Calendar-only cards (`CardKind.calendar` in
 `app/packages/chat/lib/src/models/thread.dart`) get no notification from
 Focus. Google Calendar already notifies for those, and two alerts for one
 event is worse than one.
+
+There are fixed ones which have everyday and should be everyday, at 7am and at 9pm, with random messages. They are near the end of the day and just when the day starts, so they set off the tone for both day and sleep. Cheerful, simplistic ones are good.
 
 ## 3. Server side
 
@@ -277,10 +279,10 @@ covers both, but they need declaring.
 
 ## 11. Open questions
 
-1. Is `overdue` wanted at all, or is a reminder after the fact just guilt?
+1. Is `overdue` wanted at all, or is a reminder after the fact just guilt? Not wanted
 2. Should `upcoming` be 5 minutes, or should it follow the block's length,
-   for instance 15 minutes before a two-hour block?
+   for instance 15 minutes before a two-hour block? no upcoming
 3. Does a calendar card really never notify, or should Focus notify for the
-   ones it created in Google Calendar itself?
+   ones it created in Google Calendar itself? We will take care of this later.
 4. Is the time zone the user's profile setting or whatever the device says
-   today?
+   today? Timezone is always the server one for now.

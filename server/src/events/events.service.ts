@@ -13,6 +13,7 @@ import {
 import {
   CalendarWriteError,
   CalendarWriterService,
+  EventPatch,
 } from '../calendar/calendar-writer.service';
 import { CalendarEvent, CalendarUser } from '../calendar/calendar.types';
 import { Trace } from '../common/trace';
@@ -93,6 +94,10 @@ export class EventsService {
         managed: event.managed,
         threadSlug: event.threadSlug,
         ...(await this._conversation(user, event)),
+        pausedAt: event.pausedAt,
+        remainingSeconds: event.remainingSeconds,
+        pausedSeconds: event.pausedSeconds ?? 0,
+        workMinutes: Math.round(workSecondsOf(event) / 60),
       });
     }
 
@@ -241,6 +246,50 @@ export class EventsService {
     });
   }
 
+  /**
+   * Changes anything about one block, on screen now and on Google shortly.
+   *
+   * The general form of [moveTo]. The patch sent to Google is read from the
+   * cache when the job runs, not from [changes], so a paused block rewritten
+   * every minute costs one instant change per minute and a calendar that ends
+   * up at the latest one.
+   */
+  async revise(
+    user: CalendarUser,
+    event: CalendarEvent,
+    changes: Partial<Omit<CalendarEvent, 'id' | 'managed'>>,
+    trace: Trace,
+  ): Promise<CalendarEvent> {
+    const next = { ...event, ...changes };
+    // A pause key named in [changes] has to reach Google even when it is
+    // being cleared, which is exactly when the cache no longer carries it.
+    const touchesPause =
+      'pausedAt' in changes ||
+      'remainingSeconds' in changes ||
+      'pausedSeconds' in changes;
+
+    await this._reader.upsert(user, next);
+
+    this._enqueue(user, event.id, event.title, trace, async () => {
+      const current = (await this._reader.find(user, event.id)) ?? next;
+      await this._writer.patch(
+        user,
+        event.id,
+        patchOf(current, touchesPause || current.pausedAt !== undefined),
+        trace,
+      );
+    });
+
+    return next;
+  }
+
+  /** Every event on the calendar that is paused, whatever its hour now says. */
+  async paused(user: CalendarUser): Promise<CalendarEvent[]> {
+    return (await this._reader.events(user)).filter(
+      (event) => event.managed && event.pausedAt !== undefined,
+    );
+  }
+
   /** Takes a block off the day, and off Google behind the response. */
   async erase(
     user: CalendarUser,
@@ -333,6 +382,48 @@ export class EventsService {
   ): void {
     this._syncs.enqueue(user.id, eventId, title, job, trace);
   }
+}
+
+/**
+ * The whole of an event as a patch.
+ *
+ * The pause keys ride along only when [withPause] says so: writing them makes
+ * the agent read the event before patching it, and almost nothing is paused.
+ */
+function patchOf(event: CalendarEvent, withPause: boolean): EventPatch {
+  const patch: EventPatch = {
+    title: event.title,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    fixed: event.fixed,
+  };
+  if (!withPause) return patch;
+
+  return {
+    ...patch,
+    pausedAt: event.pausedAt ?? '',
+    remainingSeconds: event.remainingSeconds ?? 0,
+    pausedSeconds: event.pausedSeconds ?? 0,
+  };
+}
+
+/**
+ * How long the work in [event] takes, every pause left out.
+ *
+ * While paused the end is being dragged along with the clock, so the span on
+ * the calendar says nothing useful: what is known is what was done before the
+ * pause and what was still owed at it.
+ */
+export function workSecondsOf(event: CalendarEvent): number {
+  const start = Date.parse(event.startTime);
+  const before = event.pausedSeconds ?? 0;
+
+  if (event.pausedAt !== undefined) {
+    const done = (Date.parse(event.pausedAt) - start) / 1000 - before;
+    return Math.max(0, done) + (event.remainingSeconds ?? 0);
+  }
+
+  return Math.max(0, (Date.parse(event.endTime) - start) / 1000 - before);
 }
 
 function outcomeOf(failure: SyncFailure | undefined): SyncOutcome {

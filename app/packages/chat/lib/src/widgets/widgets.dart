@@ -2,5 +2,8 @@ export 'a2ui_renderer.dart';
 export 'agent_message.dart';
 export 'chat_bubble.dart';
 export 'chat_composer.dart';
+export 'confirm_sheet.dart';
 export 'event_tile.dart';
 export 'guard_sheet.dart';
+export 'now_surface.dart';
+export 'rest_tile.dart';

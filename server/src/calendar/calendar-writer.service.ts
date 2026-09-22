@@ -18,6 +18,10 @@ export interface EventPatch {
   fixed?: boolean;
   /** Links a conversation to this event. Only ever set, never cleared. */
   threadSlug?: string;
+  /** When it was paused. An empty string says it runs again. */
+  pausedAt?: string;
+  remainingSeconds?: number;
+  pausedSeconds?: number;
 }
 
 /**

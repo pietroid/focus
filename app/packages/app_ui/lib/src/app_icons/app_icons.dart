@@ -80,4 +80,19 @@ class AppIcons {
   static const undo = AppIconData.phosphor(
     PhosphorIconsRegular.arrowCounterClockwise,
   );
+
+  /// Stops the running block without finishing it.
+  static const pause = AppIconData.phosphor(PhosphorIconsFill.pause);
+
+  /// Runs a paused block again.
+  static const play = AppIconData.phosphor(PhosphorIconsFill.play);
+
+  /// Adds time.
+  static const plus = AppIconData.phosphor(PhosphorIconsRegular.plus);
+
+  /// Takes something away for good.
+  static const trash = AppIconData.phosphor(PhosphorIconsRegular.trash);
+
+  /// Opens a conversation.
+  static const chat = AppIconData.phosphor(PhosphorIconsRegular.chatCircle);
 }

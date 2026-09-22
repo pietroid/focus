@@ -8,6 +8,7 @@ import { EventLayoutService } from './event-layout.service';
 import { EventThreadsService } from './event-threads.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
+import { PauseTickerService } from './pause-ticker.service';
 
 /**
  * The day.
@@ -25,7 +26,12 @@ import { EventsService } from './events.service';
     ThreadsModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EventLayoutService, EventThreadsService],
+  providers: [
+    EventsService,
+    EventLayoutService,
+    EventThreadsService,
+    PauseTickerService,
+  ],
   exports: [EventsService],
 })
 export class EventsModule {}

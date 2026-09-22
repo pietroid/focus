@@ -191,20 +191,10 @@ class _Threads extends StatelessWidget {
     );
   }
 
-  /// Opens the conversation about a block, starting one if it has none.
-  ///
-  /// Most blocks never have a thread: a day is mostly hours, not
-  /// discussions. Tapping one is the moment that changes, and the server
-  /// writes the pairing onto the event so the next tap comes straight back
-  /// to the same conversation.
+  /// Opens the block: its header, its commands, and the conversation about
+  /// it when the user wants one.
   Future<void> _open(BuildContext context, TimelineEvent card) async {
-    final slug =
-        card.threadSlug ??
-        (await context.read<TimelineRepository>().startThread(card.id)).slug;
-
-    if (!context.mounted) return;
-
-    await context.push<void>('/chat/$slug');
+    await context.push<void>('/evento/${Uri.encodeComponent(card.id)}');
 
     // The card's preview changes while the conversation is open, so the day
     // is refetched on the way back rather than left stale.

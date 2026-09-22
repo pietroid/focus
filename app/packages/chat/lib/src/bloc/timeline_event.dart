@@ -129,3 +129,69 @@ final class EventFinished extends TimelineBlocEvent {
   @override
   List<Object?> get props => [id];
 }
+
+/// Takes a block off the calendar, keeping nothing of it.
+///
+/// Different from [EventFinished], which keeps the hour a running block
+/// really took. This one was never going to happen.
+final class EventDeleted extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventDeleted(this.id);
+
+  /// The card to remove.
+  final String id;
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Pauses the running block, or runs it again if it already is paused.
+///
+/// One event for both, because it is one button: what it does depends on
+/// the card, and the card is in the state.
+final class EventPauseToggled extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventPauseToggled(this.id);
+
+  /// The running card.
+  final String id;
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Gives a block more time, because the estimate was wrong.
+final class EventExtended extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventExtended(this.id, {this.minutes = 15});
+
+  /// The card to extend.
+  final String id;
+
+  /// How many more minutes it gets.
+  final int minutes;
+
+  @override
+  List<Object?> get props => [id, minutes];
+}
+
+/// Changes what the detail screen edits: the name, the work, or the hour.
+final class EventEdited extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventEdited(this.id, {this.title, this.workMinutes, this.startTime});
+
+  /// The card being edited.
+  final String id;
+
+  /// The new name, when it changed.
+  final String? title;
+
+  /// How long the work takes now, when it changed.
+  final int? workMinutes;
+
+  /// The hour to pin it to, when one was picked.
+  final DateTime? startTime;
+
+  @override
+  List<Object?> get props => [id, title, workMinutes, startTime];
+}

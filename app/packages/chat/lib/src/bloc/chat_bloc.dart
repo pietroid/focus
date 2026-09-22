@@ -24,7 +24,8 @@ part 'chat_state.dart';
 /// {@endtemplate}
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// {@macro chat_bloc}
-  ChatBloc({required this.chatRepository}) : super(const ChatState()) {
+  ChatBloc({required this.chatRepository, this.threadStarter})
+    : super(const ChatState()) {
     on<ChatThreadRequested>(_onThreadRequested);
     on<ChatMessageSent>(_onMessageSent);
     on<ChatActionFired>(_onActionFired);
@@ -32,6 +33,14 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   /// Repository used to read and write threads.
   final ChatRepository chatRepository;
+
+  /// Gives the slug of the thread to write into, when there is none yet.
+  ///
+  /// Set by a screen whose conversation belongs to something else, like a
+  /// block of time: the thread is only created, and linked to it, when the
+  /// first message is sent. Without it a first message starts a thread of
+  /// its own.
+  final Future<String> Function()? threadStarter;
 
   Future<void> _onThreadRequested(
     ChatThreadRequested event,
@@ -71,9 +80,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     );
 
     try {
-      final thread = slug == null
-          ? await chatRepository.createThread(text)
-          : await chatRepository.sendMessage(slug, text);
+      final starter = threadStarter;
+      final thread = slug != null
+          ? await chatRepository.sendMessage(slug, text)
+          : starter != null
+          ? await chatRepository.sendMessage(await starter(), text)
+          : await chatRepository.createThread(text);
 
       emit(_loaded(thread));
     } on Exception catch (error, stackTrace) {

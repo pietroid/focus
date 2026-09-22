@@ -23,6 +23,10 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
     on<EventCreated>(_onCreated);
     on<EventMoved>(_onMoved);
     on<EventFinished>(_onFinished);
+    on<EventDeleted>(_onDeleted);
+    on<EventPauseToggled>(_onPauseToggled);
+    on<EventExtended>(_onExtended);
+    on<EventEdited>(_onEdited);
     on<GuardAnswered>(_onGuardAnswered);
     on<GuardDismissed>(_onGuardDismissed);
     on<SyncWatched>(_onSyncWatched);
@@ -230,6 +234,88 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
     } on Object catch (error) {
       // Finishing is the one write that lands on screen first, so it is also
       // the one that has to be put back.
+      emit(_failed(error).copyWith(cards: before));
+    }
+  }
+
+  /// Takes a block off the calendar, drawn gone before the server answers.
+  Future<void> _onDeleted(
+    EventDeleted event,
+    Emitter<TimelineState> emit,
+  ) async {
+    final card = state.byId(event.id);
+    if (card == null || !card.isInteractive) return;
+
+    await _write(
+      emit,
+      () => _repository.deleteEvent(event.id),
+      drawn: state.cards.where((it) => it.id != event.id).toList(),
+    );
+  }
+
+  /// Pauses or resumes, drawing the new state of the button straight away.
+  Future<void> _onPauseToggled(
+    EventPauseToggled event,
+    Emitter<TimelineState> emit,
+  ) async {
+    final card = state.byId(event.id);
+    if (card == null || !card.isInteractive) return;
+
+    final toggled = card.isPaused
+        ? card.copyWith(clearPause: true)
+        : card.copyWith(pausedAt: DateTime.now());
+
+    await _write(
+      emit,
+      () => card.isPaused
+          ? _repository.resumeEvent(event.id)
+          : _repository.pauseEvent(event.id),
+      drawn: [
+        for (final it in state.cards) it.id == event.id ? toggled : it,
+      ],
+    );
+  }
+
+  /// Gives a block more time. The rest of the day is the server's to move.
+  Future<void> _onExtended(
+    EventExtended event,
+    Emitter<TimelineState> emit,
+  ) async {
+    await _write(
+      emit,
+      () => _repository.extendEvent(event.id, event.minutes),
+    );
+  }
+
+  /// Sends what the detail screen changed.
+  Future<void> _onEdited(EventEdited event, Emitter<TimelineState> emit) async {
+    await _write(
+      emit,
+      () => _repository.editEvent(
+        event.id,
+        title: event.title,
+        workMinutes: event.workMinutes,
+        startTime: event.startTime,
+      ),
+    );
+  }
+
+  /// One write that answers with the whole day.
+  ///
+  /// [drawn], when given, goes on screen before the request does, and is
+  /// taken back if the server refuses.
+  Future<void> _write(
+    Emitter<TimelineState> emit,
+    Future<List<TimelineEvent>> Function() request, {
+    List<TimelineEvent>? drawn,
+  }) async {
+    final before = state.cards;
+    if (drawn != null) emit(state.copyWith(cards: drawn));
+
+    try {
+      emit(state.copyWith(cards: await request(), clearFailure: true));
+      add(const SyncWatched());
+    } on Object catch (error) {
       emit(_failed(error).copyWith(cards: before));
     }
   }

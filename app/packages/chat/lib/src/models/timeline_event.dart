@@ -56,7 +56,11 @@ class TimelineEvent extends Equatable {
     this.threadSlug,
     this.preview = '',
     this.messageCount = 0,
-  });
+    this.pausedAt,
+    this.remainingSeconds = 0,
+    this.pausedSeconds = 0,
+    int? workMinutes,
+  }) : workMinutes = workMinutes ?? durationMinutes;
 
   /// Creates a [TimelineEvent] from the API's JSON.
   factory TimelineEvent.fromJson(Map<String, dynamic> json) {
@@ -72,6 +76,10 @@ class TimelineEvent extends Equatable {
       threadSlug: json['threadSlug'] as String?,
       preview: json['preview'] as String? ?? '',
       messageCount: json['messageCount'] as int? ?? 0,
+      pausedAt: _maybeDate(json['pausedAt']),
+      remainingSeconds: (json['remainingSeconds'] as num?)?.round() ?? 0,
+      pausedSeconds: (json['pausedSeconds'] as num?)?.round() ?? 0,
+      workMinutes: json['workMinutes'] as int?,
     );
   }
 
@@ -112,8 +120,79 @@ class TimelineEvent extends Equatable {
   /// How many messages it holds.
   final int messageCount;
 
+  /// When it was paused, or null while it runs.
+  ///
+  /// A paused block still owes its work, so the server drags its end along
+  /// with the clock for as long as this is set.
+  final DateTime? pausedAt;
+
+  /// Seconds of work still owed, while paused.
+  final int remainingSeconds;
+
+  /// Seconds it spent paused before the current pause.
+  final int pausedSeconds;
+
+  /// How long the work takes, pauses left out.
+  ///
+  /// [durationMinutes] is the span on the calendar, which a pause stretches.
+  /// This is what the user estimated, and what the progress bar fills to.
+  final int workMinutes;
+
   /// Whether the card can be dragged or finished.
   bool get isInteractive => managed;
+
+  /// Whether it is paused.
+  bool get isPaused => pausedAt != null;
+
+  /// Whether [now] falls inside it.
+  bool isRunningAt(DateTime now) =>
+      !startTime.isAfter(now) && endTime.isAfter(now);
+
+  /// How much of the work is done at [now], 0 to 1.
+  ///
+  /// Time spent paused is not work, so it is taken out, and a paused block
+  /// stands still at what it had done when it stopped.
+  double progressAt(DateTime now) {
+    final total = workMinutes * 60;
+    if (total <= 0) return 0;
+
+    final until = pausedAt ?? now;
+    final done = until.difference(startTime).inSeconds - pausedSeconds;
+
+    return (done / total).clamp(0.0, 1.0);
+  }
+
+  /// Whether [minutes] can come off it at [now] and still leave work to do.
+  ///
+  /// Five minutes of work at least, and an end that is still ahead: a block
+  /// shortened into the past is a block that is done, and that is a
+  /// different button.
+  bool canShorten(int minutes, DateTime now) {
+    return workMinutes - minutes >= 5 &&
+        endTime.subtract(Duration(minutes: minutes)).isAfter(now);
+  }
+
+  /// A copy with the pause changed, for drawing a tap before the server
+  /// answers it.
+  TimelineEvent copyWith({DateTime? pausedAt, bool clearPause = false}) {
+    return TimelineEvent(
+      id: id,
+      title: title,
+      section: section,
+      startTime: startTime,
+      endTime: endTime,
+      durationMinutes: durationMinutes,
+      fixed: fixed,
+      managed: managed,
+      threadSlug: threadSlug,
+      preview: preview,
+      messageCount: messageCount,
+      pausedAt: clearPause ? null : pausedAt ?? this.pausedAt,
+      remainingSeconds: remainingSeconds,
+      pausedSeconds: pausedSeconds,
+      workMinutes: workMinutes,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -128,11 +207,19 @@ class TimelineEvent extends Equatable {
     threadSlug,
     preview,
     messageCount,
+    pausedAt,
+    remainingSeconds,
+    pausedSeconds,
+    workMinutes,
   ];
 }
 
 DateTime _date(Object? value) {
   return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? DateTime.now();
+}
+
+DateTime? _maybeDate(Object? value) {
+  return DateTime.tryParse(value as String? ?? '')?.toLocal();
 }
 
 /// {@template timeline_outcome}

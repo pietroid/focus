@@ -21,6 +21,9 @@ import { google, calendar_v3 } from 'googleapis';
 const OWNED_KEY = 'focusOwned';
 const THREAD_KEY = 'focusThread';
 const FIXED_KEY = 'focusFixed';
+const PAUSED_AT_KEY = 'focusPausedAt';
+const REMAINING_KEY = 'focusRemaining';
+const PAUSED_TOTAL_KEY = 'focusPausedTotal';
 
 /** One event, flattened to what the server is given. */
 export interface CalendarEvent {
@@ -40,6 +43,12 @@ export interface CalendarEvent {
   fixed: boolean;
   /** The conversation about this block, once there is one. */
   threadSlug?: string;
+  /** ISO 8601, when the block was paused. Absent while it runs. */
+  pausedAt?: string;
+  /** Seconds of work still owed when it was paused. */
+  remainingSeconds?: number;
+  /** Seconds it spent paused before the current pause, if any. */
+  pausedSeconds?: number;
 }
 
 /** What an event is created or patched with. */
@@ -50,6 +59,10 @@ export interface EventInput {
   fixed?: boolean;
   /** Set to link a conversation to this event. Never unset. */
   threadSlug?: string;
+  /** When the block was paused. An empty string resumes it. */
+  pausedAt?: string;
+  remainingSeconds?: number;
+  pausedSeconds?: number;
 }
 
 /**
@@ -605,6 +618,13 @@ function privateProps(input: EventInput): Record<string, string> {
 
   if (input.threadSlug !== undefined) props[THREAD_KEY] = input.threadSlug;
   if (input.fixed !== undefined) props[FIXED_KEY] = String(input.fixed);
+  if (input.pausedAt !== undefined) props[PAUSED_AT_KEY] = input.pausedAt;
+  if (input.remainingSeconds !== undefined) {
+    props[REMAINING_KEY] = String(Math.round(input.remainingSeconds));
+  }
+  if (input.pausedSeconds !== undefined) {
+    props[PAUSED_TOTAL_KEY] = String(Math.round(input.pausedSeconds));
+  }
 
   return props;
 }
@@ -643,5 +663,23 @@ function toEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     // is allowed to move it.
     fixed: managed ? props[FIXED_KEY] === 'true' : true,
     threadSlug: typeof slug === 'string' && slug !== '' ? slug : undefined,
+    ...pauseOf(props),
+  };
+}
+
+/** The pause Focus wrote on an event, read back. An empty key means none. */
+function pauseOf(
+  props: Record<string, string>,
+): Pick<CalendarEvent, 'pausedAt' | 'remainingSeconds' | 'pausedSeconds'> {
+  const pausedAt = props[PAUSED_AT_KEY];
+  const remaining = Number(props[REMAINING_KEY]);
+  const total = Number(props[PAUSED_TOTAL_KEY]);
+  const paused =
+    typeof pausedAt === 'string' && !Number.isNaN(Date.parse(pausedAt));
+
+  return {
+    pausedAt: paused ? new Date(pausedAt).toISOString() : undefined,
+    remainingSeconds: paused && Number.isFinite(remaining) ? remaining : undefined,
+    pausedSeconds: Number.isFinite(total) && total > 0 ? total : undefined,
   };
 }

@@ -34,6 +34,12 @@ class App extends StatelessWidget {
              builder: (context, state) =>
                  ChatPage(slug: state.pathParameters['slug']),
            ),
+           // One block of time, opened from the timeline.
+           GoRoute(
+             path: '/evento/:id',
+             builder: (context, state) =>
+                 EventPage(id: state.pathParameters['id']!),
+           ),
            // The solved threads, which the timeline no longer shows.
            GoRoute(
              path: '/concluidos',
