@@ -92,6 +92,14 @@ export interface CalendarUser {
   id: string;
   /** Their Google address, when the server knows it. Used to share once. */
   email?: string;
+  /**
+   * Their display name, when the server knows it.
+   *
+   * The calendar is named after this, because the name is what shows up in
+   * anyone else's Google once the calendar is shared, and a Firebase uid
+   * reads as a database key rather than a person.
+   */
+  name?: string;
 }
 
 /** Where the userId-to-calendar map is kept between restarts. */
@@ -116,9 +124,58 @@ const _resolving = new Map<string, Promise<string>>();
  */
 const _zones = new Map<string, string>();
 
-/** The name Focus gives a person's calendar. */
-function calendarSummary(userId: string): string {
+/**
+ * The name Focus gives a person's calendar: their first name, and nothing
+ * else.
+ *
+ * This is a title somebody reads, not a key. The calendar is shared with the
+ * person and with whoever else they add it to, and what those people see in
+ * their own Google is this string, so "Pietro" is the whole of it. Two people
+ * called the same thing would get the same title and that is fine: nothing
+ * looks a calendar up by it once the id is known, and the map on disk is what
+ * keeps them apart.
+ *
+ * The uid is the last resort, for a call that arrived without a name and
+ * without an address. It is the old behaviour, and it is renamed the first
+ * time a request does know who this is.
+ */
+function calendarSummary(user: CalendarUser): string {
+  return firstNameOf(user) ?? user.id;
+}
+
+/** The legacy title, still looked for so an existing calendar is found. */
+function legacySummary(userId: string): string {
   return `Focus · ${userId}`;
+}
+
+/**
+ * The uid, written into the calendar's description.
+ *
+ * The title used to be the uid and so could be searched on; a first name
+ * cannot, because two people may share one. The description is where the
+ * machine-readable half went, so a lost map is still rebuilt against the
+ * right calendar and never against somebody else's.
+ */
+function ownerMark(userId: string): string {
+  return `Focus · ${userId}`;
+}
+
+/**
+ * The first name of [user], from whatever the request knew.
+ *
+ * The display name when there is one, and otherwise the local part of the
+ * address up to the first separator, capitalised: "pietro.teruya@..." is a
+ * person called Pietro, and a calendar named after them reads better than one
+ * named after their inbox.
+ */
+function firstNameOf(user: CalendarUser): string | undefined {
+  const given = user.name?.trim().split(/\s+/)[0];
+  if (given !== undefined && given !== '') return given;
+
+  const local = user.email?.split('@')[0]?.split(/[._-]/)[0];
+  if (local === undefined || local === '') return undefined;
+
+  return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
 /**
@@ -140,7 +197,13 @@ export async function calendarIdFor(user: CalendarUser): Promise<string> {
   await loadMap();
 
   const known = _calendars.get(user.id);
-  if (known !== undefined) return known;
+  if (known !== undefined) {
+    // The map survives restarts, so a calendar found here never goes through
+    // [resolveCalendar] again and would keep whatever title it was created
+    // with forever.
+    await ensureNamed(known, user);
+    return known;
+  }
 
   const inFlight = _resolving.get(user.id);
   if (inFlight !== undefined) return inFlight;
@@ -156,20 +219,32 @@ export async function calendarIdFor(user: CalendarUser): Promise<string> {
 /** Finds this person's calendar by name, or makes them one. */
 async function resolveCalendar(user: CalendarUser): Promise<string> {
   const calendar = await getCalendarClient();
-  const summary = calendarSummary(user.id);
+  const summary = calendarSummary(user);
 
+  // The description first, because it is the only unambiguous half: two
+  // people called Pietro would both answer to the title. The old uid title
+  // comes next, so a calendar created before the rename is found and renamed
+  // rather than duplicated, and the current title last.
   const listed = await calendar.calendarList.list({ maxResults: 250 });
-  const found = (listed.data.items ?? []).find(
-    (entry) => entry.summary === summary,
-  );
+  const entries = listed.data.items ?? [];
+
+  const found =
+    entries.find((entry) => entry.description === ownerMark(user.id)) ??
+    entries.find((entry) => entry.summary === legacySummary(user.id)) ??
+    entries.find((entry) => entry.summary === summary);
 
   if (found?.id !== undefined && found.id !== null) {
     await rememberCalendar(user.id, found.id);
+    await ensureNamed(found.id, user, found);
     return found.id;
   }
 
   const created = await calendar.calendars.insert({
-    requestBody: { summary, timeZone: fallbackTimeZone() },
+    requestBody: {
+      summary,
+      description: ownerMark(user.id),
+      timeZone: fallbackTimeZone(),
+    },
   });
 
   const id = created.data.id;
@@ -199,6 +274,61 @@ async function resolveCalendar(user: CalendarUser): Promise<string> {
 
   await rememberCalendar(user.id, id);
   return id;
+}
+
+/** Calendars this process has already checked the title of. */
+const _named = new Set<string>();
+
+/**
+ * Renames [calendarId] to this person's first name, once per process.
+ *
+ * Only a title Focus itself wrote is replaced: the uid, or the old
+ * `Focus · <uid>`. A calendar somebody has renamed by hand is theirs and is
+ * left exactly as they left it, which is also what stops this from undoing
+ * their choice on every restart.
+ *
+ * Best effort throughout. A title is cosmetic, and failing a read of the day
+ * over one would be the wrong trade.
+ */
+async function ensureNamed(
+  calendarId: string,
+  user: CalendarUser,
+  current?: calendar_v3.Schema$CalendarListEntry,
+): Promise<void> {
+  if (_named.has(calendarId)) return;
+  _named.add(calendarId);
+
+  const summary = calendarSummary(user);
+  // Nothing better than the uid to offer, so nothing to say.
+  if (summary === user.id) return;
+
+  try {
+    const calendar = await getCalendarClient();
+    const found =
+      current ?? (await calendar.calendars.get({ calendarId })).data;
+
+    const title = found.summary ?? '';
+    const mark = ownerMark(user.id);
+
+    // Already right, which is every call after the first one.
+    if (title === summary && found.description === mark) return;
+
+    // Not a title Focus wrote. Somebody renamed their own calendar and that
+    // is theirs to have done; putting the first name back on every restart
+    // would be undoing their choice on a schedule.
+    if (title !== summary && title !== user.id && title !== legacySummary(user.id)) {
+      return;
+    }
+
+    // The description goes on with the title, so the next lookup after a lost
+    // map has something to match that is not a first name.
+    await calendar.calendars.patch({
+      calendarId,
+      requestBody: { summary, description: mark },
+    });
+  } catch (error) {
+    console.warn('[calendar] could not rename calendar', calendarId, String(error));
+  }
 }
 
 /** Keeps the mapping in memory and on disk. */
@@ -237,41 +367,74 @@ async function loadMap(): Promise<void> {
 }
 
 /**
+ * The zone the deployment was told to use, if it was told one.
+ *
+ * FOCUS_TIMEZONE or TZ, and nothing inferred. This is the difference that
+ * matters: `Intl` in a container that was never given a zone answers UTC with
+ * complete confidence, so a guessed zone and a configured one cannot be
+ * treated the same. Only a configured one is allowed to overrule Google.
+ */
+function configuredTimeZone(): string | undefined {
+  for (const value of [process.env.FOCUS_TIMEZONE, process.env.TZ]) {
+    if (value !== undefined && value.trim() !== '') return value.trim();
+  }
+
+  return undefined;
+}
+
+/**
  * The zone to fall back on when Google has not been asked yet.
  *
- * TZ if the process was given one, and otherwise the machine's own zone
- * rather than UTC: a container that forgot to set TZ is a container whose
- * clock still knows what hour it is, and answering UTC there is how an
- * evening turned into the following morning.
+ * The configured zone, and otherwise the machine's own rather than UTC: a
+ * container that forgot to set TZ is a container whose clock still knows what
+ * hour it is, and answering UTC there is how an evening turned into the
+ * following morning.
  */
 function fallbackTimeZone(): string {
-  const configured = process.env.TZ;
-  if (configured !== undefined && configured !== '') return configured;
-
   return (
-    Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'
+    configuredTimeZone() ??
+    Intl.DateTimeFormat().resolvedOptions().timeZone ??
+    'UTC'
   );
 }
 
 /**
  * The timezone this person's calendar is kept in.
  *
- * **The calendar decides.** Not the server's clock, not the container's TZ:
- * the day someone sees in Google is the day Focus has to reason about, so
- * where the working day starts and ends is read off the calendar itself and
- * everything downstream is measured against that. A zone Google will not
- * give up falls back to the process's own, which is the old behaviour and no
- * worse than it was.
+ * **The calendar decides, unless the deployment has said otherwise.** The day
+ * someone sees in Google is the day Focus has to reason about, so normally
+ * the zone is read off the calendar itself and everything downstream is
+ * measured against that.
+ *
+ * FOCUS_TIMEZONE (or TZ) overrules it, and that is not a detail. These
+ * calendars live inside one service account, and a calendar created by a
+ * container running in UTC is a UTC calendar no matter where its owner lives.
+ * Reading that setting back and believing it is how the working day ended up
+ * starting at four in the morning in São Paulo and how an evening block was
+ * pushed to the next day. So when the deployment names a zone, that zone
+ * wins, and the calendar is patched to agree with it so Google shows the same
+ * hours Focus does.
+ *
+ * Cached per person for the life of the process: a zone is a setting somebody
+ * changed once, and a timeline rebuild asks for it a few hundred times.
  */
 export async function calendarTimeZoneFor(user: CalendarUser): Promise<string> {
   const known = _zones.get(user.id);
   if (known !== undefined) return known;
+
+  const wanted = configuredTimeZone();
 
   try {
     const calendar = await getCalendarClient();
     const calendarId = await calendarIdFor(user);
     const found = await calendar.calendars.get({ calendarId });
     const zone = found.data.timeZone;
+
+    if (wanted !== undefined) {
+      if (zone !== wanted) await retimeCalendar(calendarId, wanted);
+      _zones.set(user.id, wanted);
+      return wanted;
+    }
 
     if (typeof zone === 'string' && zone !== '') {
       _zones.set(user.id, zone);
@@ -284,6 +447,18 @@ export async function calendarTimeZoneFor(user: CalendarUser): Promise<string> {
   }
 
   return fallbackTimeZone();
+}
+
+/** Moves [calendarId] onto [timeZone], so Google reads the hours Focus does. */
+async function retimeCalendar(calendarId: string, timeZone: string): Promise<void> {
+  try {
+    const calendar = await getCalendarClient();
+    await calendar.calendars.patch({ calendarId, requestBody: { timeZone } });
+  } catch (error) {
+    // Cosmetic on Google's side. Focus already has the zone it is going to
+    // use, and every instant it writes carries its own offset.
+    console.warn('[calendar] could not set the calendar timezone', calendarId, String(error));
+  }
 }
 
 /**

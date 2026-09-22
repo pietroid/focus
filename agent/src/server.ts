@@ -197,6 +197,7 @@ export function createServer(): express.Express {
 interface EventBody {
   userId?: string;
   userEmail?: string;
+  userName?: string;
   title?: string;
   startTime?: string;
   endTime?: string;
@@ -207,7 +208,7 @@ interface EventBody {
 /** The person a calendar write is for, or null when none was named. */
 function userFromBody(body: EventBody): CalendarUser | null {
   if (typeof body.userId !== 'string' || body.userId === '') return null;
-  return { id: body.userId, email: body.userEmail };
+  return { id: body.userId, email: body.userEmail, name: body.userName };
 }
 
 /** The same, for the routes that carry it in the query string. */
@@ -216,7 +217,12 @@ function userFromQuery(req: Request): CalendarUser | null {
   if (id === '') return null;
 
   const email = String(req.query.userEmail ?? '');
-  return { id, email: email === '' ? undefined : email };
+  const name = String(req.query.userName ?? '');
+  return {
+    id,
+    email: email === '' ? undefined : email,
+    name: name === '' ? undefined : name,
+  };
 }
 
 /** The `:id` segment, which Express types as possibly repeated. */

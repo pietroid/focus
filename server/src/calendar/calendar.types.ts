@@ -18,6 +18,14 @@ export interface CalendarUser {
   id: string;
   /** Their address, when the request knew it. The agent shares with it once. */
   email?: string;
+  /**
+   * Their display name, when the request knew it.
+   *
+   * The agent names their calendar after the first word of it. It travels
+   * with every call for the same reason the address does: the agent holds no
+   * user table and knows nothing about anyone the request does not tell it.
+   */
+  name?: string;
 }
 
 /** One event on this person's calendar. */

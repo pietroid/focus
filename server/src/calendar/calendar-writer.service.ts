@@ -48,6 +48,7 @@ export class CalendarWriterService {
           ...event,
           userId: user.id,
           userEmail: user.email,
+          userName: user.name,
         }),
       ),
     );
@@ -65,7 +66,12 @@ export class CalendarWriterService {
         await this._fetch<unknown>(
           'PATCH',
           `/calendar/events/${encodeURIComponent(eventId)}`,
-          { ...patch, userId: user.id, userEmail: user.email },
+          {
+            ...patch,
+            userId: user.id,
+            userEmail: user.email,
+            userName: user.name,
+          },
         ),
       ),
     );

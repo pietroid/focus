@@ -159,7 +159,8 @@ export class EventsController {
 
 /** The person this request is for, and how to reach them on Google. */
 function owner(user: DecodedIdToken): CalendarUser {
-  return { id: user.uid, email: user.email };
+  const name = typeof user.name === 'string' ? user.name : undefined;
+  return { id: user.uid, email: user.email, name };
 }
 
 /** A non-negative place in the day's list. */

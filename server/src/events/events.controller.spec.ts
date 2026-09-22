@@ -201,6 +201,59 @@ class StubCalendarReader {
   }
 }
 
+/**
+ * The zone and the instant this whole file runs at.
+ *
+ * Every test here writes its dates as local ones and lets the routes decide
+ * where they land, so both halves of that have to stand still. On the real
+ * clock they did not: run the suite at twenty to ten at night and a
+ * forty-five minute block no longer fits before the working day closes at
+ * 22:00, so it is booked for tomorrow morning and four tests that expect to
+ * see it in "agora" fail for a reason that has nothing to do with the code
+ * they are covering.
+ *
+ * Ten in the morning, with the rest of the day ahead of it. The zone is set
+ * before anything reads a clock, so `systemZone`, the local `Date` methods
+ * the tests do their arithmetic with and the hours the routes come back with
+ * are all the same zone on every machine.
+ */
+const ZONE = 'America/Sao_Paulo';
+const NOW = new Date('2026-03-10T13:00:00Z');
+
+process.env.TZ = ZONE;
+
+/**
+ * Only `Date` is frozen.
+ *
+ * The timers stay real, because supertest is talking over a real socket to a
+ * real server and a faked `setTimeout` would hang the first request.
+ */
+beforeAll(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: [
+      'cancelAnimationFrame',
+      'cancelIdleCallback',
+      'clearImmediate',
+      'clearInterval',
+      'clearTimeout',
+      'hrtime',
+      'nextTick',
+      'performance',
+      'queueMicrotask',
+      'requestAnimationFrame',
+      'requestIdleCallback',
+      'setImmediate',
+      'setInterval',
+      'setTimeout',
+    ],
+  });
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
+
 /** Every button in a guard, as the pair a test cares about. */
 function buttons(
   guard: A2uiComponent | undefined,
@@ -250,11 +303,11 @@ function gapBetween(first: EventCard, second: EventCard): number {
 /**
  * The day, end to end.
  *
- * The clock these run against is the real one, so nothing here asserts an
- * absolute hour: the arithmetic that produces hours is covered by
- * `scheduling.spec.ts`, where the clock stands still. What is checked here is
- * what the routes do to each other — the order, the gaps, the calendar, and
- * the one question that is left.
+ * The clock stands still at [NOW], so a run at midnight says what a run at
+ * noon says. Even so, almost nothing here asserts an absolute hour: the
+ * arithmetic that produces hours is covered by `scheduling.spec.ts`. What is
+ * checked here is what the routes do to each other — the order, the gaps,
+ * the calendar, and the one question that is left.
  */
 describe('the day', () => {
   let app: INestApplication<App>;

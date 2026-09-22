@@ -401,6 +401,13 @@ server.
   with slot-finding and conflict detection.
 - `time/scheduling.ts` — `relayout`, which is the scheduler entire.
 - `time/zone.ts` — wall-clock arithmetic in the calendar's own timezone.
+  The zone travels with the events, from the agent, and **`FOCUS_TIMEZONE`
+  (or `TZ`) on the agent overrules what Google says a calendar's zone is.**
+  These calendars are created by a container inside a service account, so the
+  zone Google holds on them is the container's rather than the user's;
+  believing it is how the working day started at 04:00 in São Paulo and how
+  an evening block got pushed to tomorrow. When the deployment names a zone
+  the calendar is patched to agree with it.
 - `events/event-layout.service.ts` — what adding, dragging and finishing do to
   the day.
 
@@ -509,11 +516,20 @@ from Google overwrites whatever it said. Moves write through
 `POST|PATCH|DELETE /calendar/events` on the same surface.
 
 **One calendar per person, inside one Google account.** The agent resolves a
-secondary calendar named `Focus · <uid>`, creates it on first use and shares
-it with the person's address so they can open it in Google. That is what keeps
-one person's afternoon out of another's timeline while leaving Focus a single
-account that can see across all of them. `GOOGLE_CALENDAR_ID` still wins when
-it is set, which is the single-person deployment.
+secondary calendar **named after the person's first name**, creates it on
+first use and shares it with their address so they can open it in Google.
+That is what keeps one person's afternoon out of another's timeline while
+leaving Focus a single account that can see across all of them.
+`GOOGLE_CALENDAR_ID` still wins when it is set, which is the single-person
+deployment.
+
+The name is a title somebody reads, so the uid lives in the calendar's
+**description** instead, and that is what a lookup matches on when the
+uid-to-calendar map is lost. A calendar still carrying the old `Focus · <uid>`
+title is renamed in place on the next read rather than duplicated; one
+somebody has renamed by hand is left alone. The name reaches the agent as
+`userName` on every call, because the agent holds no user table and knows
+nothing about anyone the request does not tell it.
 
 **Every call runs server to agent.** The agent never calls back, holds no
 address for the server and no key: these routes are reached exactly the way

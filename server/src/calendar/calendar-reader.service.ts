@@ -195,6 +195,7 @@ export class CalendarReaderService {
       to: to.toISOString(),
     });
     if (user.email !== undefined) query.set('userEmail', user.email);
+    if (user.name !== undefined) query.set('userName', user.name);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);

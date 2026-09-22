@@ -8,6 +8,12 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
+    environment:
+      # Wall-clock hours are the whole point of the day Focus draws, and a
+      # container with no TZ runs in UTC: the working day would start at 07:00
+      # UTC, which is four in the morning here, and anything booked in the
+      # evening would land on tomorrow. Override it per deployment.
+      TZ: ${FOCUS_TIMEZONE:-America/Sao_Paulo}
     env_file:
       - .env.production
     volumes:
@@ -23,6 +29,12 @@ services:
     restart: unless-stopped
     expose:
       - "3001"
+    environment:
+      # The same zone as the backend, and for the same reason. The agent also
+      # writes it onto the Google calendars it creates, so the day the user
+      # opens in Google reads the same hours the app does.
+      TZ: ${FOCUS_TIMEZONE:-America/Sao_Paulo}
+      FOCUS_TIMEZONE: ${FOCUS_TIMEZONE:-America/Sao_Paulo}
     env_file:
       # The agent has its own environment file. It never sees the backend's
       # Firebase credentials or allowed-email list.
