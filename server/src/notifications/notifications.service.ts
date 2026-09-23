@@ -19,6 +19,7 @@ import {
 } from './dto/notification-plan.dto';
 import {
   almostFinishingBody,
+  CONFIRM_START_BODY,
   EVENING_MESSAGES,
   EVENING_TITLE,
   MORNING_MESSAGES,
@@ -97,16 +98,22 @@ function blockItems(event: CalendarEvent, zone: Zone): NotificationItem[] {
   const interval = intervalOf(event);
   if (interval === undefined) return [];
 
+  // A flexible block waits for the user when its hour comes, so its reminder
+  // asks. A fixed one starts regardless, and its reminder only says so.
+  const asks = !event.fixed && event.routine === undefined && !event.started;
   const items = [
     itemOf({
-      kind: 'starting',
+      kind: asks ? 'confirmStart' : 'starting',
       source: event.id,
       at: interval.start,
       zone,
       title: event.title,
-      body: startingBody(formatTimeIn(interval.end, zone)),
+      body: asks
+        ? CONFIRM_START_BODY
+        : startingBody(formatTimeIn(interval.end, zone)),
       timeSensitive: true,
       threadSlug: event.threadSlug,
+      eventId: event.id,
     }),
   ];
 
@@ -125,6 +132,7 @@ function blockItems(event: CalendarEvent, zone: Zone): NotificationItem[] {
         body: almostFinishingBody(ALMOST_FINISHING_MINUTES),
         timeSensitive: false,
         threadSlug: event.threadSlug,
+        eventId: event.id,
       }),
     );
   }
@@ -186,6 +194,7 @@ function itemOf(spec: {
   body: string;
   timeSensitive: boolean;
   threadSlug?: string;
+  eventId?: string;
 }): NotificationItem {
   const epoch = Math.floor(spec.at.getTime() / 1000);
   const text = hashOf(`${spec.title}\n${spec.body}`).slice(0, 8);
@@ -198,6 +207,7 @@ function itemOf(spec: {
     body: spec.body,
     timeSensitive: spec.timeSensitive,
     ...(spec.threadSlug === undefined ? {} : { threadSlug: spec.threadSlug }),
+    ...(spec.eventId === undefined ? {} : { eventId: spec.eventId }),
   };
 }
 

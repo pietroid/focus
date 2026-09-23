@@ -373,7 +373,7 @@ function dayOf(name: string): Date | undefined {
  * Both reach the store from the request, so neither is allowed to contain a
  * separator or a `..` that would walk out of the data directory.
  */
-function sanitizeSegment(value: string): string {
+export function sanitizeSegment(value: string): string {
   const cleaned = value.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/^\.+/, '');
   if (cleaned === '') throw new Error('Invalid path segment');
   return cleaned;
@@ -387,7 +387,10 @@ function sanitizeSegment(value: string): string {
  * half a file. Rename is atomic on the same filesystem, so a reader sees
  * either the old file whole or the new one.
  */
-async function writeAtomic(file: string, contents: string): Promise<void> {
+export async function writeAtomic(
+  file: string,
+  contents: string,
+): Promise<void> {
   const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
 
   try {

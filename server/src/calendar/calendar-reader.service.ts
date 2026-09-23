@@ -147,6 +147,17 @@ export class CalendarReaderService {
     );
   }
 
+  /**
+   * Forgets when the calendar was last read, so the next ask goes to Google.
+   *
+   * For the one change whose result the cache cannot work out by itself: a
+   * routine written or rewritten is a whole series of instances, and only
+   * Google knows which days they fall on.
+   */
+  async invalidate(user: CalendarUser): Promise<void> {
+    (await this._load(user)).readAt = 0;
+  }
+
   /** Replaces what is cached. Used by tests to stand in for the agent. */
   async replace(
     user: CalendarUser,

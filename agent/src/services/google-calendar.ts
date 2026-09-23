@@ -24,6 +24,39 @@ const FIXED_KEY = 'focusFixed';
 const PAUSED_AT_KEY = 'focusPausedAt';
 const REMAINING_KEY = 'focusRemaining';
 const PAUSED_TOTAL_KEY = 'focusPausedTotal';
+const STARTED_KEY = 'focusStarted';
+const NOT_BEFORE_KEY = 'focusNotBefore';
+const ROUTINE_KEY = 'focusRoutine';
+
+/**
+ * Which days a routine repeats on.
+ *
+ * The repetition itself is Google's: a routine is one recurring event, and
+ * this key only says it is one of Focus's, so the timeline can tell lunch
+ * apart from a block somebody wrote down this morning.
+ */
+export type RoutineDays = 'daily' | 'weekdays' | 'weekend';
+
+const ROUTINE_DAYS: readonly RoutineDays[] = ['daily', 'weekdays', 'weekend'];
+
+/** The RRULE Google repeats a routine with. */
+export function recurrenceFor(days: RoutineDays): string[] {
+  switch (days) {
+    case 'weekdays':
+      return ['RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'];
+    case 'weekend':
+      return ['RRULE:FREQ=WEEKLY;BYDAY=SA,SU'];
+    default:
+      return ['RRULE:FREQ=DAILY'];
+  }
+}
+
+/** [value] as routine days, or undefined when it is not one. */
+export function routineDaysOf(value: unknown): RoutineDays | undefined {
+  return ROUTINE_DAYS.includes(value as RoutineDays)
+    ? (value as RoutineDays)
+    : undefined;
+}
 
 /** One event, flattened to what the server is given. */
 export interface CalendarEvent {
@@ -49,6 +82,12 @@ export interface CalendarEvent {
   remainingSeconds?: number;
   /** Seconds it spent paused before the current pause, if any. */
   pausedSeconds?: number;
+  /** Whether the user confirmed they began it. */
+  started?: boolean;
+  /** ISO 8601. A layout never starts it earlier than this. */
+  notBefore?: string;
+  /** Set on every instance of a routine, and on the routine itself. */
+  routine?: RoutineDays;
 }
 
 /** What an event is created or patched with. */
@@ -63,6 +102,9 @@ export interface EventInput {
   pausedAt?: string;
   remainingSeconds?: number;
   pausedSeconds?: number;
+  started?: boolean;
+  /** An empty string lifts it. */
+  notBefore?: string;
 }
 
 /**
@@ -802,6 +844,8 @@ function privateProps(input: EventInput): Record<string, string> {
   if (input.pausedSeconds !== undefined) {
     props[PAUSED_TOTAL_KEY] = String(Math.round(input.pausedSeconds));
   }
+  if (input.started !== undefined) props[STARTED_KEY] = String(input.started);
+  if (input.notBefore !== undefined) props[NOT_BEFORE_KEY] = input.notBefore;
 
   return props;
 }
@@ -829,6 +873,8 @@ function toEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
   const props = event.extendedProperties?.private ?? {};
   const slug = props[THREAD_KEY];
   const managed = props[OWNED_KEY] === 'true' || slug !== undefined || props[FIXED_KEY] !== undefined;
+  const notBefore = props[NOT_BEFORE_KEY];
+  const routine = routineDaysOf(props[ROUTINE_KEY]);
 
   return {
     id: event.id,
@@ -841,6 +887,11 @@ function toEvent(event: calendar_v3.Schema$Event): CalendarEvent | null {
     fixed: managed ? props[FIXED_KEY] === 'true' : true,
     threadSlug: typeof slug === 'string' && slug !== '' ? slug : undefined,
     ...pauseOf(props),
+    ...(props[STARTED_KEY] === 'true' ? { started: true } : {}),
+    ...(typeof notBefore === 'string' && !Number.isNaN(Date.parse(notBefore))
+      ? { notBefore: new Date(notBefore).toISOString() }
+      : {}),
+    ...(routine === undefined ? {} : { routine }),
   };
 }
 
@@ -858,5 +909,167 @@ function pauseOf(
     pausedAt: paused ? new Date(pausedAt).toISOString() : undefined,
     remainingSeconds: paused && Number.isFinite(remaining) ? remaining : undefined,
     pausedSeconds: Number.isFinite(total) && total > 0 ? total : undefined,
+  };
+}
+
+/** What a routine is created or changed with. */
+export interface RoutineInput {
+  title?: string;
+  /** ISO 8601, the first occurrence. Its wall-clock hour is every day's. */
+  startTime?: string;
+  endTime?: string;
+  days?: RoutineDays;
+}
+
+/** One routine, as the menu that edits it reads it. */
+export interface Routine {
+  /** The recurring event's own id, not an instance's. */
+  id: string;
+  title: string;
+  /** ISO 8601, the first occurrence. */
+  startTime: string;
+  endTime: string;
+  days: RoutineDays;
+}
+
+/**
+ * Every routine on this person's calendar.
+ *
+ * The recurring events themselves rather than their instances, which is what
+ * `singleEvents: false` asks for. A routine is edited once and Google repeats
+ * the change, so the menu never has to know how many days it spans.
+ */
+export async function listRoutines(user: CalendarUser): Promise<Routine[]> {
+  const calendar = await getCalendarClient();
+  const calendarId = await calendarIdFor(user);
+  const routines: Routine[] = [];
+
+  // One query per kind: Google filters on an exact key=value pair, and three
+  // small lists are cheaper than reading every event ever booked.
+  for (const days of ROUTINE_DAYS) {
+    const response = await calendar.events.list({
+      calendarId,
+      singleEvents: false,
+      showDeleted: false,
+      privateExtendedProperty: [`${ROUTINE_KEY}=${days}`],
+    });
+
+    for (const event of response.data.items ?? []) {
+      const routine = toRoutine(event);
+      if (routine !== null) routines.push(routine);
+    }
+  }
+
+  return routines;
+}
+
+/** Books a routine: one event that Google repeats on [input.days]. */
+export async function insertRoutine(
+  user: CalendarUser,
+  input: RoutineInput,
+): Promise<Routine> {
+  if (
+    input.title === undefined ||
+    input.startTime === undefined ||
+    input.endTime === undefined ||
+    input.days === undefined
+  ) {
+    throw new Error('title, startTime, endTime and days are required');
+  }
+
+  const calendar = await getCalendarClient();
+  const timeZone = await calendarTimeZoneFor(user);
+
+  const response = await calendar.events.insert({
+    calendarId: await calendarIdFor(user),
+    requestBody: {
+      summary: input.title,
+      // The zone is what makes "every day at noon" noon in every season: a
+      // recurrence expands in the zone its start names.
+      start: toEventDateTime(input.startTime, timeZone),
+      end: toEventDateTime(input.endTime, timeZone),
+      recurrence: recurrenceFor(input.days),
+      extendedProperties: {
+        private: {
+          [OWNED_KEY]: 'true',
+          [FIXED_KEY]: 'true',
+          [ROUTINE_KEY]: input.days,
+        },
+      },
+    },
+  });
+
+  const routine = toRoutine(response.data);
+  if (routine === null) throw new Error('Calendar returned an unusable routine');
+  return routine;
+}
+
+/**
+ * Changes a routine, and so every day it repeats on.
+ *
+ * Instances somebody already changed by hand in Google keep their change,
+ * which is Google's rule and the right one.
+ */
+export async function patchRoutine(
+  user: CalendarUser,
+  routineId: string,
+  input: RoutineInput,
+): Promise<Routine> {
+  const calendar = await getCalendarClient();
+  const calendarId = await calendarIdFor(user);
+  const timeZone = await calendarTimeZoneFor(user);
+
+  const requestBody: calendar_v3.Schema$Event = {};
+  if (input.title !== undefined) requestBody.summary = input.title;
+  if (input.startTime !== undefined) {
+    requestBody.start = toEventDateTime(input.startTime, timeZone);
+  }
+  if (input.endTime !== undefined) {
+    requestBody.end = toEventDateTime(input.endTime, timeZone);
+  }
+  if (input.days !== undefined) {
+    requestBody.recurrence = recurrenceFor(input.days);
+    const current = await calendar.events.get({ calendarId, eventId: routineId });
+    requestBody.extendedProperties = {
+      private: {
+        ...(current.data.extendedProperties?.private ?? {}),
+        [ROUTINE_KEY]: input.days,
+      },
+    };
+  }
+
+  const response = await calendar.events.patch({
+    calendarId,
+    eventId: routineId,
+    requestBody,
+  });
+
+  const routine = toRoutine(response.data);
+  if (routine === null) throw new Error('Calendar returned an unusable routine');
+  return routine;
+}
+
+/** A recurring Google event, or null when it is not one of Focus's routines. */
+function toRoutine(event: calendar_v3.Schema$Event): Routine | null {
+  const start = event.start?.dateTime;
+  const end = event.end?.dateTime;
+  const days = routineDaysOf(event.extendedProperties?.private?.[ROUTINE_KEY]);
+
+  if (
+    typeof event.id !== 'string' ||
+    typeof start !== 'string' ||
+    typeof end !== 'string' ||
+    event.status === 'cancelled' ||
+    days === undefined
+  ) {
+    return null;
+  }
+
+  return {
+    id: event.id,
+    title: event.summary ?? 'Sem título',
+    startTime: new Date(start).toISOString(),
+    endTime: new Date(end).toISOString(),
+    days,
   };
 }

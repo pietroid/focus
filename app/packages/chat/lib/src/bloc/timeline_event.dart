@@ -57,7 +57,12 @@ final class EventCreated extends TimelineBlocEvent {
 /// guessing at the new times itself.
 final class EventMoved extends TimelineBlocEvent {
   /// {@macro timeline_bloc_event}
-  const EventMoved({required this.id, required this.index});
+  const EventMoved({
+    required this.id,
+    required this.index,
+    this.after,
+    this.minutes,
+  });
 
   /// The card that was dragged.
   final String id;
@@ -65,8 +70,44 @@ final class EventMoved extends TimelineBlocEvent {
   /// Where it was dropped, counted from the top with itself taken out.
   final int index;
 
+  /// Where the free stretch it was dropped into starts, when it was.
+  final DateTime? after;
+
+  /// The length the user agreed to cut it to so it fits that stretch.
+  final int? minutes;
+
   @override
-  List<Object?> get props => [id, index];
+  List<Object?> get props => [id, index, after, minutes];
+}
+
+/// The user began a block that was waiting for them.
+///
+/// Sent by the card's button and by the popup a reminder opens. A block that
+/// has not reached its hour goes to the top of the day instead.
+final class EventStarted extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventStarted(this.id);
+
+  /// The block.
+  final String id;
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Not yet: the block waits [minutes] more before asking again.
+final class EventSnoozed extends TimelineBlocEvent {
+  /// {@macro timeline_bloc_event}
+  const EventSnoozed(this.id, {this.minutes = 15});
+
+  /// The block.
+  final String id;
+
+  /// How much longer it waits.
+  final int minutes;
+
+  @override
+  List<Object?> get props => [id, minutes];
 }
 
 /// Sends back the button the user tapped on a guard.

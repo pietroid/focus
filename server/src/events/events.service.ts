@@ -23,7 +23,7 @@ import { PlannedBlock } from '../time/scheduling';
 import { Interval, minutesOf } from '../time/work-hours';
 import { Zone } from '../time/zone';
 import { EventCard } from './entities/event.entity';
-import { intervalOf, sectionOf } from './event-sections';
+import { awaitsStart, intervalOf, sectionOf } from './event-sections';
 
 /** How the calendar catch-up went: nothing to say, or something to draw. */
 export interface SyncOutcome {
@@ -98,6 +98,9 @@ export class EventsService {
         remainingSeconds: event.remainingSeconds,
         pausedSeconds: event.pausedSeconds ?? 0,
         workMinutes: Math.round(workSecondsOf(event) / 60),
+        awaitingStart: awaitsStart(event, now),
+        notBefore: event.notBefore,
+        routine: event.routine,
       });
     }
 
@@ -290,6 +293,16 @@ export class EventsService {
     );
   }
 
+  /** Every block whose hour came and that is still waiting to be begun. */
+  async waiting(
+    user: CalendarUser,
+    now = new Date(),
+  ): Promise<CalendarEvent[]> {
+    return (await this._reader.events(user, now)).filter((event) =>
+      awaitsStart(event, now),
+    );
+  }
+
   /** Takes a block off the day, and off Google behind the response. */
   async erase(
     user: CalendarUser,
@@ -396,6 +409,11 @@ function patchOf(event: CalendarEvent, withPause: boolean): EventPatch {
     startTime: event.startTime,
     endTime: event.endTime,
     fixed: event.fixed,
+    // Both ride along on every patch: [fixed] already makes the agent read
+    // the event's private bag first, so they cost nothing extra, and a key
+    // that is only sent when set is a key that can never be cleared.
+    started: event.started === true,
+    notBefore: event.notBefore ?? '',
   };
   if (!withPause) return patch;
 

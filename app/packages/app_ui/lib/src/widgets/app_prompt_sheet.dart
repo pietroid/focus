@@ -40,17 +40,32 @@ class AppPromptResult {
 ///
 /// Flexible is the default and means "in that order, whenever it fits". Fixed
 /// means the hour is the point of it, and is the only case where the user is
-/// asked to name one.
+/// asked to name one, day included.
+///
+/// On Coisas the same sheet asks without the clock: no flexible or fixed, no
+/// hour, only what it is and how long it will take once it is on the day.
 /// {@endtemplate}
 class AppPromptSheet extends StatefulWidget {
   /// {@macro app_prompt_sheet}
-  const AppPromptSheet({required this.previewFor, super.key});
+  const AppPromptSheet({
+    this.previewFor,
+    this.initialText,
+    this.initialDuration,
+    super.key,
+  });
 
   /// When something of this length would land, if it were added now.
   ///
   /// Passed in rather than worked out here: the sheet knows how to ask a
-  /// question and nothing at all about what is already on the day.
-  final DateTime Function(Duration duration) previewFor;
+  /// question and nothing at all about what is already on the day. Null asks
+  /// without the clock at all, which is how Coisas writes something down.
+  final DateTime Function(Duration duration)? previewFor;
+
+  /// What the field starts with, when something is being edited.
+  final String? initialText;
+
+  /// The length it starts with, when something is being edited.
+  final Duration? initialDuration;
 
   /// The length something has before anyone has said otherwise.
   static const defaultDuration = Duration(minutes: 30);
@@ -76,14 +91,20 @@ class AppPromptSheet extends StatefulWidget {
   /// dismissed without sending.
   static Future<AppPromptResult?> show(
     BuildContext context, {
-    required DateTime Function(Duration duration) previewFor,
+    DateTime Function(Duration duration)? previewFor,
+    String? initialText,
+    Duration? initialDuration,
   }) {
     return showModalBottomSheet<AppPromptResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: AppColors.bg.withValues(alpha: 0.72),
-      builder: (_) => AppPromptSheet(previewFor: previewFor),
+      builder: (_) => AppPromptSheet(
+        previewFor: previewFor,
+        initialText: initialText,
+        initialDuration: initialDuration,
+      ),
     );
   }
 
@@ -92,11 +113,15 @@ class AppPromptSheet extends StatefulWidget {
 }
 
 class _AppPromptSheetState extends State<AppPromptSheet> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialText);
   late final String _hint =
       AppPromptSheet.hints[math.Random().nextInt(AppPromptSheet.hints.length)];
 
-  Duration _duration = AppPromptSheet.defaultDuration;
+  late Duration _duration =
+      widget.initialDuration ?? AppPromptSheet.defaultDuration;
+
+  /// Whether the sheet is asking about the clock at all.
+  bool get _timed => widget.previewFor != null;
   bool _fixed = false;
 
   /// The hour a fixed block was given. Null while it is still flexible.
@@ -114,7 +139,7 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
   /// would land. Either way it is a span, because that is what a card on the
   /// timeline will say once this is one.
   ({DateTime start, DateTime end}) get _span {
-    final start = _startTime ?? widget.previewFor(_duration);
+    final start = _startTime ?? widget.previewFor!(_duration);
 
     return (start: start, end: start.add(_duration));
   }
@@ -123,7 +148,7 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
   void _setFixed({required bool fixed}) {
     setState(() {
       _fixed = fixed;
-      _startTime = fixed ? widget.previewFor(_duration) : null;
+      _startTime = fixed ? widget.previewFor!(_duration) : null;
     });
   }
 
@@ -139,9 +164,9 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
 
   Future<void> _pickTime() async {
     final now = DateTime.now();
-    final picked = await AppWheelPicker.time(
+    final picked = await AppWheelPicker.dayAndTime(
       context,
-      initial: _startTime ?? widget.previewFor(_duration),
+      initial: _startTime ?? widget.previewFor!(_duration),
       earliest: now,
     );
     if (picked == null) return;
@@ -157,8 +182,8 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
       AppPromptResult(
         text: text,
         duration: _duration,
-        fixed: _fixed,
-        startTime: _fixed ? _span.start : null,
+        fixed: _timed && _fixed,
+        startTime: _timed && _fixed ? _span.start : null,
       ),
     );
   }
@@ -190,22 +215,35 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
                   onSubmit: _submit,
                 ),
                 const SizedBox(height: AppSpacing.s2),
-                _Controls(
-                  fixed: _fixed,
-                  duration: _duration,
-                  onFixed: (value) => _setFixed(fixed: value),
-                  onDuration: _pickDuration,
-                ),
-                const SizedBox(height: AppSpacing.s3),
-                _Preview(
-                  span: _span,
-                  editable: _fixed,
-                  onTap: _pickTime,
-                  send: _Send(
-                    controller: _controller,
-                    onPressed: _submit,
+                if (_timed) ...[
+                  _Controls(
+                    fixed: _fixed,
+                    duration: _duration,
+                    onFixed: (value) => _setFixed(fixed: value),
+                    onDuration: _pickDuration,
                   ),
-                ),
+                  const SizedBox(height: AppSpacing.s3),
+                  _Preview(
+                    span: _span,
+                    editable: _fixed,
+                    onTap: _pickTime,
+                    send: _Send(
+                      controller: _controller,
+                      onPressed: _submit,
+                    ),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      AppPillButton(
+                        iconData: AppIcons.timer,
+                        label: formatDuration(_duration),
+                        onPressed: _pickDuration,
+                      ),
+                      const Spacer(),
+                      _Send(controller: _controller, onPressed: _submit),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -312,7 +350,7 @@ class _Preview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Text(
-      '${_hhmm(span.start)} – ${_hhmm(span.end)}${_day(span.start)}',
+      '${_hhmm(span.start)}${_day(span.start)}',
       style: AppTypography.body.copyWith(
         // A preview is the app saying what it worked out; a fixed hour is the
         // user's own answer read back. The second one is brighter because it

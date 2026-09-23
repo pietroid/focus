@@ -15,6 +15,13 @@ export interface PlannedBlock {
   /** Whether its hour is the point of it, and so cannot be moved. */
   fixed: boolean;
   interval: Interval;
+  /**
+   * The earliest it may start, when the user asked for later.
+   *
+   * The cursor jumps to it rather than the block being fitted in earlier, so
+   * the gap the user left before it stays a gap.
+   */
+  notBefore?: Date;
 }
 
 /**
@@ -43,7 +50,11 @@ export function relayout(
   for (const block of queue) {
     if (block.fixed) continue;
 
-    const slot = nextFreeSlot(cursor, block.minutes, anchors, zone);
+    const floor =
+      block.notBefore !== undefined && block.notBefore > cursor
+        ? block.notBefore
+        : cursor;
+    const slot = nextFreeSlot(floor, block.minutes, anchors, zone);
     placed.set(block.id, slot);
     // Five minutes apart, and not snapped to a grid of five. The day slides
     // a minute at a time while something is paused, and a grid would turn

@@ -6,6 +6,8 @@ import { AuthModule } from './auth/auth.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { EventsModule } from './events/events.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { RoutinesModule } from './routines/routines.module';
+import { ThingsModule } from './things/things.module';
 import { ThreadsModule } from './threads/threads.module';
 import { UsersModule } from './users/users.module';
 
@@ -23,6 +25,8 @@ import { UsersModule } from './users/users.module';
     CalendarModule,
     EventsModule,
     NotificationsModule,
+    RoutinesModule,
+    ThingsModule,
     ThreadsModule,
     UsersModule,
   ],

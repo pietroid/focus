@@ -2,8 +2,8 @@ import 'package:app_ui/app_ui.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template menu_page}
-/// Everything that is not one of the three lists: for now, the things that
-/// have been solved.
+/// Everything that is not one of the three lists: the routines, and the
+/// things that have been solved.
 /// {@endtemplate}
 class MenuPage extends StatelessWidget {
   /// {@macro menu_page}
@@ -29,6 +29,11 @@ class MenuPage extends StatelessWidget {
             children: [
               Text('Menu', style: AppTypography.headline),
               const SizedBox(height: AppSpacing.s5),
+              AppListItem(
+                title: 'Rotina',
+                iconData: AppIcons.repeat,
+                onTap: () => context.push<void>('/rotina'),
+              ),
               AppListItem(
                 title: 'Itens concluídos',
                 iconData: AppIcons.check,

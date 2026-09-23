@@ -69,6 +69,23 @@ abstract final class AppColors {
   /// Needs attention, but nothing has gone wrong yet.
   static const warning = Color(0xFFFF9A6B);
 
+  /// The fill behind a block a routine puts on every day.
+  ///
+  /// One of the two fills that is not a state. Lunch and the morning routine
+  /// are the same blocks every day, and telling them apart from what was
+  /// written down this morning at a glance is worth a faint cool shift off
+  /// [fill], and no more than that.
+  static const routineFill = Color(0xFF1A1E27);
+
+  /// The fill behind a stretch of the day with nothing on it.
+  ///
+  /// The other one: a faint green off black, quieter than any card, so free
+  /// time reads as room to breathe rather than as one more thing on the list.
+  static const freeFill = Color(0xFF101A16);
+
+  /// Text on [freeFill].
+  static const freeInk = Color(0xFF7FA496);
+
   /// Positive / success. Retained as the semantic name used by older widgets.
   static const Color positive = success;
 

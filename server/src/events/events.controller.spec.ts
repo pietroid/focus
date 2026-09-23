@@ -133,6 +133,11 @@ class StubCalendarWriter {
       fixed: patch.fixed ?? current?.fixed ?? false,
       threadSlug: patch.threadSlug ?? current?.threadSlug,
       ...pauseAfter(patch, current),
+      started: patch.started ?? current?.started,
+      notBefore:
+        patch.notBefore === undefined
+          ? current?.notBefore
+          : patch.notBefore || undefined,
     };
 
     this._events.set(eventId, next);
@@ -404,6 +409,13 @@ describe('the day', () => {
       .send({ index });
   }
 
+  /** Says the block called [title] was begun, the way the card's button does. */
+  async function begin(title: string): Promise<void> {
+    await request(app.getHttpServer())
+      .post(`/events/${(await card(title)).id}/start`)
+      .expect(201);
+  }
+
   /** Answers a guard with one of its buttons. */
   function answer(action: Record<string, unknown>) {
     return request(app.getHttpServer()).post('/events/timing').send({ action });
@@ -510,6 +522,7 @@ describe('the day', () => {
   it('asks what to do with what is running before starting something else', async () => {
     await add('Em andamento', 60).expect(201);
     await add('Outra coisa', 30).expect(201);
+    await begin('Em andamento');
 
     const response = await drag((await card('Outra coisa')).id, 0).expect(201);
 
@@ -524,6 +537,7 @@ describe('the day', () => {
   it('changes nothing while it is asking', async () => {
     await add('Em andamento', 60).expect(201);
     await add('Outra coisa', 30).expect(201);
+    await begin('Em andamento');
 
     const before = await timeline();
     await drag((await card('Outra coisa')).id, 0).expect(201);
@@ -534,6 +548,7 @@ describe('the day', () => {
   it('finishes the running block and gives its hour back', async () => {
     await add('Em andamento', 60).expect(201);
     await add('Outra coisa', 30).expect(201);
+    await begin('Em andamento');
 
     const guard = outcome(await drag((await card('Outra coisa')).id, 0)).guard;
     const solve = buttons(guard).find((b) => b.text === 'Concluir o atual');
@@ -548,6 +563,7 @@ describe('the day', () => {
   it('pushes the running block down when told to keep it', async () => {
     await add('Em andamento', 60).expect(201);
     await add('Outra coisa', 30).expect(201);
+    await begin('Em andamento');
 
     const guard = outcome(await drag((await card('Outra coisa')).id, 0)).guard;
     const later = buttons(guard).find((b) => b.text === 'Deixar para depois');
@@ -702,6 +718,8 @@ describe('the day', () => {
       managed: true,
       fixed: false,
       threadSlug: event.threadSlug,
+      // Mid-hour means the user began it; a block nobody began slides.
+      started: true,
     });
 
     return start;
@@ -952,6 +970,7 @@ describe('the day', () => {
 
     it('drags the rest of the day while paused, a minute per minute', async () => {
       const [running] = cards(await add('Escrever', 30).expect(201));
+      await begin('Escrever');
       await add('Depois', 30).expect(201);
 
       later(10);
@@ -970,6 +989,7 @@ describe('the day', () => {
 
     it('owes exactly the same work after resuming', async () => {
       const [running] = cards(await add('Escrever', 30).expect(201));
+      await begin('Escrever');
 
       later(10);
       await post(`/events/${running.id}/pause`).expect(201);
@@ -993,6 +1013,7 @@ describe('the day', () => {
 
     it('gives fifteen more minutes and pushes what follows', async () => {
       const [running] = cards(await add('Escrever', 30).expect(201));
+      await begin('Escrever');
       const [, before] = cards(await add('Depois', 30).expect(201));
 
       const [extended, after] = cards(
@@ -1007,6 +1028,7 @@ describe('the day', () => {
 
     it('takes fifteen minutes off and pulls what follows up', async () => {
       const [running] = cards(await add('Escrever', 45).expect(201));
+      await begin('Escrever');
       const [, before] = cards(await add('Depois', 30).expect(201));
 
       const [shortened, after] = cards(
@@ -1023,6 +1045,7 @@ describe('the day', () => {
 
     it('refuses to shorten a block into the past', async () => {
       const [running] = cards(await add('Escrever', 30).expect(201));
+      await begin('Escrever');
 
       later(20);
       await post(`/events/${running.id}/extend`, { minutes: -15 }).expect(400);
@@ -1030,6 +1053,7 @@ describe('the day', () => {
 
     it('keeps a finished block as the hour it took, and rests five minutes', async () => {
       const [running] = cards(await add('Escrever', 30).expect(201));
+      await begin('Escrever');
       await add('Depois', 30).expect(201);
 
       later(12);
@@ -1041,7 +1065,8 @@ describe('the day', () => {
       await sync();
       expect(calendar.removed).toEqual([]);
       expect(
-        calendar.patched.find((it) => it.id === running.id)?.patch.endTime,
+        calendar.patched.filter((it) => it.id === running.id).pop()?.patch
+          .endTime,
       ).toBe(new Date(Date.now()).toISOString());
     });
 
@@ -1090,5 +1115,140 @@ describe('the day', () => {
       expect(moved).toMatchObject({ fixed: true, workMinutes: 45 });
       expect(hhmm(moved!.startTime)).toBe(hhmm(at.toISOString()));
     });
+  });
+
+  describe('when a flexible block reaches its hour', () => {
+    function later(minutes: number): void {
+      jest.setSystemTime(new Date(Date.now() + minutes * 60_000));
+    }
+
+    afterEach(() => {
+      jest.setSystemTime(NOW);
+    });
+
+    function post(pathname: string, body?: object) {
+      return request(app.getHttpServer()).post(pathname).send(body);
+    }
+
+    it('waits for the user, sliding down the day a minute at a time', async () => {
+      await add('Escrever', 30).expect(201);
+      await add('Depois', 30).expect(201);
+
+      later(7);
+      const [waiting, next] = await timeline();
+
+      expect(waiting.awaitingStart).toBe(true);
+      expect(hhmm(waiting.startTime)).toBe('10:07');
+      expect(waiting.durationMinutes).toBe(30);
+      expect(gapBetween(waiting, next)).toBe(5);
+    });
+
+    it('keeps its hour once begun', async () => {
+      const [first] = cards(await add('Escrever', 30).expect(201));
+
+      const started = outcome(
+        await post(`/events/${first.id}/start`).expect(201),
+      );
+      expect(started.cards[0].awaitingStart).toBe(false);
+
+      later(7);
+      const [running] = await timeline();
+      expect(hhmm(running.startTime)).toBe('10:00');
+    });
+
+    it('waits fifteen minutes more when asked, leaving the gap free', async () => {
+      const [first] = cards(await add('Escrever', 30).expect(201));
+
+      const day = cards(
+        await post(`/events/${first.id}/snooze`, { minutes: 15 }).expect(201),
+      );
+
+      expect(hhmm(day[0].startTime)).toBe('10:15');
+      expect(day[0].awaitingStart).toBe(false);
+
+      // Nothing else pulls it back while it waits.
+      later(3);
+      expect(hhmm((await timeline())[0].startTime)).toBe('10:15');
+    });
+
+    it('is never asked about when it is fixed', async () => {
+      const at = new Date();
+      at.setMinutes(at.getMinutes() + 30, 0, 0);
+      await add('Reunião', 30, { fixed: true, startTime: at.toISOString() });
+
+      later(35);
+      const [meeting] = await timeline();
+      expect(meeting.awaitingStart).toBe(false);
+      expect(hhmm(meeting.startTime)).toBe(hhmm(at.toISOString()));
+    });
+  });
+
+  describe('dropping into a gap', () => {
+    it('starts the block where the gap starts, not earlier', async () => {
+      const at = new Date();
+      at.setHours(at.getHours() + 2, 0, 0, 0);
+      await add('Reunião', 60, { fixed: true, startTime: at.toISOString() });
+      await add('Primeiro', 30).expect(201);
+      await add('Segundo', 30).expect(201);
+
+      const afterMeeting = new Date(at.getTime() + 60 * 60_000);
+      const day = outcome(
+        await request(app.getHttpServer())
+          .post(`/events/${(await card('Segundo')).id}/move`)
+          .send({ index: 2, after: afterMeeting.toISOString() })
+          .expect(201),
+      ).cards;
+
+      const moved = day.find((it) => it.title === 'Segundo')!;
+      expect(Date.parse(moved.startTime)).toBeGreaterThanOrEqual(
+        afterMeeting.getTime(),
+      );
+      expect(moved.notBefore).toBeDefined();
+    });
+
+    it('cuts the block to the length it was given', async () => {
+      await add('Primeiro', 30).expect(201);
+      const [, second] = cards(await add('Segundo', 60).expect(201));
+
+      const day = outcome(
+        await request(app.getHttpServer())
+          .post(`/events/${second.id}/move`)
+          .send({ index: 1, minutes: 20 })
+          .expect(201),
+      ).cards;
+
+      expect(day[1].durationMinutes).toBe(20);
+    });
+
+    it('lifts the floor when dropped between two cards again', async () => {
+      await add('Primeiro', 30).expect(201);
+      const [, second] = cards(await add('Segundo', 30).expect(201));
+      const later = new Date(Date.now() + 3 * 3_600_000).toISOString();
+
+      await request(app.getHttpServer())
+        .post(`/events/${second.id}/move`)
+        .send({ index: 1, after: later })
+        .expect(201);
+      const day = outcome(await drag(second.id, 1).expect(201)).cards;
+
+      expect(day[1].notBefore).toBeUndefined();
+      expect(gapBetween(day[0], day[1])).toBe(5);
+    });
+  });
+
+  it('will not drag a routine; the menu is where it changes', async () => {
+    await agenda.upsert(owner, {
+      id: 'lunch_20260310',
+      title: 'Almoço',
+      startTime: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+      endTime: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+      managed: true,
+      fixed: true,
+      routine: 'daily',
+    });
+
+    const [lunch] = await timeline();
+    expect(lunch.routine).toBe('daily');
+    await drag(lunch.id, 0).expect(400);
   });
 });

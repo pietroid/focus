@@ -116,8 +116,26 @@ class DemoTimelineRepository implements TimelineRepository {
   }
 
   @override
-  Future<TimelineOutcome> moveEvent(String id, int index) async =>
-      TimelineOutcome(cards: _cards);
+  Future<TimelineOutcome> moveEvent(
+    String id,
+    int index, {
+    DateTime? after,
+    int? minutes,
+  }) async => TimelineOutcome(cards: _cards);
+
+  @override
+  Future<TimelineOutcome> startEvent(String id) async => TimelineOutcome(
+    cards: _cards = [
+      for (final card in _cards)
+        card.id == id ? card.copyWith(awaitingStart: false) : card,
+    ],
+  );
+
+  @override
+  Future<List<TimelineEvent>> snoozeEvent(
+    String id, {
+    int minutes = 15,
+  }) async => _cards;
 
   @override
   Future<TimelineOutcome> applyTiming(Map<String, dynamic> action) async =>

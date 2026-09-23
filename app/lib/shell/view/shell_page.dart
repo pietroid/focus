@@ -1,10 +1,10 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:focus/conversations/conversations.dart';
 import 'package:focus/home/home.dart';
 import 'package:focus/menu/menu.dart';
 import 'package:focus/notifications/notifications.dart';
-import 'package:focus/recommendations/recommendations.dart';
 import 'package:focus/things/things.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,9 +17,9 @@ import 'package:go_router/go_router.dart';
 ///
 /// The orb is the app's one action from anywhere, and it does the thing the
 /// screen under it is about. On Tempo that is writing something down with an
-/// hour on it, which never involves the model. On Coisas, and everywhere
-/// else, it is starting a conversation. One button, two meanings, and the tab
-/// bar underneath already says which one is live.
+/// hour on it, and on Coisas writing something down without one; neither
+/// involves the model. On Conversas, and everywhere else, it is starting a
+/// conversation. The tab bar underneath already says which one is live.
 /// {@endtemplate}
 class ShellPage extends StatefulWidget {
   /// {@macro shell_page}
@@ -33,11 +33,14 @@ class _ShellPageState extends State<ShellPage> {
   /// Tempo, where the orb writes something straight onto the timeline.
   static const _timelineIndex = 0;
 
+  /// Coisas, where the orb writes down something with no hour.
+  static const _thingsIndex = 1;
+
   int _index = 0;
 
   /// How many conversations have been started from the orb.
   ///
-  /// Coisas is kept alive behind the bar, so it cannot notice a thread that
+  /// Conversas is kept alive behind the bar, so it cannot notice a thread that
   /// appeared while it was off screen. This is how it is told.
   int _conversations = 0;
 
@@ -47,7 +50,26 @@ class _ShellPageState extends State<ShellPage> {
       return;
     }
 
+    if (_index == _thingsIndex) {
+      await _note();
+      return;
+    }
+
     await _converse();
+  }
+
+  /// Writes a thing down on Coisas: what it is and how long, no hour.
+  Future<void> _note() async {
+    final bloc = context.read<ThingsBloc>();
+    final result = await AppPromptSheet.show(context);
+    if (result == null) return;
+
+    bloc.add(
+      ThingAdded(
+        title: result.text,
+        durationMinutes: result.duration.inMinutes,
+      ),
+    );
   }
 
   /// Writes something down with an hour on it. No conversation.
@@ -95,8 +117,8 @@ class _ShellPageState extends State<ShellPage> {
           index: _index,
           children: [
             const HomePage(),
-            ThingsPage(reloadToken: _conversations),
-            const RecommendationsPage(),
+            const ThingsPage(),
+            ConversationsPage(reloadToken: _conversations),
             const MenuPage(),
           ],
         ),
@@ -107,12 +129,9 @@ class _ShellPageState extends State<ShellPage> {
           items: const [
             AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
             AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
-            // "Sugestões" rather than "Recomendações": the longer word does
-            // not fit a quarter of a phone's width at this size without being
-            // cut, and a cut label is worse than a shorter one.
             AppBottomBarItem(
-              iconData: AppIcons.recommendations,
-              label: 'Sugestões',
+              iconData: AppIcons.conversations,
+              label: 'Conversas',
             ),
             AppBottomBarItem(iconData: AppIcons.menu, label: 'Menu'),
           ],

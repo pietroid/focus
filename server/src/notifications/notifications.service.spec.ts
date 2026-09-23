@@ -45,8 +45,38 @@ function ofKind(items: NotificationItem[], kind: string): NotificationItem[] {
 }
 
 describe('a block', () => {
-  it('is announced at its start, time-sensitive, with its end', async () => {
-    const [starting] = ofKind(await itemsFor([block()]), 'starting');
+  it('that is flexible asks to be begun at its start', async () => {
+    const items = await itemsFor([block()]);
+    const [asking] = ofKind(items, 'confirmStart');
+
+    expect(ofKind(items, 'starting')).toHaveLength(0);
+    expect(asking).toMatchObject({
+      fireAt: '2026-09-21T14:00:00-03:00',
+      title: 'Revisão de código',
+      body: 'Está na hora. Começamos?',
+      timeSensitive: true,
+      eventId: 'evt-1',
+    });
+  });
+
+  it('that a routine repeats is announced, not asked about', async () => {
+    const items = await itemsFor([block({ fixed: true, routine: 'daily' })]);
+
+    expect(ofKind(items, 'confirmStart')).toHaveLength(0);
+    expect(ofKind(items, 'starting')).toHaveLength(1);
+  });
+
+  it('that was already begun is not asked about again', async () => {
+    const items = await itemsFor([block({ started: true })]);
+
+    expect(ofKind(items, 'confirmStart')).toHaveLength(0);
+  });
+
+  it('that is fixed is announced at its start, with its end', async () => {
+    const [starting] = ofKind(
+      await itemsFor([block({ fixed: true })]),
+      'starting',
+    );
 
     expect(starting).toMatchObject({
       kind: 'starting',
@@ -71,7 +101,7 @@ describe('a block', () => {
     const short = block({ endTime: '2026-09-21T17:19:00.000Z' });
     const items = await itemsFor([short]);
 
-    expect(ofKind(items, 'starting')).toHaveLength(1);
+    expect(ofKind(items, 'confirmStart')).toHaveLength(1);
     expect(ofKind(items, 'almostFinishing')).toHaveLength(0);
   });
 
@@ -84,7 +114,9 @@ describe('a block', () => {
   it('carries its conversation, so a tap can open it', async () => {
     const items = await itemsFor([block({ threadSlug: 'revisao-de-codigo' })]);
 
-    expect(ofKind(items, 'starting')[0].threadSlug).toBe('revisao-de-codigo');
+    expect(ofKind(items, 'confirmStart')[0].threadSlug).toBe(
+      'revisao-de-codigo',
+    );
   });
 
   it('that Focus did not book gets nothing', async () => {
@@ -92,6 +124,7 @@ describe('a block', () => {
     const items = await itemsFor([meeting]);
 
     expect(ofKind(items, 'starting')).toHaveLength(0);
+    expect(ofKind(items, 'confirmStart')).toHaveLength(0);
     expect(ofKind(items, 'almostFinishing')).toHaveLength(0);
   });
 
@@ -103,7 +136,7 @@ describe('a block', () => {
     });
     const items = await itemsFor([running]);
 
-    expect(ofKind(items, 'starting')).toHaveLength(0);
+    expect(ofKind(items, 'confirmStart')).toHaveLength(0);
     expect(ofKind(items, 'almostFinishing')[0].fireAt).toBe(
       '2026-09-21T12:50:00-03:00',
     );
@@ -130,7 +163,7 @@ describe('reminder ids', () => {
   });
 
   it('change when the block moves', async () => {
-    const [before] = ofKind(await itemsFor([block()]), 'starting');
+    const [before] = ofKind(await itemsFor([block()]), 'confirmStart');
     const [after] = ofKind(
       await itemsFor([
         block({
@@ -138,17 +171,17 @@ describe('reminder ids', () => {
           endTime: '2026-09-21T18:30:00.000Z',
         }),
       ]),
-      'starting',
+      'confirmStart',
     );
 
     expect(after.id).not.toBe(before.id);
   });
 
   it('change when the block is renamed', async () => {
-    const [before] = ofKind(await itemsFor([block()]), 'starting');
+    const [before] = ofKind(await itemsFor([block()]), 'confirmStart');
     const [after] = ofKind(
       await itemsFor([block({ title: 'Outra coisa' })]),
-      'starting',
+      'confirmStart',
     );
 
     expect(after.id).not.toBe(before.id);

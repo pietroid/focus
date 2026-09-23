@@ -8,9 +8,13 @@ import {
   CalendarUser,
   deleteEvent,
   insertEvent,
+  insertRoutine,
   calendarTimeZoneFor,
   listEventsBetween,
+  listRoutines,
   patchEvent,
+  patchRoutine,
+  routineDaysOf,
 } from './services/google-calendar.js';
 import { Trace, newTraceId } from './trace.js';
 import { OpenRouterMessage, UserContext } from './types.js';
@@ -33,6 +37,7 @@ interface GenerateBody {
  *   - `POST /generate`         run a prompt the server built, tools and all
  *   - `GET  /calendar/window`  what is on the calendar between two moments
  *   - `/calendar/events`       book, move and cancel
+ *   - `/calendar/routines`     the recurring blocks, as Google repeats them
  *
  * The calendar routes exist because the credentials live here and nowhere
  * else. They run no prompt and cost no generation: the server's guards do the
@@ -169,6 +174,8 @@ export function createServer(): express.Express {
           pausedAt: body.pausedAt,
           remainingSeconds: body.remainingSeconds,
           pausedSeconds: body.pausedSeconds,
+          started: body.started,
+          notBefore: body.notBefore,
         }),
       );
     } catch (error) {
@@ -193,6 +200,79 @@ export function createServer(): express.Express {
     }
   });
 
+  app.get('/calendar/routines', async (req: Request, res: Response) => {
+    const user = userFromQuery(req);
+
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+
+    try {
+      res.json({ routines: await listRoutines(user) });
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
+  app.post('/calendar/routines', async (req: Request, res: Response) => {
+    const body = req.body as EventBody;
+    const user = userFromBody(body);
+    const days = routineDaysOf(body.days);
+
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+    if (
+      typeof body.title !== 'string' ||
+      typeof body.startTime !== 'string' ||
+      typeof body.endTime !== 'string' ||
+      days === undefined
+    ) {
+      res
+        .status(400)
+        .json({ error: 'title, startTime, endTime and days are required' });
+      return;
+    }
+
+    try {
+      res.json(
+        await insertRoutine(user, {
+          title: body.title,
+          startTime: body.startTime,
+          endTime: body.endTime,
+          days,
+        }),
+      );
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
+  app.patch('/calendar/routines/:id', async (req: Request, res: Response) => {
+    const body = req.body as EventBody;
+    const user = userFromBody(body);
+
+    if (user === null) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+
+    try {
+      res.json(
+        await patchRoutine(user, eventId(req), {
+          title: body.title,
+          startTime: body.startTime,
+          endTime: body.endTime,
+          days: routineDaysOf(body.days),
+        }),
+      );
+    } catch (error) {
+      res.status(502).json({ error: messageOf(error) });
+    }
+  });
+
   return app;
 }
 
@@ -209,6 +289,10 @@ interface EventBody {
   pausedAt?: string;
   remainingSeconds?: number;
   pausedSeconds?: number;
+  started?: boolean;
+  notBefore?: string;
+  /** A routine's days: `daily`, `weekdays` or `weekend`. */
+  days?: string;
 }
 
 /** The person a calendar write is for, or null when none was named. */

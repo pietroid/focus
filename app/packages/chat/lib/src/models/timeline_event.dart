@@ -60,6 +60,9 @@ class TimelineEvent extends Equatable {
     this.remainingSeconds = 0,
     this.pausedSeconds = 0,
     int? workMinutes,
+    this.awaitingStart = false,
+    this.notBefore,
+    this.routine,
   }) : workMinutes = workMinutes ?? durationMinutes;
 
   /// Creates a [TimelineEvent] from the API's JSON.
@@ -80,6 +83,9 @@ class TimelineEvent extends Equatable {
       remainingSeconds: (json['remainingSeconds'] as num?)?.round() ?? 0,
       pausedSeconds: (json['pausedSeconds'] as num?)?.round() ?? 0,
       workMinutes: json['workMinutes'] as int?,
+      awaitingStart: json['awaitingStart'] as bool? ?? false,
+      notBefore: _maybeDate(json['notBefore']),
+      routine: json['routine'] as String?,
     );
   }
 
@@ -138,8 +144,29 @@ class TimelineEvent extends Equatable {
   /// This is what the user estimated, and what the progress bar fills to.
   final int workMinutes;
 
+  /// Whether its hour came and it is waiting for the user to begin it.
+  ///
+  /// Only a flexible block ever waits. Until the user says so the server
+  /// slides it down the day a minute at a time, so the card asks rather than
+  /// counting down.
+  final bool awaitingStart;
+
+  /// The earliest the server will lay it out, when the user asked for later.
+  final DateTime? notBefore;
+
+  /// Which days it repeats on, when it is one day of a routine: `daily`,
+  /// `weekdays` or `weekend`.
+  final String? routine;
+
+  /// Whether it is one day of a routine, which changes in the menu and not
+  /// on the timeline.
+  bool get isRoutine => routine != null;
+
   /// Whether the card can be dragged or finished.
-  bool get isInteractive => managed;
+  ///
+  /// A meeting is somebody else's hour, and a routine is edited as a whole in
+  /// its own menu, so neither is moved from here.
+  bool get isInteractive => managed && !isRoutine;
 
   /// Whether it is paused.
   bool get isPaused => pausedAt != null;
@@ -174,7 +201,11 @@ class TimelineEvent extends Equatable {
 
   /// A copy with the pause changed, for drawing a tap before the server
   /// answers it.
-  TimelineEvent copyWith({DateTime? pausedAt, bool clearPause = false}) {
+  TimelineEvent copyWith({
+    DateTime? pausedAt,
+    bool clearPause = false,
+    bool? awaitingStart,
+  }) {
     return TimelineEvent(
       id: id,
       title: title,
@@ -191,6 +222,9 @@ class TimelineEvent extends Equatable {
       remainingSeconds: remainingSeconds,
       pausedSeconds: pausedSeconds,
       workMinutes: workMinutes,
+      awaitingStart: awaitingStart ?? this.awaitingStart,
+      notBefore: notBefore,
+      routine: routine,
     );
   }
 
@@ -211,6 +245,9 @@ class TimelineEvent extends Equatable {
     remainingSeconds,
     pausedSeconds,
     workMinutes,
+    awaitingStart,
+    notBefore,
+    routine,
   ];
 }
 

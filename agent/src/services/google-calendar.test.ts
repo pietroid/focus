@@ -1,6 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isCalendarId, parseAssignments } from './google-calendar.js';
+import {
+  isCalendarId,
+  parseAssignments,
+  recurrenceFor,
+  routineDaysOf,
+} from './google-calendar.js';
 
 /**
  * GOOGLE_CALENDAR_MAP is typed by hand into an env file, so it is read
@@ -41,5 +46,22 @@ describe('calendar assignments', () => {
     assert.equal(isCalendarId('abc123@group.calendar.google.com'), true);
     assert.equal(isCalendarId('primary'), true);
     assert.equal(isCalendarId('Pietro'), false);
+  });
+});
+
+/** A routine is one recurring event, and the rule is all Google needs. */
+describe('routine recurrence', () => {
+  it('repeats every day, on weekdays or on the weekend', () => {
+    assert.deepEqual(recurrenceFor('daily'), ['RRULE:FREQ=DAILY']);
+    assert.deepEqual(recurrenceFor('weekdays'), [
+      'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+    ]);
+    assert.deepEqual(recurrenceFor('weekend'), ['RRULE:FREQ=WEEKLY;BYDAY=SA,SU']);
+  });
+
+  it('reads only the three kinds it writes', () => {
+    assert.equal(routineDaysOf('weekend'), 'weekend');
+    assert.equal(routineDaysOf('monthly'), undefined);
+    assert.equal(routineDaysOf(undefined), undefined);
   });
 });

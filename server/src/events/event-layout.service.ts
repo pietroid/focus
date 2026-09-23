@@ -11,13 +11,14 @@ import {
   earliestStart,
   floorToMinute,
   Interval,
+  minutesOf,
   nextFreeSlot,
   roundUpToFiveMinutes,
 } from '../time/work-hours';
 import { Zone } from '../time/zone';
 import { CalendarEvent } from '../calendar/calendar.types';
 import { EventCard, EventEdit, EventRequest } from './entities/event.entity';
-import { intervalOf, isRunning } from './event-sections';
+import { awaitsStart, intervalOf, isRunning } from './event-sections';
 import { EventsService, TimeBlock, workSecondsOf } from './events.service';
 
 /** What a move produced: the timeline, and a question if one is still open. */
@@ -110,12 +111,18 @@ export class EventLayoutService {
     if (!event.managed) {
       throw new BadRequestException('A meeting cannot be moved here');
     }
+    if (event.routine !== undefined) {
+      throw new BadRequestException('Uma rotina se muda no menu Rotina.');
+    }
 
     const zone = await this._events.zone(user, now);
     const cards = await this._events.cards(user, now);
+    // A block still waiting for the user to begin it has not displaced
+    // anything, so dragging something over it is not the destructive move.
     const running = cards.find(
       (card) =>
         card.managed &&
+        !card.awaitingStart &&
         card.id !== action.eventId &&
         Date.parse(card.startTime) <= now.getTime() &&
         Date.parse(card.endTime) > now.getTime(),
@@ -155,18 +162,94 @@ export class EventLayoutService {
 
     if (closed !== undefined) await this._complete(user, closed, trace, now);
 
+    // A drop into a gap asks for that gap, so the block is not laid out any
+    // earlier than where it starts. A drop between two cards asks for no
+    // such thing, and lifts whatever floor the block had.
+    const floor =
+      action.after === undefined
+        ? undefined
+        : laterOf(floorToMinute(new Date(action.after)), floorToMinute(now));
+    if (floor?.toISOString() !== event.notBefore) {
+      await this._events.revise(
+        user,
+        event,
+        { notBefore: floor?.toISOString() },
+        trace,
+      );
+    }
+
     // The block that was just closed is out of the day, so it is out of the
     // queue too. Laying it out again would leave a hole in the afternoon the
     // shape of something nobody is going to do.
     await this._repack(
       user,
-      queueOf(cards, action, now, { closed, thawed }),
+      queueOf(cards, action, now, { closed, thawed, floor }),
       trace,
       now,
       zone,
     );
 
+    // Dropping a block at the top is the user saying they are doing it now,
+    // which is as clear a yes as the button that asks.
+    if (action.index === 0) await this._markStarted(user, event.id, trace, now);
+
     return { cards: await this._events.cards(user, now) };
+  }
+
+  /**
+   * The user began a block that was waiting for them.
+   *
+   * One that has not reached its hour yet is the same request as dragging it
+   * to the top, and goes the same way, guard and all.
+   */
+  async start(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<TimingOutcome> {
+    const event = await this._managed(user, eventId);
+    const interval = intervalOf(event);
+
+    if (interval !== undefined && interval.start > now) {
+      return this.move(user, { type: 'timing', eventId, index: 0 }, trace, now);
+    }
+
+    trace.log('event.start', { eventId });
+    await this._markStarted(user, eventId, trace, now);
+
+    return { cards: await this._events.cards(user, now) };
+  }
+
+  /**
+   * Not yet: the block waits [minutes] more before asking again.
+   *
+   * Written as a floor rather than as an hour, so the rest of the day keeps
+   * flowing around it and the next repack does not pull it straight back.
+   */
+  async snooze(
+    user: CalendarUser,
+    eventId: string,
+    minutes: number,
+    trace: Trace,
+    now = new Date(),
+  ): Promise<EventCard[]> {
+    const event = await this._managed(user, eventId);
+    if (event.fixed) {
+      throw new BadRequestException('Um bloco fixo começa na hora dele.');
+    }
+
+    const floor = floorToMinute(addMinutes(now, minutes));
+    trace.log('event.snooze', { eventId, until: floor.toISOString() });
+
+    await this._events.revise(
+      user,
+      event,
+      { notBefore: floor.toISOString(), started: undefined },
+      trace,
+    );
+
+    return this._relayout(user, trace, now);
   }
 
   /**
@@ -252,6 +335,9 @@ export class EventLayoutService {
     const interval = intervalOf(event);
     if (interval === undefined || !isRunning(now, interval)) {
       throw new BadRequestException('Só dá para pausar o que está rodando.');
+    }
+    if (awaitsStart(event, now)) {
+      throw new BadRequestException('Comece o bloco antes de pausar.');
     }
 
     if (event.pausedAt === undefined) {
@@ -392,6 +478,8 @@ export class EventLayoutService {
           pausedAt: undefined,
           remainingSeconds: undefined,
           pausedSeconds: undefined,
+          started: undefined,
+          notBefore: undefined,
         },
         trace,
       );
@@ -435,6 +523,27 @@ export class EventLayoutService {
       changed = true;
     }
 
+    // A block whose hour came and that nobody began slides with the clock,
+    // a minute at a time, until the user says so. It is moved here rather
+    // than left to the repack because one whose whole span has gone by would
+    // no longer be on the day at all, and the repack only sees the day.
+    const minute = floorToMinute(now);
+    for (const event of await this._events.waiting(user, now)) {
+      const interval = intervalOf(event);
+      if (interval === undefined || interval.start >= minute) continue;
+
+      await this._events.revise(
+        user,
+        event,
+        {
+          startTime: minute.toISOString(),
+          endTime: addMinutes(minute, minutesOf(interval)).toISOString(),
+        },
+        trace,
+      );
+      changed = true;
+    }
+
     if (changed) await this._relayout(user, trace, now);
 
     return changed;
@@ -454,7 +563,12 @@ export class EventLayoutService {
   ): Promise<boolean> {
     const event = await this._managed(user, eventId);
     const interval = intervalOf(event);
-    const running = interval !== undefined && isRunning(now, interval);
+    // A block still waiting to be begun never ran, so there is no hour of it
+    // to keep.
+    const running =
+      interval !== undefined &&
+      isRunning(now, interval) &&
+      !awaitsStart(event, now);
 
     trace.log('event.done', { eventId, running, slug: event.threadSlug });
 
@@ -498,6 +612,26 @@ export class EventLayoutService {
     await this._threads.updateState(user.id, event.threadSlug, {
       solved: true,
     });
+  }
+
+  /** Says on [eventId] that the user began it, when it has begun. */
+  private async _markStarted(
+    user: CalendarUser,
+    eventId: string,
+    trace: Trace,
+    now: Date,
+  ): Promise<void> {
+    const event = await this._events.require(user, eventId);
+    const interval = intervalOf(event);
+    if (interval === undefined || interval.start > now) return;
+    if (event.started === true && event.notBefore === undefined) return;
+
+    await this._events.revise(
+      user,
+      event,
+      { started: true, notBefore: undefined },
+      trace,
+    );
   }
 
   /** One event Focus booked, or a refusal. */
@@ -578,13 +712,15 @@ export class EventLayoutService {
 
       // A paused block only ever moves when the user pushed it down the day,
       // and a block that is no longer running is no longer paused: it starts
-      // again later owing what it owed.
+      // again later owing what it owed. For the same reason a block that had
+      // been begun and is moved has to be begun again when its hour comes.
       await this._events.revise(
         user,
         event,
         {
           startTime: slot.start.toISOString(),
           endTime: slot.end.toISOString(),
+          ...(event.started === true ? { started: undefined } : {}),
           ...(event.pausedAt === undefined
             ? {}
             : {
@@ -660,6 +796,8 @@ function blocksOf(
         minutes: card.durationMinutes,
         fixed: anchored(card, interval, now, options.thawed),
         interval,
+        notBefore:
+          card.notBefore === undefined ? undefined : new Date(card.notBefore),
       };
     });
 }
@@ -687,7 +825,18 @@ function anchored(
 ): boolean {
   if (card.id === thawed) return card.fixed;
 
-  return card.fixed || !card.managed || isRunning(now, interval);
+  // A block waiting to be begun has no start to keep yet: it is the one
+  // running block the clock is allowed to push.
+  return (
+    card.fixed ||
+    !card.managed ||
+    (isRunning(now, interval) && !card.awaitingStart)
+  );
+}
+
+/** Whichever of [a] and [b] comes later. */
+function laterOf(a: Date, b: Date): Date {
+  return a > b ? a : b;
 }
 
 /**
@@ -702,7 +851,7 @@ function queueOf(
   cards: EventCard[],
   action: TimingAction,
   now: Date,
-  options: { closed?: string; thawed?: string } = {},
+  options: { closed?: string; thawed?: string; floor?: Date } = {},
 ): PlannedBlock[] {
   const blocks = blocksOf(cards, now, options);
 
@@ -710,9 +859,15 @@ function queueOf(
   if (from === -1) return blocks;
 
   const [dragged] = blocks.splice(from, 1);
-  // Dropping a card at the top is the user saying "now", which overrules the
-  // hour it was pinned to. Nothing else about the drop can.
-  const landing = action.index === 0 ? { ...dragged, fixed: false } : dragged;
+  // Dropping a card at the top is the user saying "now", and dropping it into
+  // a gap is the user naming where it goes; either overrules the hour it was
+  // pinned to. Nothing else about the drop can.
+  const landing: PlannedBlock = {
+    ...dragged,
+    fixed: action.index === 0 || options.floor ? false : dragged.fixed,
+    notBefore: options.floor,
+    minutes: action.minutes ?? dragged.minutes,
+  };
   blocks.splice(Math.min(action.index, blocks.length), 0, landing);
 
   return blocks;

@@ -3,8 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { Trace } from '../common/trace';
 import {
   CalendarEvent,
+  CalendarRoutine,
   CalendarUser,
   readCalendarEvent,
+  readCalendarRoutine,
+  RoutineDays,
 } from './calendar.types';
 
 /** Raised when the calendar could not be changed. */
@@ -22,6 +25,18 @@ export interface EventPatch {
   pausedAt?: string;
   remainingSeconds?: number;
   pausedSeconds?: number;
+  started?: boolean;
+  /** The earliest a layout may start it. An empty string lifts it. */
+  notBefore?: string;
+}
+
+/** What a routine is booked or changed with. */
+export interface RoutinePatch {
+  title?: string;
+  /** ISO 8601, the first occurrence. */
+  startTime?: string;
+  endTime?: string;
+  days?: RoutineDays;
 }
 
 /**
@@ -95,6 +110,73 @@ export class CalendarWriterService {
     );
   }
 
+  /** Every routine on this person's calendar, as recurring events. */
+  async routines(user: CalendarUser, trace: Trace): Promise<CalendarRoutine[]> {
+    return trace.span('calendar.routines', {}, async () => {
+      const body = await this._fetch<{ routines?: unknown[] }>(
+        'GET',
+        `/calendar/routines?${userQuery(user)}`,
+      );
+
+      return (body.routines ?? [])
+        .map(readCalendarRoutine)
+        .filter((routine): routine is CalendarRoutine => routine !== null);
+    });
+  }
+
+  /** Books a routine, which Google then repeats on its days. */
+  async createRoutine(
+    user: CalendarUser,
+    routine: RoutinePatch,
+    trace: Trace,
+  ): Promise<CalendarRoutine> {
+    return trace.span(
+      'calendar.createRoutine',
+      { title: routine.title },
+      async () =>
+        this._routine(
+          await this._fetch<unknown>('POST', '/calendar/routines', {
+            ...routine,
+            userId: user.id,
+            userEmail: user.email,
+            userName: user.name,
+          }),
+        ),
+    );
+  }
+
+  /** Changes a routine, and so every day it repeats on. */
+  async patchRoutine(
+    user: CalendarUser,
+    routineId: string,
+    routine: RoutinePatch,
+    trace: Trace,
+  ): Promise<CalendarRoutine> {
+    return trace.span('calendar.patchRoutine', { routineId }, async () =>
+      this._routine(
+        await this._fetch<unknown>(
+          'PATCH',
+          `/calendar/routines/${encodeURIComponent(routineId)}`,
+          {
+            ...routine,
+            userId: user.id,
+            userEmail: user.email,
+            userName: user.name,
+          },
+        ),
+      ),
+    );
+  }
+
+  private _routine(body: unknown): CalendarRoutine {
+    const routine = readCalendarRoutine(body);
+    if (routine === null) {
+      throw new CalendarWriteError('The calendar returned an unusable routine');
+    }
+
+    return routine;
+  }
+
   /** What the agent answered, refused if it is not an event. */
   private _event(body: unknown): CalendarEvent {
     const event = readCalendarEvent(body);
@@ -106,7 +188,7 @@ export class CalendarWriterService {
   }
 
   private async _fetch<T>(
-    method: 'POST' | 'PATCH' | 'DELETE',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     path: string,
     body?: unknown,
   ): Promise<T> {
@@ -140,4 +222,13 @@ export class CalendarWriterService {
       clearTimeout(timeoutId);
     }
   }
+}
+
+/** The person, as the query string of a route that carries no body. */
+function userQuery(user: CalendarUser): string {
+  const query = new URLSearchParams({ userId: user.id });
+  if (user.email !== undefined) query.set('userEmail', user.email);
+  if (user.name !== undefined) query.set('userName', user.name);
+
+  return query.toString();
 }

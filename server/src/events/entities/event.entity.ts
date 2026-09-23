@@ -1,3 +1,5 @@
+import { RoutineDays } from '../../calendar/calendar.types';
+
 /**
  * Which of the timeline's sections a card sits in.
  *
@@ -59,6 +61,18 @@ export class EventCard {
    * This is what the user estimated and what a progress bar fills against.
    */
   workMinutes: number;
+  /**
+   * Whether its hour has come and it is waiting for the user to begin.
+   *
+   * Only a flexible block Focus booked ever waits. Until the user says so it
+   * slides down the day with the clock, and the card asks rather than
+   * counting down.
+   */
+  awaitingStart: boolean;
+  /** ISO 8601, the earliest a layout may start it, when there is one. */
+  notBefore?: string;
+  /** Which days it repeats on, when it is an instance of a routine. */
+  routine?: RoutineDays;
 }
 
 /** What the detail screen can change about a block. */
@@ -78,4 +92,20 @@ export interface EventRequest {
   fixed: boolean;
   /** ISO 8601. Only a fixed block gets to name one. */
   startTime?: string;
+}
+
+/** Where a drop left a card, and what the drop asked for beyond the place. */
+export interface MoveRequest {
+  /** The place in the one list, counting from the top. */
+  index: number;
+  /**
+   * ISO 8601, the start of the gap it was dropped into.
+   *
+   * Dropping into a gap is asking for that gap, so the block may not be laid
+   * out any earlier than this. A drop between two cards carries none and
+   * lifts any floor the block had.
+   */
+  after?: string;
+  /** The length it was cut to, when the gap was shorter than it. */
+  minutes?: number;
 }

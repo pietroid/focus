@@ -61,6 +61,51 @@ export interface CalendarEvent {
   remainingSeconds?: number;
   /** Seconds spent paused before the current pause, so progress skips them. */
   pausedSeconds?: number;
+  /**
+   * Whether the user said they began it.
+   *
+   * A flexible block does not start because its hour came round: it waits
+   * for the user to say so, and until they do it slides down the day a
+   * minute at a time. Fixed blocks and meetings never wait.
+   */
+  started?: boolean;
+  /**
+   * ISO 8601, the earliest a layout may start it.
+   *
+   * Set when the user asked for later, either by snoozing it or by dropping
+   * it into a gap further down the day. Without it the next repack would pull
+   * the block straight back to now.
+   */
+  notBefore?: string;
+  /** Which days it repeats on, when it is an instance of a routine. */
+  routine?: RoutineDays;
+}
+
+/** Which days a routine repeats on. Google does the repeating. */
+export type RoutineDays = 'daily' | 'weekdays' | 'weekend';
+
+export const ROUTINE_DAYS: readonly RoutineDays[] = [
+  'daily',
+  'weekdays',
+  'weekend',
+];
+
+/** [value] as routine days, or undefined when it is not one. */
+export function routineDaysOf(value: unknown): RoutineDays | undefined {
+  return ROUTINE_DAYS.includes(value as RoutineDays)
+    ? (value as RoutineDays)
+    : undefined;
+}
+
+/** One routine: a recurring event, as the agent reports it. */
+export interface CalendarRoutine {
+  /** The recurring event's id, not an instance's. */
+  id: string;
+  title: string;
+  /** ISO 8601, the first occurrence. */
+  startTime: string;
+  endTime: string;
+  days: RoutineDays;
 }
 
 /** What the agent last reported for one person, and when it was asked. */
@@ -102,6 +147,8 @@ export function readCalendarEvent(value: unknown): CalendarEvent | null {
   const raw = value as unknown as Record<string, unknown>;
   const slug = raw.threadSlug;
   const managed = raw.managed === true;
+  const notBefore = raw.notBefore;
+  const routine = routineDaysOf(raw.routine);
 
   return {
     id: String(raw.id),
@@ -112,6 +159,28 @@ export function readCalendarEvent(value: unknown): CalendarEvent | null {
     fixed: managed ? raw.fixed === true : true,
     threadSlug: typeof slug === 'string' && slug !== '' ? slug : undefined,
     ...pauseOf(raw),
+    ...(raw.started === true ? { started: true } : {}),
+    ...(typeof notBefore === 'string' && !Number.isNaN(Date.parse(notBefore))
+      ? { notBefore }
+      : {}),
+    ...(routine === undefined ? {} : { routine }),
+  };
+}
+
+/** [value] as a routine, or null when it is not one. */
+export function readCalendarRoutine(value: unknown): CalendarRoutine | null {
+  if (!isCalendarEvent(value)) return null;
+
+  const raw = value as unknown as Record<string, unknown>;
+  const days = routineDaysOf(raw.days);
+  if (days === undefined) return null;
+
+  return {
+    id: String(raw.id),
+    title: typeof raw.title === 'string' ? raw.title : 'Sem título',
+    startTime: String(raw.startTime),
+    endTime: String(raw.endTime),
+    days,
   };
 }
 

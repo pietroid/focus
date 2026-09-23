@@ -22,6 +22,8 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
     on<TimelineRequested>(_onRequested);
     on<EventCreated>(_onCreated);
     on<EventMoved>(_onMoved);
+    on<EventStarted>(_onStarted);
+    on<EventSnoozed>(_onSnoozed);
     on<EventFinished>(_onFinished);
     on<EventDeleted>(_onDeleted);
     on<EventPauseToggled>(_onPauseToggled);
@@ -104,26 +106,77 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
     if (card == null || !card.isInteractive) return;
 
     try {
-      final outcome = await _repository.moveEvent(event.id, event.index);
-
-      // A guard means the server did not move anything, so the cards that
-      // come back are the ones that were already on screen.
-      emit(
-        outcome.guard == null
-            ? state.copyWith(cards: outcome.cards, clearFailure: true)
-            : state.copyWith(
-                cards: outcome.cards,
-                guard: outcome.guard,
-                clearFailure: true,
-              ),
+      final outcome = await _repository.moveEvent(
+        event.id,
+        event.index,
+        after: event.after,
+        minutes: event.minutes,
       );
 
-      // The drop has landed. Whether it reached Google is a separate
-      // question, asked behind the answer the finger was waiting for.
-      if (outcome.guard == null) add(const SyncWatched());
+      _land(outcome, emit);
     } on Object catch (error) {
       emit(_failed(error));
     }
+  }
+
+  /// Draws what a move, or anything that answers like one, came back with.
+  void _land(TimelineOutcome outcome, Emitter<TimelineState> emit) {
+    // A guard means the server did not move anything, so the cards that
+    // come back are the ones that were already on screen.
+    emit(
+      outcome.guard == null
+          ? state.copyWith(cards: outcome.cards, clearFailure: true)
+          : state.copyWith(
+              cards: outcome.cards,
+              guard: outcome.guard,
+              clearFailure: true,
+            ),
+    );
+
+    // The drop has landed. Whether it reached Google is a separate
+    // question, asked behind the answer the finger was waiting for.
+    if (outcome.guard == null) add(const SyncWatched());
+  }
+
+  /// Begins a block, drawing it as begun before the server answers.
+  Future<void> _onStarted(
+    EventStarted event,
+    Emitter<TimelineState> emit,
+  ) async {
+    // A reminder tapped with the app closed answers before the day has
+    // loaded, so a card that is not on screen yet is still asked about.
+    final card = state.byId(event.id);
+    if (card != null && !card.isInteractive) return;
+
+    final before = state.cards;
+    emit(
+      state.copyWith(
+        cards: [
+          for (final it in state.cards)
+            it.id == event.id ? it.copyWith(awaitingStart: false) : it,
+        ],
+      ),
+    );
+
+    try {
+      _land(await _repository.startEvent(event.id), emit);
+    } on Object catch (error) {
+      emit(_failed(error).copyWith(cards: before));
+    }
+  }
+
+  /// Lets a waiting block wait a little longer.
+  Future<void> _onSnoozed(
+    EventSnoozed event,
+    Emitter<TimelineState> emit,
+  ) async {
+    final card = state.byId(event.id);
+    if (card != null && !card.isInteractive) return;
+
+    await _write(
+      emit,
+      () => _repository.snoozeEvent(event.id, minutes: event.minutes),
+    );
   }
 
   /// Waits for the calendar and puts the popup up if it fell behind.

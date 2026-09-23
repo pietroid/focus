@@ -43,6 +43,8 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
   final userRepository = UserRepository(apiClient: apiClient);
   final chatRepository = ChatRepository(apiClient: apiClient);
   final timelineRepository = TimelineRepository(apiClient: apiClient);
+  final thingsRepository = ThingsRepository(apiClient: apiClient);
+  final routinesRepository = RoutinesRepository(apiClient: apiClient);
   final notificationScheduler = NotificationScheduler(
     repository: NotificationsRepository(apiClient: apiClient),
   );
@@ -60,6 +62,9 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
         RepositoryProvider<TimelineRepository>(
           create: (_) => timelineRepository,
         ),
+        RepositoryProvider<RoutinesRepository>(
+          create: (_) => routinesRepository,
+        ),
         RepositoryProvider<NotificationScheduler>(
           create: (_) => notificationScheduler,
         ),
@@ -76,6 +81,11 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
             create: (_) =>
                 TimelineBloc(repository: timelineRepository)
                   ..add(const TimelineRequested()),
+          ),
+          BlocProvider<ThingsBloc>(
+            create: (_) =>
+                ThingsBloc(repository: thingsRepository)
+                  ..add(const ThingsRequested()),
           ),
         ],
         child: App(

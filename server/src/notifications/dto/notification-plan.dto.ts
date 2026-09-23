@@ -1,12 +1,14 @@
 /**
  * What a reminder is for.
  *
- * `starting` and `almostFinishing` follow a block. `morning` and `evening`
- * follow the clock alone: one at the start of the day and one near its end,
- * every day, whatever is booked.
+ * `confirmStart`, `starting` and `almostFinishing` follow a block.
+ * `confirmStart` is a flexible block's hour arriving, which asks the user to
+ * begin it; `starting` is a fixed block's, which only says so. `morning` and
+ * `evening` follow the clock alone: one at the start of the day and one near
+ * its end, every day, whatever is booked.
  */
 export type NotificationKind =
-  'starting' | 'almostFinishing' | 'morning' | 'evening';
+  'confirmStart' | 'starting' | 'almostFinishing' | 'morning' | 'evening';
 
 /** One reminder the phone should have queued. */
 export class NotificationItem {
@@ -26,6 +28,8 @@ export class NotificationItem {
   timeSensitive: boolean;
   /** The conversation a tap opens, when the block has one. */
   threadSlug?: string;
+  /** The block it is about, which a `confirmStart` tap asks about. */
+  eventId?: string;
 }
 
 /** Every reminder ahead, soonest first. */

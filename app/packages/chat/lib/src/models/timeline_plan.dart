@@ -1,4 +1,46 @@
 import 'package:chat/src/models/timeline_event.dart';
+import 'package:equatable/equatable.dart';
+
+/// {@template free_slot}
+/// A stretch of the working day with nothing on it.
+///
+/// Drawn on the timeline as its own quiet card, and a place a card can be
+/// dropped into. Only stretches longer than [TimelinePlan.gap] count: the
+/// five minutes between two blocks are the pause, not free time.
+/// {@endtemplate}
+class FreeSlot extends Equatable {
+  /// {@macro free_slot}
+  const FreeSlot({
+    required this.start,
+    required this.end,
+    required this.earliest,
+    required this.index,
+  });
+
+  /// Where the stretch begins: the end of the block before it, now, or the
+  /// start of the working day.
+  final DateTime start;
+
+  /// Where it ends: the next block, or the end of the working day.
+  final DateTime end;
+
+  /// The earliest a block dropped here could start, which is [start] plus the
+  /// pause when a block comes right before it.
+  final DateTime earliest;
+
+  /// How many cards come before it in the one list, which is the place in
+  /// the day's queue a drop into it lands on.
+  final int index;
+
+  /// How long a block dropped here can be and still fit.
+  int get capacityMinutes => end.difference(earliest).inMinutes;
+
+  /// Whether [at] falls inside it.
+  bool contains(DateTime at) => !at.isBefore(start) && at.isBefore(end);
+
+  @override
+  List<Object?> get props => [start, end, earliest, index];
+}
 
 /// Where something new would land, worked out on the phone.
 ///
@@ -56,6 +98,80 @@ abstract final class TimelinePlan {
     }
 
     return start;
+  }
+
+  /// Every stretch of the working day with nothing on it, today from [now]
+  /// and all of tomorrow, earliest first.
+  ///
+  /// Everything on the day takes room, meetings included, and a stretch has
+  /// to be longer than [gap] to count. The ends of the working day are edges
+  /// like any block, so an empty morning and an empty evening are free
+  /// stretches too.
+  static List<FreeSlot> freeSlots(
+    List<TimelineEvent> cards, {
+    DateTime? now,
+  }) {
+    final clock = now ?? DateTime.now();
+    final sorted = [...cards]
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final slots = <FreeSlot>[];
+
+    for (var offset = 0; offset < 2; offset++) {
+      final dayStart = DateTime(
+        clock.year,
+        clock.month,
+        clock.day + offset,
+        startHour,
+      );
+      final dayEnd = DateTime(
+        clock.year,
+        clock.month,
+        clock.day + offset,
+        endHour,
+      );
+      var cursor = offset == 0 && clock.isAfter(dayStart)
+          ? _toMinute(clock)
+          : dayStart;
+      if (!cursor.isBefore(dayEnd)) continue;
+
+      // Whether the cursor sits at the end of a block, which is what decides
+      // whether something dropped here owes a pause first.
+      var afterBlock = false;
+
+      for (var index = 0; index < sorted.length; index++) {
+        final card = sorted[index];
+        if (!card.endTime.isAfter(cursor)) continue;
+        if (!card.startTime.isBefore(dayEnd)) break;
+
+        if (card.startTime.difference(cursor) > gap) {
+          slots.add(
+            FreeSlot(
+              start: cursor,
+              end: card.startTime,
+              earliest: afterBlock ? cursor.add(gap) : cursor,
+              index: index,
+            ),
+          );
+        }
+
+        cursor = card.endTime;
+        afterBlock = true;
+      }
+
+      if (dayEnd.difference(cursor) > gap) {
+        final before = sorted.where((card) => card.startTime.isBefore(dayEnd));
+        slots.add(
+          FreeSlot(
+            start: cursor,
+            end: dayEnd,
+            earliest: afterBlock ? cursor.add(gap) : cursor,
+            index: before.length,
+          ),
+        );
+      }
+    }
+
+    return slots;
   }
 
   /// The earliest [at] could be, given the day has hours.

@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/l10n/l10n.dart';
 import 'package:focus/landing/landing.dart';
+import 'package:focus/routines/routines.dart';
 import 'package:focus/shell/shell.dart';
 import 'package:focus/solved/solved.dart';
 import 'package:go_router/go_router.dart';
@@ -44,6 +45,11 @@ class App extends StatelessWidget {
              builder: (context, state) =>
                  EventPage(id: state.pathParameters['id']!),
            ),
+           // The routines: what happens every day, and on which days.
+           GoRoute(
+             path: '/rotina',
+             builder: (context, state) => const RoutinesPage(),
+           ),
            // The solved threads, which the timeline no longer shows.
            GoRoute(
              path: '/concluidos',
@@ -78,6 +84,7 @@ class App extends StatelessWidget {
           // The day is per user, so it is fetched once the user is known
           // rather than when the home screen happens to be built.
           context.read<TimelineBloc>().add(const TimelineRequested());
+          context.read<ThingsBloc>().add(const ThingsRequested());
           // The reminder queue is per user too, and mirrors the day.
           unawaited(context.read<NotificationScheduler>().sync());
         }

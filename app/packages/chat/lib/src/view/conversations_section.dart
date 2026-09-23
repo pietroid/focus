@@ -3,8 +3,8 @@ import 'package:chat/src/data/chat_repository.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// {@template things_section}
-/// Coisas: every conversation, newest reply first, cut into days.
+/// {@template conversations_section}
+/// Conversas: every conversation, newest reply first, cut into days.
 ///
 /// It reads its own list rather than sharing the timeline's. The timeline is
 /// what has an hour; this is what was said, and most of what was said never
@@ -16,9 +16,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 /// which one a thread falls under is the clock of its last reply, so a thread
 /// answered again today moves to the top of today by itself.
 /// {@endtemplate}
-class ThingsSection extends StatefulWidget {
-  /// {@macro things_section}
-  const ThingsSection({
+class ConversationsSection extends StatefulWidget {
+  /// {@macro conversations_section}
+  const ConversationsSection({
     required this.onThreadTap,
     this.reloadToken = 0,
     super.key,
@@ -38,10 +38,10 @@ class ThingsSection extends StatefulWidget {
   final int reloadToken;
 
   @override
-  State<ThingsSection> createState() => _ThingsSectionState();
+  State<ConversationsSection> createState() => _ConversationsSectionState();
 }
 
-class _ThingsSectionState extends State<ThingsSection> {
+class _ConversationsSectionState extends State<ConversationsSection> {
   late Future<List<ThreadItem>> _items = _load();
 
   Future<List<ThreadItem>> _load() =>
@@ -53,7 +53,7 @@ class _ThingsSectionState extends State<ThingsSection> {
   }
 
   @override
-  void didUpdateWidget(ThingsSection oldWidget) {
+  void didUpdateWidget(ConversationsSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.reloadToken != oldWidget.reloadToken) {
       setState(() => _items = _load());

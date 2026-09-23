@@ -222,7 +222,9 @@ class _Summary extends StatelessWidget {
     return EventControls(
       card: card,
       onPauseToggled: () => bloc.add(EventPauseToggled(card.id)),
-      onStarted: () => bloc.add(EventMoved(id: card.id, index: 0)),
+      // Begins a waiting block, or brings one that has not reached its hour
+      // to the top of the day; the server tells the two apart.
+      onStarted: () => bloc.add(EventStarted(card.id)),
       onAdjusted: (minutes) => unawaited(adjustTime(context, card, minutes)),
       onDone: () {
         bloc.add(EventFinished(card.id));
@@ -267,7 +269,7 @@ class _When extends StatelessWidget {
           const SizedBox(width: AppSpacing.s1),
         ],
         _Tappable(
-          text: '${_hhmm(card.startTime)}–${_hhmm(card.endTime)}',
+          text: _startLabel(card.startTime),
           onTap: editable && !started ? () => _pickStart(context) : null,
         ),
         Text(
@@ -282,11 +284,28 @@ class _When extends StatelessWidget {
     );
   }
 
-  /// Naming an hour pins the block to it, as the creation sheet does.
+  /// "14:30", or "amanhã 09:00" when it is not today.
+  static String _startLabel(DateTime start) {
+    final now = DateTime.now();
+    final days = DateTime(
+      start.year,
+      start.month,
+      start.day,
+    ).difference(DateTime(now.year, now.month, now.day)).inDays;
+
+    return switch (days) {
+      <= 0 => _hhmm(start),
+      1 => 'amanhã ${_hhmm(start)}',
+      _ => '${start.day}/${start.month} ${_hhmm(start)}',
+    };
+  }
+
+  /// Naming an hour pins the block to it, as the creation sheet does, and
+  /// the day is part of naming it.
   Future<void> _pickStart(BuildContext context) async {
     final bloc = context.read<TimelineBloc>();
     final now = DateTime.now();
-    final picked = await AppWheelPicker.time(
+    final picked = await AppWheelPicker.dayAndTime(
       context,
       initial: card.startTime.isBefore(now) ? now : card.startTime,
       earliest: now.subtract(const Duration(minutes: 5)),

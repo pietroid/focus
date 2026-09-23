@@ -66,11 +66,24 @@ class TimelineRepository {
   /// It is not always the new timeline. A move that displaces something that
   /// is already running comes back with a guard instead, and nothing has
   /// changed on the server until that guard is answered.
-  Future<TimelineOutcome> moveEvent(String id, int index) async {
+  ///
+  /// A drop into a free stretch also says where that stretch starts, as
+  /// [after], so the block is not laid out any earlier than the gap it was
+  /// dropped into, and [minutes] when the user agreed to cut it to fit.
+  Future<TimelineOutcome> moveEvent(
+    String id,
+    int index, {
+    DateTime? after,
+    int? minutes,
+  }) async {
     try {
       final response = await apiClient.post<Map<String, dynamic>>(
         '/events/$id/move',
-        data: {'index': index},
+        data: {
+          'index': index,
+          if (after != null) 'after': after.toUtc().toIso8601String(),
+          'minutes': ?minutes,
+        },
       );
 
       return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
@@ -78,6 +91,31 @@ class TimelineRepository {
       throw ChatFailure.from(error);
     }
   }
+
+  /// Says the user began a block that was waiting for them.
+  ///
+  /// A block whose hour has not come yet goes to the top of the day instead,
+  /// which can raise the guard, so this answers the way a move does.
+  Future<TimelineOutcome> startEvent(String id) async {
+    try {
+      final response = await apiClient.post<Map<String, dynamic>>(
+        '/events/$id/start',
+      );
+
+      return TimelineOutcome.fromJson(response.data ?? <String, dynamic>{});
+    } on Object catch (error) {
+      throw ChatFailure.from(error);
+    }
+  }
+
+  /// Not yet: the block waits [minutes] more before asking again.
+  Future<List<TimelineEvent>> snoozeEvent(String id, {int minutes = 15}) =>
+      _day(
+        () => apiClient.post<List<dynamic>>(
+          '/events/$id/snooze',
+          data: {'minutes': minutes},
+        ),
+      );
 
   /// Marks a block done.
   ///

@@ -107,8 +107,8 @@ class _DemoHome extends StatelessWidget {
           AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
           AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
           AppBottomBarItem(
-            iconData: AppIcons.recommendations,
-            label: 'Sugestões',
+            iconData: AppIcons.conversations,
+            label: 'Conversas',
           ),
           AppBottomBarItem(iconData: AppIcons.menu, label: 'Menu'),
         ],

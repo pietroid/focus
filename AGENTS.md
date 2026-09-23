@@ -337,7 +337,7 @@ writes something down with an hour, `POST /events/:id/move` drags a card,
 
 A **thread** is a conversation. It lives in a markdown file, it has a name, a
 day it started, its messages and whether the user has closed it, and it has no
-hour. `server/src/threads/` owns it: `GET /threads` is the Coisas list,
+hour. `server/src/threads/` owns it: `GET /threads` is the Conversas list,
 `GET /threads/solved` the concluded one, and the rest of the routes are the
 conversation itself.
 
@@ -391,6 +391,16 @@ off, since that frees an hour still ahead.
 Anything further out than tomorrow is not drawn. The three sections are meant
 to become one per day, which is why nothing stores one.
 
+**A card shows when it starts and nothing else.** The card after it says when
+it ends, near enough. Between cards the app draws the **free stretches** of the
+working day: any gap longer than the five-minute pause, plus the edges, from
+now or 07:00 to the next card and from the last card to 22:00. They are worked
+out on the phone by `TimelinePlan.freeSlots` and are drop targets. A card let
+go over one is posted as a move with `after` (where the stretch really starts,
+pause included) so the layout puts it at the start of that stretch and not
+earlier. A card longer than the room there asks to be cut to fit and posts
+`minutes` as well. A no leaves the day alone.
+
 ### The time system
 
 Three files hold every rule about when things happen, and all three are on the
@@ -427,8 +437,24 @@ obstacles.
 Three things anchor, and the third is the subtle one:
 
 - a meeting Focus did not book, which is somebody else's hour;
-- a fixed card, whose hour is the point of it;
+- a fixed card, whose hour is the point of it, routines included;
 - **a block that has already started**, which keeps the hour it started at.
+
+**A flexible block does not start because its hour came.** It waits for the
+user (`awaitsStart` in `event-sections.ts`), and until they say so `catchUp`
+slides it to the current minute on every tick and repacks what follows, so
+the whole day moves a minute at a time. `POST /events/:id/start` writes
+`focusStarted` on the event and from then on it anchors like any running
+block. `POST /events/:id/snooze` writes `focusNotBefore` fifteen minutes out
+and the block waits there. A waiting block is not an anchor and is never the
+running block the guard asks about. Dropping a card at the top of the day
+counts as starting it. A started block that the layout moves again has to be
+started again. Fixed blocks, routines and meetings never wait.
+
+**`focusNotBefore` is a floor.** `relayout` never starts a block earlier than
+it, which is what keeps a snoozed block, or one dropped into a gap further
+down the day, from being pulled back to now by the next repack. A drop
+between two cards lifts it.
 
 That last one is why rearranging the afternoon does not rewrite what you are
 in the middle of. "Agora" says what the user is working on, not that they
@@ -572,13 +598,55 @@ The `timing` action type is deliberately absent from `MODEL_ACTION_TYPES`. A
 model cannot emit one, and the validator drops it out of a reply along with the
 button carrying it.
 
+#### Routines
+
+A routine is **one recurring Google event**, stamped `focusRoutine` with
+`daily`, `weekdays` or `weekend`. Google does the repeating. Focus keeps no
+list of routines and no logic about days. The menu's Rotina screen reads the
+recurring events back through `GET /calendar/routines` on the agent, and
+`server/src/routines/` turns a wall-clock hour and a length into the first
+occurrence in the calendar's zone. Changing the hour, length or days starts
+the series again from today, so the first instance always lands on a day the
+rule covers.
+
+On the timeline each day of a routine is a fixed, managed block with a
+`routine` field. It gets a faint `routineFill` and a repeat mark, cannot be
+dragged (`move` refuses it), and is edited only from the menu. The reader's
+cache is invalidated after a routine write, because only Google knows which
+days the new series lands on.
+
+#### Coisas and Conversas
+
+The four tabs are **Tempo**, **Coisas**, **Conversas** and **Menu**.
+
+**Coisas** is the timeline with the clock taken out: things with a title and a
+length and no hour, in the order the user drags them into. It lives in
+`server/src/things/`, one JSON file per person beside the day folders
+(`<root>/<userId>/things.json`), because a thing has no day and is not a
+calendar event. Right swipe is done, left swipe deletes after asking, and each
+row has one button, `POST /things/:id/schedule`, which books it as a flexible
+block through the same `create` the orb uses and then takes it off the list.
+
+**Conversas** is the thread list that used to be called Coisas, unchanged.
+
 #### The orb
 
-One button, two meanings, decided by the tab under it. On **Tempo** it opens
+One button, three meanings, decided by the tab under it. On **Tempo** it opens
 the creation sheet: a line of text, flexible or fixed, a duration, and a line
-saying what hour that works out to. No model runs and nothing is proposed —
-the card is on the timeline by the time the sheet closes. On **Coisas**, and
-everywhere else, it starts a conversation.
+saying what hour that works out to. A fixed block picks a day as well as an
+hour. No model runs and nothing is proposed. The card is on the timeline by
+the time the sheet closes. On **Coisas** the same sheet opens without the
+clock: text and a duration. On **Conversas**, and everywhere else, it starts a
+conversation.
+
+#### Reminders
+
+`notifications.service.ts` plans them from the calendar. A flexible block gets
+a `confirmStart` reminder at its hour that asks rather than announces, and
+carries the event id. Tapping it opens a popup in the app with *Começar agora*
+and *Esperar 15 min*, which post `start` and `snooze`. A fixed block or a
+routine gets the plain `starting` reminder instead, since it starts
+regardless. Blocks the user already started are not asked about again.
 
 The sheet's preview is computed on the phone by `TimelinePlan` in the chat
 package, deliberately the same arithmetic the server uses. A round trip per

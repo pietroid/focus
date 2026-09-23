@@ -542,4 +542,73 @@ void main() {
       expect(paused.progressAt(_at(9, minute: 40)), 0.5);
     });
   });
+
+  group('a block waiting to be begun', () {
+    blocTest<TimelineBloc, TimelineState>(
+      'is drawn as begun before the server answers',
+      setUp: () {
+        when(() => repository.startEvent(any())).thenAnswer(
+          (_) async => TimelineOutcome(cards: _cards),
+        );
+      },
+      build: () => TimelineBloc(repository: repository),
+      seed: () => TimelineState(
+        status: TimelineStatus.success,
+        cards: [
+          TimelineEvent(
+            id: 'a',
+            title: 'a',
+            section: TimelineSection.agora,
+            startTime: _at(9),
+            endTime: _at(9, minute: 30),
+            durationMinutes: 30,
+            awaitingStart: true,
+          ),
+        ],
+      ),
+      act: (bloc) => bloc.add(const EventStarted('a')),
+      verify: (bloc) {
+        verify(() => repository.startEvent('a')).called(1);
+        expect(bloc.state.cards, _cards);
+      },
+    );
+
+    blocTest<TimelineBloc, TimelineState>(
+      'is asked about even before the day has loaded',
+      setUp: () {
+        when(
+          () => repository.snoozeEvent(any(), minutes: any(named: 'minutes')),
+        ).thenAnswer((_) async => _cards);
+      },
+      build: () => TimelineBloc(repository: repository),
+      act: (bloc) => bloc.add(const EventSnoozed('a')),
+      verify: (_) {
+        verify(() => repository.snoozeEvent('a')).called(1);
+      },
+    );
+  });
+
+  blocTest<TimelineBloc, TimelineState>(
+    'a drop into a gap sends where the gap starts and the cut length',
+    setUp: () {
+      when(
+        () => repository.moveEvent(
+          any(),
+          any(),
+          after: any(named: 'after'),
+          minutes: any(named: 'minutes'),
+        ),
+      ).thenAnswer((_) async => TimelineOutcome(cards: _cards));
+    },
+    build: () => TimelineBloc(repository: repository),
+    seed: () => TimelineState(status: TimelineStatus.success, cards: _cards),
+    act: (bloc) => bloc.add(
+      EventMoved(id: 'c', index: 1, after: _at(11), minutes: 20),
+    ),
+    verify: (_) {
+      verify(
+        () => repository.moveEvent('c', 1, after: _at(11), minutes: 20),
+      ).called(1);
+    },
+  );
 }

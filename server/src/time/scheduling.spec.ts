@@ -34,6 +34,21 @@ function reads(placed: Map<string, Interval>, id: string): string {
 }
 
 describe('laying the day out', () => {
+  it('starts a block no earlier than the floor the user gave it', () => {
+    const queue = [
+      block('a', at(9), 30),
+      { ...block('b', at(10), 30), notBefore: at(13) },
+      block('c', at(11), 30),
+    ];
+
+    const placed = relayout(queue, [], at(9), ZONE);
+
+    expect(reads(placed, 'a')).toBe('09:00-09:30');
+    // The gap before it is left alone, and what follows it follows it.
+    expect(reads(placed, 'b')).toBe('13:00-13:30');
+    expect(reads(placed, 'c')).toBe('13:35-14:05');
+  });
+
   it('packs the queue from now, with a gap between blocks', () => {
     const queue = [block('a', at(15), 30), block('b', at(16), 45)];
 

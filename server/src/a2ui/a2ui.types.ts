@@ -128,6 +128,10 @@ export interface TimingAction {
   index: number;
   /** What the user decided. Absent means they have not been asked yet. */
   decision?: TimingDecision;
+  /** ISO 8601, the start of the gap it was dropped into, when it was. */
+  after?: string;
+  /** The length it was cut to, to fit that gap. */
+  minutes?: number;
 }
 
 /**

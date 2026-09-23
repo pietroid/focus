@@ -24,6 +24,7 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { EditEventDto } from './dto/edit-event.dto';
 import { ExtendEventDto } from './dto/extend-event.dto';
 import { MoveEventDto } from './dto/move-event.dto';
+import { SnoozeEventDto } from './dto/snooze-event.dto';
 import { TimingDto } from './dto/timing.dto';
 import { EventCard, EventEdit, EventRequest } from './entities/event.entity';
 import { EventLayoutService, TimingOutcome } from './event-layout.service';
@@ -137,8 +138,48 @@ export class EventsController {
 
     return this.layout.move(
       owner(user),
-      { type: 'timing', eventId: id, index: requireIndex(dto.index) },
+      {
+        type: 'timing',
+        eventId: id,
+        index: requireIndex(dto.index),
+        ...requireGap(dto),
+      },
       trace,
+    );
+  }
+
+  /**
+   * The user began a block.
+   *
+   * What a waiting block's notification and its card both ask for. A block
+   * whose hour has not come yet goes to the top of the day instead, which can
+   * raise the guard, so this answers the way a move does.
+   */
+  @Post(':id/start')
+  async start(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+  ): Promise<TimingOutcome> {
+    return this.layout.start(owner(user), id, Trace.start(user.uid, id));
+  }
+
+  /** Not yet: a waiting block waits a few minutes more before asking again. */
+  @Post(':id/snooze')
+  async snooze(
+    @CurrentUser() user: DecodedIdToken,
+    @Param('id') id: string,
+    @Body() dto: SnoozeEventDto,
+  ): Promise<EventCard[]> {
+    const minutes = dto.minutes ?? 15;
+    if (!Number.isInteger(minutes) || minutes <= 0 || minutes > 240) {
+      throw new BadRequestException('minutes must be between 1 and 240');
+    }
+
+    return this.layout.snooze(
+      owner(user),
+      id,
+      minutes,
+      Trace.start(user.uid, id),
     );
   }
 
@@ -254,6 +295,27 @@ function requireIndex(index: number | undefined): number {
   }
 
   return index;
+}
+
+/** The gap a drop landed in and the length it was cut to, when either. */
+function requireGap(dto: MoveEventDto): { after?: string; minutes?: number } {
+  const gap: { after?: string; minutes?: number } = {};
+
+  if (dto.after !== undefined) {
+    if (typeof dto.after !== 'string' || Number.isNaN(Date.parse(dto.after))) {
+      throw new BadRequestException('after must be an ISO 8601 date-time');
+    }
+    gap.after = dto.after;
+  }
+
+  if (dto.minutes !== undefined) {
+    if (!Number.isInteger(dto.minutes) || dto.minutes < 5) {
+      throw new BadRequestException('minutes must be an integer of at least 5');
+    }
+    gap.minutes = dto.minutes;
+  }
+
+  return gap;
 }
 
 /** Reads what the creation sheet said, refusing anything unusable. */

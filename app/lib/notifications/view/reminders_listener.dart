@@ -10,6 +10,11 @@ import 'package:notifications/notifications.dart';
 /// Keeps the reminder queue in step with the day, and opens what a reminder
 /// was about when it is tapped.
 ///
+/// A flexible block's reminder asks rather than announces: its hour came and
+/// it is waiting for the user. Tapping it opens the question, begin it now or
+/// in fifteen minutes, and until one is answered the block keeps sliding down
+/// the day with the clock.
+///
 /// The queue is re-synced when the app comes back to the foreground and
 /// whenever a block on the timeline is added, moved, renamed, paused or taken
 /// off, whoever did it: the sheet, a drag, or a conversation that booked
@@ -68,8 +73,35 @@ class _RemindersListenerState extends State<RemindersListener>
 
   void _open(NotificationTap tap) {
     if (!mounted) return;
+
+    final eventId = tap.eventId;
+    if (tap.confirmStart && eventId != null) {
+      unawaited(_askToStart(eventId, tap.title ?? 'Próximo bloco'));
+      return;
+    }
+
     final slug = tap.threadSlug;
     if (slug != null) unawaited(context.push<void>('/chat/$slug'));
+  }
+
+  /// Asks whether the waiting block starts now or in fifteen minutes.
+  Future<void> _askToStart(String eventId, String title) async {
+    final timeline = context.read<TimelineBloc>()
+      // The block has been sliding while the app was closed, so the day is
+      // read again under the question.
+      ..add(const TimelineRequested());
+
+    final answer = await _startSheet(context, title);
+    switch (answer) {
+      case _StartAnswer.now:
+        timeline.add(EventStarted(eventId));
+      case _StartAnswer.later:
+        timeline.add(EventSnoozed(eventId));
+      case null:
+        // Dismissed: nothing is decided, and the card on the timeline goes
+        // on asking.
+        break;
+    }
   }
 
   void _onDay(TimelineState current) {
@@ -172,8 +204,8 @@ Future<bool> _explain(BuildContext context) async {
               Text('Quer lembretes?', style: AppTypography.title),
               const SizedBox(height: AppSpacing.s1),
               Text(
-                'Aviso quando um bloco começa e dez minutos antes de '
-                'acabar, e mando um bom dia e um boa noite.',
+                'Pergunto quando é hora de começar um bloco, aviso dez '
+                'minutos antes de acabar, e mando um bom dia e um boa noite.',
                 style: AppTypography.body.copyWith(color: AppColors.ink2),
               ),
               const SizedBox(height: AppSpacing.s5),
@@ -197,4 +229,64 @@ Future<bool> _explain(BuildContext context) async {
   );
 
   return accepted ?? false;
+}
+
+/// What the start question was answered with.
+enum _StartAnswer { now, later }
+
+/// The question a flexible block's reminder opens.
+///
+/// One primary answer and one quiet one. Dismissing it answers nothing, and
+/// the block keeps waiting.
+Future<_StartAnswer?> _startSheet(BuildContext context, String title) {
+  return showModalBottomSheet<_StartAnswer>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    barrierColor: AppColors.bg.withValues(alpha: 0.72),
+    builder: (sheetContext) => Material(
+      color: AppColors.bg,
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(AppSpacing.cardRadius),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s6,
+            AppSpacing.s5,
+            AppSpacing.s6,
+            AppSpacing.s4,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Começar “$title”?', style: AppTypography.title),
+              const SizedBox(height: AppSpacing.s1),
+              Text(
+                'Enquanto você não confirmar, ele vai para mais tarde a cada '
+                'minuto, e o resto do dia anda junto.',
+                style: AppTypography.body.copyWith(color: AppColors.ink2),
+              ),
+              const SizedBox(height: AppSpacing.s5),
+              AppButton(
+                text: 'Começar agora',
+                expand: true,
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(_StartAnswer.now),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              AppButton.text(
+                text: 'Esperar 15 min',
+                color: AppColors.ink2,
+                expand: true,
+                onPressed: () =>
+                    Navigator.of(sheetContext).pop(_StartAnswer.later),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

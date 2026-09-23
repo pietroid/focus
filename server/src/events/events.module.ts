@@ -32,6 +32,6 @@ import { PauseTickerService } from './pause-ticker.service';
     EventThreadsService,
     PauseTickerService,
   ],
-  exports: [EventsService],
+  exports: [EventsService, EventLayoutService],
 })
 export class EventsModule {}

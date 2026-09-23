@@ -44,6 +44,14 @@ export function startingBody(endTime: string): string {
   return `Começa agora, até ${endTime}`;
 }
 
+/**
+ * The body of a flexible block's reminder at its hour.
+ *
+ * It asks rather than announces: the block waits for the user, and the tap
+ * is where they say whether it starts now or in a bit.
+ */
+export const CONFIRM_START_BODY = 'Está na hora. Começamos?';
+
 /** The body of a block's reminder shortly before it ends. */
 export function almostFinishingBody(minutes: number): string {
   return `Finaliza em ${minutes} minutos`;

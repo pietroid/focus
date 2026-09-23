@@ -8,13 +8,37 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 /// Deleting is the one thing on the timeline that cannot be taken back, so it
 /// asks. Resolves to true only on the delete button; anything else, including
 /// tapping outside, is a no.
-Future<bool> confirmDelete(BuildContext context, String title) {
+Future<bool> confirmDelete(
+  BuildContext context,
+  String title, {
+  String body = 'Sai da agenda e não volta.',
+}) {
   return _confirm(
     context,
     title: 'Excluir “$title”?',
-    body: 'Sai da agenda e não volta.',
+    body: body,
     action: 'Excluir',
     color: AppColors.dangerInk,
+  );
+}
+
+/// Asks whether [card] may be cut to [minutes] so it fits a free stretch.
+///
+/// The stretch is shorter than the block, so the drop cannot land as it is.
+/// Yes cuts it and puts it there; anything else leaves the day as it was.
+Future<bool> confirmShorten(
+  BuildContext context,
+  TimelineEvent card,
+  int minutes,
+) {
+  return _confirm(
+    context,
+    title: 'Não cabe inteiro aqui',
+    body:
+        '“${card.title}” leva ${card.durationMinutes} min e esse intervalo '
+        'tem espaço para $minutes min, já contando a pausa. Ajustar para '
+        '$minutes min?',
+    action: 'Ajustar para $minutes min',
   );
 }
 

@@ -2,10 +2,13 @@ import 'package:equatable/equatable.dart';
 
 /// What a reminder is for.
 ///
-/// Only [starting] and [almostFinishing] follow a block. [morning] and
-/// [evening] follow the clock, once each every day.
+/// [confirmStart], [starting] and [almostFinishing] follow a block.
+/// [morning] and [evening] follow the clock, once each every day.
 enum NotificationKind {
-  /// A block begins.
+  /// A flexible block's hour came, and it waits for the user to begin it.
+  confirmStart,
+
+  /// A fixed block begins.
   starting,
 
   /// A block ends in a few minutes.
@@ -44,6 +47,7 @@ class PlannedNotification extends Equatable {
     required this.body,
     this.timeSensitive = false,
     this.threadSlug,
+    this.eventId,
   });
 
   /// Reads one item of the plan, or null when it is unusable.
@@ -59,6 +63,7 @@ class PlannedNotification extends Equatable {
     if (title is! String || body is! String) return null;
 
     final slug = json['threadSlug'];
+    final eventId = json['eventId'];
     return PlannedNotification(
       id: id,
       kind: kind,
@@ -67,6 +72,7 @@ class PlannedNotification extends Equatable {
       body: body,
       timeSensitive: json['timeSensitive'] == true,
       threadSlug: slug is String && slug.isNotEmpty ? slug : null,
+      eventId: eventId is String && eventId.isNotEmpty ? eventId : null,
     );
   }
 
@@ -92,6 +98,9 @@ class PlannedNotification extends Equatable {
   /// The conversation a tap opens, when there is one.
   final String? threadSlug;
 
+  /// The block it is about, when it is about one.
+  final String? eventId;
+
   @override
   List<Object?> get props => [
     id,
@@ -101,6 +110,7 @@ class PlannedNotification extends Equatable {
     body,
     timeSensitive,
     threadSlug,
+    eventId,
   ];
 }
 

@@ -157,6 +157,26 @@ void main() {
       expect(tapOf(payload).threadSlug, 'revisao-de-codigo');
     });
 
+    test('carries the block a start question is about', () async {
+      planIs([
+        PlannedNotification(
+          id: 'ask',
+          kind: NotificationKind.confirmStart,
+          fireAt: _now.add(const Duration(minutes: 30)),
+          title: 'Escrever',
+          body: 'Está na hora. Começamos?',
+          eventId: 'evt-1',
+        ),
+      ]);
+
+      await scheduler.sync();
+
+      final tap = tapOf(queue.queued[queueIdOf('ask')]!.payload);
+      expect(tap.confirmStart, isTrue);
+      expect(tap.eventId, 'evt-1');
+      expect(tap.title, 'Escrever');
+    });
+
     test('files the morning and evening reminders apart', () async {
       planIs([
         PlannedNotification(

@@ -5,11 +5,15 @@ import 'package:chat/src/widgets/now_surface.dart';
 /// {@template event_tile}
 /// One card on the timeline: a block of time.
 ///
-/// The title and the hour. Every card has an hour now, so the line beside the
-/// title is always the same thing and never has to stand in for a missing
-/// one. A fixed card says so with a pin: it is the one card on the screen
-/// that will not move when the day is rearranged, and that is worth knowing
-/// before rearranging it.
+/// The title and the hour it starts. Only the start: the next card says when
+/// this one ends, near enough, and two times per line made the day read like
+/// a timetable. A fixed card says so with a pin: it is the one card on the
+/// screen that will not move when the day is rearranged, and that is worth
+/// knowing before rearranging it. A routine's day carries a repeat mark and a
+/// faintly different fill, so lunch reads as lunch before its title does.
+///
+/// A flexible block whose hour has come waits for the user, and says so in
+/// place of the progress bar: begin it, or give it fifteen minutes more.
 ///
 /// A meeting Focus did not book looks the same and behaves differently: it
 /// carries a small mark saying where it came from, and the list above ignores
@@ -30,6 +34,8 @@ class EventTile extends StatelessWidget {
     this.onPauseToggled,
     this.onAdjusted,
     this.onDone,
+    this.onStarted,
+    this.onSnoozed,
     super.key,
   });
 
@@ -60,6 +66,12 @@ class EventTile extends StatelessWidget {
 
   /// Marks it done.
   final VoidCallback? onDone;
+
+  /// Begins a block that is waiting to be begun.
+  final VoidCallback? onStarted;
+
+  /// Gives a waiting block fifteen minutes more.
+  final VoidCallback? onSnoozed;
 
   /// Whether this is the block being lived through.
   bool get _isNow => card.section == TimelineSection.agora;
@@ -100,12 +112,19 @@ class EventTile extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.s3),
               Text(
-                '${_hhmm(card.startTime)}-${_hhmm(card.endTime)}',
+                _hhmm(card.startTime),
                 style: AppTypography.label.copyWith(color: AppColors.ink3),
               ),
             ],
           ),
-          if (_isNow) ...[
+          if (_isNow && card.awaitingStart) ...[
+            const SizedBox(height: AppSpacing.s2),
+            _StartPrompt(
+              key: actionsKey,
+              onStarted: onStarted,
+              onSnoozed: onSnoozed,
+            ),
+          ] else if (_isNow) ...[
             const SizedBox(height: AppSpacing.s2),
             NowProgress(card: card, trailing: _actions()),
           ],
@@ -121,13 +140,16 @@ class EventTile extends StatelessWidget {
             ? null
             : pressed || lifted
             ? AppColors.fillStrong
+            : card.isRoutine
+            ? AppColors.routineFill
             : AppColors.fill,
         borderRadius: BorderRadius.circular(AppSpacing.chipRadius),
         elevation: lifted ? 8 : 0,
         shadowColor: AppColors.bg,
         child: _isNow
             ? NowSurface(
-                paused: card.isPaused,
+                // Waiting is quiet, like a pause: nothing is running yet.
+                paused: card.isPaused || card.awaitingStart,
                 pressed: pressed || lifted,
                 child: body,
               )
@@ -153,6 +175,7 @@ class EventTile extends StatelessWidget {
   /// The small icon in front of the title, when the card has earned one.
   AppIconData? get _mark {
     if (!card.managed) return AppIcons.calendar;
+    if (card.isRoutine) return AppIcons.repeat;
     return card.fixed ? AppIcons.pin : null;
   }
 
@@ -205,7 +228,19 @@ class EventControls extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (running && onPauseToggled != null)
+        // A block waiting to be begun is running on the clock and not in
+        // fact, so its button begins it rather than pausing it.
+        if (card.awaitingStart && onStarted != null)
+          _Action(
+            tooltip: 'Começar',
+            onTap: onStarted,
+            child: const AppIcon(
+              iconData: AppIcons.play,
+              size: AppSpacing.s4,
+              color: AppColors.ink,
+            ),
+          )
+        else if (running && onPauseToggled != null)
           _Action(
             tooltip: card.isPaused ? 'Retomar' : 'Pausar',
             onTap: onPauseToggled,
@@ -252,6 +287,51 @@ class EventControls extends StatelessWidget {
             color: AppColors.ink2,
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// What a waiting block says in place of its progress bar.
+///
+/// The hour came and nothing started, because a flexible block waits for the
+/// user. Two answers and nothing else: begin it now, or fifteen minutes more,
+/// after which it asks again.
+class _StartPrompt extends StatelessWidget {
+  const _StartPrompt({this.onStarted, this.onSnoozed, super.key});
+
+  final VoidCallback? onStarted;
+  final VoidCallback? onSnoozed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Hora de começar',
+            style: AppTypography.label.copyWith(color: AppColors.ink2),
+          ),
+        ),
+        if (onSnoozed != null)
+          _Action(
+            tooltip: 'Esperar 15 min',
+            onTap: onSnoozed,
+            child: Text(
+              '15 min',
+              style: AppTypography.labelStrong.copyWith(color: AppColors.ink2),
+            ),
+          ),
+        if (onStarted != null)
+          _Action(
+            tooltip: 'Começar',
+            onTap: onStarted,
+            child: const AppIcon(
+              iconData: AppIcons.play,
+              size: AppSpacing.s4,
+              color: AppColors.ink,
+            ),
+          ),
       ],
     );
   }

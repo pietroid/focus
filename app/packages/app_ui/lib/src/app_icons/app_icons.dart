@@ -95,4 +95,17 @@ class AppIcons {
 
   /// Opens a conversation.
   static const chat = AppIconData.phosphor(PhosphorIconsRegular.chatCircle);
+
+  /// Conversations, every thread the user has.
+  static const conversations = AppIconData.phosphor(
+    PhosphorIconsRegular.chatsCircle,
+  );
+
+  /// A routine, a block that comes back every day.
+  static const repeat = AppIconData.phosphor(PhosphorIconsRegular.repeat);
+
+  /// Moves a thing onto the timeline.
+  static const prioritize = AppIconData.phosphor(
+    PhosphorIconsRegular.calendarPlus,
+  );
 }
