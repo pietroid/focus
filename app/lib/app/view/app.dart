@@ -6,6 +6,7 @@ import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/l10n/l10n.dart';
+import 'package:focus/landing/landing.dart';
 import 'package:focus/shell/shell.dart';
 import 'package:focus/solved/solved.dart';
 import 'package:go_router/go_router.dart';
@@ -48,12 +49,14 @@ class App extends StatelessWidget {
              path: '/concluidos',
              builder: (context, state) => const SolvedPage(),
            ),
+           // Signed out, the app is its own landing page.
            GoRoute(
              path: '/auth',
              builder: (context, state) => AuthScreen(
                authRepository: context.read<AuthRepository>(),
                onUserAuthenticated: onUserAuthenticated,
                onAuthenticated: () => context.go('/'),
+               child: const LandingPage(),
              ),
            ),
          ],

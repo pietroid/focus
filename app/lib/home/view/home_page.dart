@@ -4,6 +4,7 @@ import 'package:app_ui/app_ui.dart';
 import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
+import 'package:focus/home/view/greeting.dart';
 import 'package:go_router/go_router.dart';
 
 /// {@template home_page}
@@ -67,9 +68,9 @@ class _Header extends StatelessWidget {
                 // The greeting is the account: it is the only thing on the
                 // screen that names the person, so it is also the only thing
                 // that opens their menu.
-                _Profile(greeting: _greeting(now, firstName)),
+                _Profile(greeting: greeting(now, firstName)),
                 const SizedBox(height: AppSpacing.s1),
-                Text(_PtDate.long(now), style: AppTypography.label),
+                Text(PtDate.long(now), style: AppTypography.label),
               ],
             ),
           ),
@@ -78,57 +79,6 @@ class _Header extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  /// "Bom dia Pietro!", or without the name when there is not one yet.
-  static String _greeting(DateTime now, String? firstName) {
-    final part = switch (now.hour) {
-      >= 5 && < 12 => 'Bom dia',
-      >= 12 && < 18 => 'Boa tarde',
-      _ => 'Boa noite',
-    };
-
-    return firstName == null ? '$part!' : '$part $firstName!';
-  }
-}
-
-/// Portuguese dates, written out.
-///
-/// Doing this through `intl` would mean loading its locale data at startup
-/// and still telling it how Brazilian Portuguese writes a date. Three lists
-/// of names is less machinery, and this is the only screen that needs them.
-abstract final class _PtDate {
-  static const _weekdays = <String>[
-    'Segunda-feira',
-    'Terça-feira',
-    'Quarta-feira',
-    'Quinta-feira',
-    'Sexta-feira',
-    'Sábado',
-    'Domingo',
-  ];
-
-  static const _months = <String>[
-    'janeiro',
-    'fevereiro',
-    'março',
-    'abril',
-    'maio',
-    'junho',
-    'julho',
-    'agosto',
-    'setembro',
-    'outubro',
-    'novembro',
-    'dezembro',
-  ];
-
-  /// "Quarta-feira, 27 de agosto".
-  static String long(DateTime at) {
-    final weekday = _weekdays[at.weekday - DateTime.monday];
-    final month = _months[at.month - 1];
-
-    return '$weekday, ${at.day} de $month';
   }
 }
 
