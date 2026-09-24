@@ -15,6 +15,12 @@ import 'package:notifications/notifications.dart';
 /// in fifteen minutes, and until one is answered the block keeps sliding down
 /// the day with the clock.
 ///
+/// The notification is not the only way back into the app, so the question
+/// does not depend on it. Opening the app, or bringing it back, while a
+/// block is still waiting asks the same question. Once per opening: a
+/// dismissed question is left to the card, which goes on saying it is
+/// waiting.
+///
 /// The queue is re-synced when the app comes back to the foreground and
 /// whenever a block on the timeline is added, moved, renamed, paused or taken
 /// off, whoever did it: the sheet, a drag, or a conversation that booked
@@ -44,6 +50,13 @@ class _RemindersListenerState extends State<RemindersListener>
   late TimelineState _last;
   bool _asking = false;
 
+  /// Whether the next day loaded should be looked at for a block still
+  /// waiting to be begun, which is true just after the app is opened.
+  bool _lookForWaiting = false;
+
+  /// The block the start question is open for, so it is never open twice.
+  String? _askingStart;
+
   @override
   void initState() {
     super.initState();
@@ -63,12 +76,43 @@ class _RemindersListenerState extends State<RemindersListener>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_scheduler.sync());
+    if (state != AppLifecycleState.resumed) return;
+
+    unawaited(_scheduler.sync());
+    // The day moved on while the app was away, so it is read again, and the
+    // fresh one is the one asked about.
+    _lookForWaiting = true;
+    context.read<TimelineBloc>().add(const TimelineRequested());
   }
 
+  /// Opens what the notification that launched the app was about, or looks
+  /// for a waiting block when it was not launched from one.
   Future<void> _openLaunchTap() async {
     final tap = await _scheduler.launchTap();
-    if (tap != null) _open(tap);
+    if (!mounted) return;
+
+    if (tap != null) {
+      _open(tap);
+      return;
+    }
+
+    final day = context.read<TimelineBloc>().state;
+    if (day.status == TimelineStatus.success) {
+      _askIfWaiting(day);
+    } else {
+      _lookForWaiting = true;
+    }
+  }
+
+  /// Asks about the block in Agora still waiting to be begun, if there is
+  /// one.
+  void _askIfWaiting(TimelineState day) {
+    final waiting = day.cards
+        .where(
+          (card) => card.section == TimelineSection.agora && card.awaitingStart,
+        )
+        .firstOrNull;
+    if (waiting != null) unawaited(_askToStart(waiting.id, waiting.title));
   }
 
   void _open(NotificationTap tap) {
@@ -86,12 +130,22 @@ class _RemindersListenerState extends State<RemindersListener>
 
   /// Asks whether the waiting block starts now or in fifteen minutes.
   Future<void> _askToStart(String eventId, String title) async {
+    // A notification tapped while the app was opening, and the opening
+    // itself, both ask. One sheet is enough.
+    if (_askingStart != null) return;
+    _askingStart = eventId;
+
     final timeline = context.read<TimelineBloc>()
       // The block has been sliding while the app was closed, so the day is
       // read again under the question.
       ..add(const TimelineRequested());
 
-    final answer = await _startSheet(context, title);
+    final _StartAnswer? answer;
+    try {
+      answer = await _startSheet(context, title);
+    } finally {
+      _askingStart = null;
+    }
     switch (answer) {
       case _StartAnswer.now:
         timeline.add(EventStarted(eventId));
@@ -108,6 +162,11 @@ class _RemindersListenerState extends State<RemindersListener>
     // A reload passes through loading on its way back. Comparing against
     // that would make every block look new, so only a loaded day counts.
     if (current.status != TimelineStatus.success) return;
+
+    if (_lookForWaiting) {
+      _lookForWaiting = false;
+      _askIfWaiting(current);
+    }
 
     final previous = _last;
     _last = current;

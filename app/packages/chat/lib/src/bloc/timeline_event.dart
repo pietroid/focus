@@ -32,6 +32,7 @@ final class EventCreated extends TimelineBlocEvent {
     required this.durationMinutes,
     required this.fixed,
     this.startTime,
+    this.notBefore,
   });
 
   /// What the user wrote, which is what the block is called.
@@ -46,8 +47,18 @@ final class EventCreated extends TimelineBlocEvent {
   /// The hour, when the user picked one. Only a fixed block does.
   final DateTime? startTime;
 
+  /// The earliest a flexible block may start, when it was written down from
+  /// empty room further down the day.
+  final DateTime? notBefore;
+
   @override
-  List<Object?> get props => [title, durationMinutes, fixed, startTime];
+  List<Object?> get props => [
+    title,
+    durationMinutes,
+    fixed,
+    startTime,
+    notBefore,
+  ];
 }
 
 /// Moves one card to [index] in the day's single list.

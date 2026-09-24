@@ -147,6 +147,7 @@ export function createServer(): express.Express {
           endTime: body.endTime,
           fixed: body.fixed === true,
           threadSlug: body.threadSlug,
+          notBefore: body.notBefore,
         }),
       );
     } catch (error) {

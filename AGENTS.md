@@ -401,6 +401,17 @@ pause included) so the layout puts it at the start of that stretch and not
 earlier. A card longer than the room there asks to be cut to fit and posts
 `minutes` as well. A no leaves the day alone.
 
+A fixed card, a routine's day included, only lands in empty room. It goes
+where its top edge is, on the nearest quarter of an hour that keeps it whole
+(`TimelineScale.landingIn`), and `after` carries that hour. The room draws the
+block there, hours and all, while it is aimed at. Let go between two cards it
+keeps its hour. Empty room is cut at its hour lines, and each part ripples on
+its own when tapped. A tap opens the creation sheet. In the first part, up to
+the first full hour, the block is flexible and posts `notBefore`, the start of
+the room, so `create` looks for a slot from there and keeps it as the block's
+floor. In any hour after that, the block is fixed at that hour. A first part
+shorter than a quarter of an hour runs on into the next hour, so it can be hit.
+
 ### The time system
 
 Three files hold every rule about when things happen, and all three are on the
@@ -610,8 +621,10 @@ the series again from today, so the first instance always lands on a day the
 rule covers.
 
 On the timeline each day of a routine is a fixed, managed block with a
-`routine` field. It gets a faint `routineFill` and a repeat mark, cannot be
-dragged (`move` refuses it), and is edited only from the menu. The reader's
+`routine` field. It gets a faint `routineFill` and a repeat mark. The card is
+one instance of the recurring event, so it moves, renames and finishes like
+any fixed block, and Google keeps the change as an exception for that day
+alone. The routine as a whole is edited only from the menu. The reader's
 cache is invalidated after a routine write, because only Google knows which
 days the new series lands on.
 
@@ -634,7 +647,7 @@ block through the same `create` the orb uses and then takes it off the list.
 One button, three meanings, decided by the tab under it. On **Tempo** it opens
 the creation sheet: a line of text, flexible or fixed, a duration, and a line
 saying what hour that works out to. A fixed block picks a day as well as an
-hour. No model runs and nothing is proposed. The card is on the timeline by
+hour, each its own pill, the day from a wheel a year long. No model runs and nothing is proposed. The card is on the timeline by
 the time the sheet closes. On **Coisas** the same sheet opens without the
 clock: text and a duration. On **Conversas**, and everywhere else, it starts a
 conversation.
@@ -644,7 +657,10 @@ conversation.
 `notifications.service.ts` plans them from the calendar. A flexible block gets
 a `confirmStart` reminder at its hour that asks rather than announces, and
 carries the event id. Tapping it opens a popup in the app with *Começar agora*
-and *Esperar 15 min*, which post `start` and `snooze`. A fixed block or a
+and *Esperar 15 min*, which post `start` and `snooze`. Opening the app or
+bringing it back while a block is still waiting opens the same popup, once
+per opening. Dismissed, the card in Agora is the running card paused at its
+first minute: play starts it and +15 snoozes it. A fixed block or a
 routine gets the plain `starting` reminder instead, since it starts
 regardless. Blocks the user already started are not asked about again.
 

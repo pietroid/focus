@@ -81,6 +81,7 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
         durationMinutes: event.durationMinutes,
         fixed: event.fixed,
         startTime: event.startTime,
+        notBefore: event.notBefore,
       );
 
       emit(

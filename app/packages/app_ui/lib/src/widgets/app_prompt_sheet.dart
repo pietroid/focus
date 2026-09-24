@@ -40,7 +40,11 @@ class AppPromptResult {
 ///
 /// Flexible is the default and means "in that order, whenever it fits". Fixed
 /// means the hour is the point of it, and is the only case where the user is
-/// asked to name one, day included.
+/// asked to name one. The day and the hour are each their own pill, so a
+/// block next week is as easy to write down as one this afternoon.
+///
+/// Opened from a tap on a full hour of empty room, it starts fixed at that
+/// hour, which is what tapping an hour means.
 ///
 /// On Coisas the same sheet asks without the clock: no flexible or fixed, no
 /// hour, only what it is and how long it will take once it is on the day.
@@ -51,6 +55,7 @@ class AppPromptSheet extends StatefulWidget {
     this.previewFor,
     this.initialText,
     this.initialDuration,
+    this.initialStart,
     super.key,
   });
 
@@ -66,6 +71,12 @@ class AppPromptSheet extends StatefulWidget {
 
   /// The length it starts with, when something is being edited.
   final Duration? initialDuration;
+
+  /// The hour it starts fixed at, when the sheet was opened on one.
+  ///
+  /// Only read when [previewFor] is given: without the clock there is no
+  /// hour to start at.
+  final DateTime? initialStart;
 
   /// The length something has before anyone has said otherwise.
   static const defaultDuration = Duration(minutes: 30);
@@ -94,6 +105,7 @@ class AppPromptSheet extends StatefulWidget {
     DateTime Function(Duration duration)? previewFor,
     String? initialText,
     Duration? initialDuration,
+    DateTime? initialStart,
   }) {
     return showModalBottomSheet<AppPromptResult>(
       context: context,
@@ -104,6 +116,7 @@ class AppPromptSheet extends StatefulWidget {
         previewFor: previewFor,
         initialText: initialText,
         initialDuration: initialDuration,
+        initialStart: initialStart,
       ),
     );
   }
@@ -122,10 +135,10 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
 
   /// Whether the sheet is asking about the clock at all.
   bool get _timed => widget.previewFor != null;
-  bool _fixed = false;
+  late bool _fixed = _timed && widget.initialStart != null;
 
   /// The hour a fixed block was given. Null while it is still flexible.
-  DateTime? _startTime;
+  late DateTime? _startTime = _fixed ? widget.initialStart : null;
 
   @override
   void dispose() {
@@ -162,16 +175,45 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
     setState(() => _duration = picked);
   }
 
-  Future<void> _pickTime() async {
-    final now = DateTime.now();
+  /// The day, and the hour with it, since the hour may not be free on
+  /// every day.
+  Future<void> _pickDay() async {
     final picked = await AppWheelPicker.dayAndTime(
       context,
-      initial: _startTime ?? widget.previewFor!(_duration),
-      earliest: now,
+      initial: _span.start,
+      earliest: DateTime.now(),
     );
     if (picked == null) return;
 
     setState(() => _startTime = picked);
+  }
+
+  /// The hour on the day already picked.
+  Future<void> _pickTime() async {
+    final now = DateTime.now();
+    final start = _span.start;
+    final today =
+        start.year == now.year &&
+        start.month == now.month &&
+        start.day == now.day;
+    // The wheel only knows the clock, so the day is put back on afterwards.
+    // Earlier than now only binds today.
+    final picked = await AppWheelPicker.time(
+      context,
+      initial: start,
+      earliest: today ? now : DateTime(start.year, start.month, start.day),
+    );
+    if (picked == null) return;
+
+    setState(
+      () => _startTime = DateTime(
+        start.year,
+        start.month,
+        start.day,
+        picked.hour,
+        picked.minute,
+      ),
+    );
   }
 
   void _submit() {
@@ -226,7 +268,8 @@ class _AppPromptSheetState extends State<AppPromptSheet> {
                   _Preview(
                     span: _span,
                     editable: _fixed,
-                    onTap: _pickTime,
+                    onDay: _pickDay,
+                    onTime: _pickTime,
                     send: _Send(
                       controller: _controller,
                       onPressed: _submit,
@@ -331,11 +374,16 @@ class _Controls extends StatelessWidget {
 }
 
 /// The line that says when this will happen, and the check that makes it so.
+///
+/// A flexible block reads back where it would land, quietly, because the app
+/// worked it out and it cannot be changed here. A fixed one is the user's own
+/// answer: the day and the hour, each a pill that opens its picker.
 class _Preview extends StatelessWidget {
   const _Preview({
     required this.span,
     required this.editable,
-    required this.onTap,
+    required this.onDay,
+    required this.onTime,
     required this.send,
   });
 
@@ -344,31 +392,36 @@ class _Preview extends StatelessWidget {
   /// Whether the hour is the user's to choose, which only a fixed block is.
   final bool editable;
 
-  final VoidCallback onTap;
+  final VoidCallback onDay;
+  final VoidCallback onTime;
   final Widget send;
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
-      '${_hhmm(span.start)}${_day(span.start)}',
-      style: AppTypography.body.copyWith(
-        // A preview is the app saying what it worked out; a fixed hour is the
-        // user's own answer read back. The second one is brighter because it
-        // can be tapped and the first one cannot.
-        color: editable ? AppColors.ink : AppColors.ink3,
-      ),
-    );
-
     return Row(
       children: [
         Expanded(
           child: editable
-              ? GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTap,
-                  child: text,
+              ? Wrap(
+                  spacing: AppSpacing.s2,
+                  runSpacing: AppSpacing.s2,
+                  children: [
+                    AppPillButton(
+                      iconData: AppIcons.calendar,
+                      label: AppWheelPicker.dayLabel(span.start),
+                      onPressed: onDay,
+                    ),
+                    AppPillButton(
+                      iconData: AppIcons.time,
+                      label: '${_hhmm(span.start)}–${_hhmm(span.end)}',
+                      onPressed: onTime,
+                    ),
+                  ],
                 )
-              : text,
+              : Text(
+                  '${_hhmm(span.start)}${_day(span.start)}',
+                  style: AppTypography.body.copyWith(color: AppColors.ink3),
+                ),
         ),
         send,
       ],
@@ -377,16 +430,8 @@ class _Preview extends StatelessWidget {
 
   /// ", amanhã" when the hour has run past midnight, and nothing otherwise.
   static String _day(DateTime start) {
-    final now = DateTime.now();
-    final days = DateTime(start.year, start.month, start.day)
-        .difference(DateTime(now.year, now.month, now.day))
-        .inDays;
-
-    return switch (days) {
-      <= 0 => '',
-      1 => ', amanhã',
-      _ => ', ${start.day}/${start.month}',
-    };
+    final label = AppWheelPicker.dayLabel(start);
+    return label == 'Hoje' ? '' : ', ${label.toLowerCase()}';
   }
 
   static String _hhmm(DateTime at) {

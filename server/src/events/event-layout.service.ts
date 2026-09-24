@@ -62,6 +62,10 @@ export class EventLayoutService {
    * one takes the hour it was given, whatever else is there: the user named
    * it, so it is not the server's to negotiate.
    *
+   * A flexible block written down from a tap on empty room later in the day
+   * starts looking there rather than now, and keeps that as its floor, so
+   * the next repack does not pull it back to the top of the day.
+   *
    * Nothing is said and no thread is started. It is a block of time, and a
    * block of time that nobody has anything to say about yet is the normal
    * case rather than a thread waiting to happen.
@@ -73,10 +77,11 @@ export class EventLayoutService {
     now = new Date(),
   ): Promise<EventCard[]> {
     const blocks = await this._events.blocks(user);
+    const floor = floorOf(request, now);
     const slot = slotFor(
       request,
       blocks,
-      now,
+      floor ?? now,
       await this._events.zone(user, now),
     );
 
@@ -87,7 +92,7 @@ export class EventLayoutService {
 
     await this._events.book(
       user,
-      { title: request.title, slot, fixed: request.fixed },
+      { title: request.title, slot, fixed: request.fixed, notBefore: floor },
       trace,
     );
 
@@ -100,6 +105,10 @@ export class EventLayoutService {
    * The index is a place in the whole timeline rather than in a section,
    * because the sections are only the clock reading itself back: there is one
    * list, and a drop is a place in it.
+   *
+   * A day of a routine moves like any fixed block. It is one instance of the
+   * recurring event, and Google keeps a moved instance as an exception to the
+   * series, so the other days stay where the routine puts them.
    */
   async move(
     user: CalendarUser,
@@ -110,9 +119,6 @@ export class EventLayoutService {
     const event = await this._events.require(user, action.eventId);
     if (!event.managed) {
       throw new BadRequestException('A meeting cannot be moved here');
-    }
-    if (event.routine !== undefined) {
-      throw new BadRequestException('Uma rotina se muda no menu Rotina.');
     }
 
     const zone = await this._events.zone(user, now);
@@ -750,11 +756,22 @@ function pausedEnd(event: CalendarEvent, now: Date): Date {
   return end;
 }
 
-/** The hour a new block gets. */
+/**
+ * Where a new flexible block starts looking, when it was asked to start
+ * later than now. A floor already behind the clock is no floor at all.
+ */
+function floorOf(request: EventRequest, now: Date): Date | undefined {
+  if (request.fixed || request.notBefore === undefined) return undefined;
+
+  const floor = floorToMinute(new Date(request.notBefore));
+  return floor > now ? floor : undefined;
+}
+
+/** The hour a new block gets, looking from [from]. */
 function slotFor(
   request: EventRequest,
   blocks: TimeBlock[],
-  now: Date,
+  from: Date,
   zone: Zone,
 ): Interval {
   if (request.fixed && request.startTime !== undefined) {
@@ -763,7 +780,7 @@ function slotFor(
   }
 
   return nextFreeSlot(
-    earliestStart(now, zone),
+    earliestStart(from, zone),
     request.durationMinutes,
     blocks.map((block) => block.interval),
     zone,

@@ -158,15 +158,21 @@ class TimelineEvent extends Equatable {
   /// `weekdays` or `weekend`.
   final String? routine;
 
-  /// Whether it is one day of a routine, which changes in the menu and not
-  /// on the timeline.
+  /// Whether it is one day of a routine.
+  ///
+  /// The routine as a whole changes in the menu. This card is one day of it,
+  /// and changing it here changes that day and no other.
   bool get isRoutine => routine != null;
 
   /// Whether the card can be dragged or finished.
   ///
-  /// A meeting is somebody else's hour, and a routine is edited as a whole in
-  /// its own menu, so neither is moved from here.
-  bool get isInteractive => managed && !isRoutine;
+  /// A meeting is somebody else's hour, so it is never moved from here.
+  bool get isInteractive => managed;
+
+  /// Whether its hour is the point of it: a fixed block or a day of a
+  /// routine. Moving one names a new hour for it rather than a new place in
+  /// the queue.
+  bool get isAnchored => fixed || isRoutine;
 
   /// Whether it is paused.
   bool get isPaused => pausedAt != null;

@@ -36,6 +36,7 @@ class TimelineRepository {
     required int durationMinutes,
     required bool fixed,
     DateTime? startTime,
+    DateTime? notBefore,
   }) async {
     try {
       final response = await apiClient.post<List<dynamic>>(
@@ -46,6 +47,8 @@ class TimelineRepository {
           'fixed': fixed,
           if (startTime != null)
             'startTime': startTime.toUtc().toIso8601String(),
+          if (notBefore != null)
+            'notBefore': notBefore.toUtc().toIso8601String(),
         },
       );
 

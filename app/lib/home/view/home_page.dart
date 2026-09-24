@@ -132,7 +132,11 @@ class _Threads extends StatelessWidget {
     return Stack(
       children: [
         const _MinuteRefresh(),
-        TimelineList(onCardTap: (card) => _open(context, card)),
+        TimelineList(
+          onCardTap: (card) => _open(context, card),
+          // Tapping empty room is writing something down there.
+          onFreeTap: (tap) => unawaited(writeDownOnTimeline(context, tap: tap)),
+        ),
         // The guard is drawn over the timeline rather than pushed as a route:
         // the question is about a card that is still on screen, and the
         // answer puts it somewhere the user can see from here.

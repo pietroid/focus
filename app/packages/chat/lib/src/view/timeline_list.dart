@@ -9,13 +9,38 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// A place a card can land, and where it is on the screen.
 ///
-/// Most places are between two cards. The rest are free stretches of the
-/// day, which carry the stretch itself, measured as it would be with the
-/// dragged card lifted out, because landing in one asks for that stretch.
-typedef _Anchor = ({int index, double y, FreeSlot? slot});
+/// Most places are an edge of a card, above it or below it. The rest are free
+/// stretches of the day, which carry the stretch itself, measured as it would
+/// be with the dragged card lifted out, because landing in one asks for that
+/// stretch. A stretch also carries how far down the screen it runs and which
+/// row on screen it is, because a finger anywhere inside it is aiming at it,
+/// however tall an empty evening has made it, and the stretch as it is drawn,
+/// because that is what turns a height on the screen into an hour.
+typedef _Anchor = ({
+  int index,
+  double y,
+  FreeSlot? slot,
+  FreeSlot? shown,
+  ({double top, double bottom})? area,
+  _Row? row,
+});
 
-/// One row of the day: a card, or a stretch with nothing on it.
-typedef _Entry = ({TimelineEvent? card, FreeSlot? slot});
+/// Where a card would sit if it were let go now.
+typedef _Span = ({DateTime start, DateTime end});
+
+/// One row of the day: a card, or a stretch with nothing on it and the
+/// heading it is drawn under.
+typedef _Entry = ({TimelineEvent? card, _Room? room});
+
+/// A free stretch as it is drawn, under one heading.
+///
+/// The room from now until the next block is drawn twice: as the break under
+/// Agora, and as the empty room that opens Ainda hoje. Both are the same
+/// stretch and the same place to drop.
+typedef _Room = ({FreeSlot slot, TimelineSection section});
+
+/// Which drawn stretch a row is: where it starts, and under which heading.
+typedef _Row = (DateTime, TimelineSection);
 
 /// A solved card on its way off the screen, frozen as it was let go.
 typedef _Flying = ({
@@ -41,10 +66,23 @@ typedef _Flying = ({
 /// place is whichever one is nearest, so the card lands wherever it is let go
 /// rather than only on something it managed to hit.
 ///
-/// Between the cards sit the free stretches of the working day, each its own
-/// quiet card, from now or seven in the morning to ten at night. A card let
-/// go over one lands at the start of that stretch; one too long for it asks
-/// whether to cut it to fit, and stays where it was on a no.
+/// Agora is drawn as it always was. Below it the day reads like a calendar:
+/// every card is as tall as its time, near enough, and the free stretches
+/// between them, from the end of what is running or seven in the morning to
+/// ten at night, are drawn as empty room just as tall. Room of ten minutes
+/// or less is not drawn, and neither is the pause between two blocks. A card
+/// let go over a stretch lands at the start of it, and one too long for it
+/// asks whether to cut it to fit, and stays where it was on a no.
+///
+/// A fixed card, a routine's day included, is different, because its hour is
+/// the point of it. It only lands in empty room, and wherever in the room it
+/// is let go, on the nearest quarter of an hour that leaves it whole. The
+/// room draws it there while it is aimed at, hours and all, so the drop is
+/// read before it happens.
+///
+/// A tap on empty room writes something down there. In the first part of the
+/// room, up to its first full hour, it is flexible and starts no earlier than
+/// the room does. In any hour after that it is fixed at that hour.
 ///
 /// A drag picks an axis as soon as it starts moving and keeps it. Up and down
 /// reorders; right carries the card out of the day and marks it done, and
@@ -60,7 +98,7 @@ typedef _Flying = ({
 /// {@endtemplate}
 class TimelineList extends StatefulWidget {
   /// {@macro timeline_list}
-  const TimelineList({required this.onCardTap, super.key});
+  const TimelineList({required this.onCardTap, this.onFreeTap, super.key});
 
   /// Called with the block whose card was tapped.
   ///
@@ -68,6 +106,10 @@ class TimelineList extends StatefulWidget {
   /// whether the block already has a conversation behind it, and the card is
   /// the only thing that knows.
   final ValueChanged<TimelineEvent> onCardTap;
+
+  /// Called with what a tap on empty room asked for: where the room starts,
+  /// flexible, or a later hour in it, fixed.
+  final ValueChanged<FreeTap>? onFreeTap;
 
   @override
   State<TimelineList> createState() => _TimelineListState();
@@ -94,11 +136,12 @@ class _TimelineListState extends State<TimelineList> {
   /// One key per card, so the laid-out list can be measured.
   final _cardKeys = <String, GlobalKey>{};
 
-  /// One key per free stretch on screen, by where it starts.
-  final _freeKeys = <DateTime, GlobalKey>{};
+  /// One key per free stretch on screen, by where it starts and the heading
+  /// it is drawn under.
+  final _freeKeys = <_Row, GlobalKey>{};
 
   /// The free stretches drawn in the last build.
-  List<FreeSlot> _shownSlots = const [];
+  List<_Room> _shownRooms = const [];
 
   /// The free stretch the card in the air is over, when it is over one.
   ///
@@ -107,7 +150,11 @@ class _TimelineListState extends State<TimelineList> {
   FreeSlot? _aimedSlot;
 
   /// Which stretch on screen [_aimedSlot] is, so that one lights up.
-  DateTime? _aimedRow;
+  _Row? _aimedRow;
+
+  /// Where the card in the air would sit in [_aimedSlot], drawn there before
+  /// it is let go.
+  _Span? _landing;
 
   /// One key per row of buttons on a running card, so a tap on a button is
   /// left to the button rather than read as a tap on the card.
@@ -197,57 +244,87 @@ class _TimelineListState extends State<TimelineList> {
   /// Measures every place [id] could go, in the layout as it stands.
   ///
   /// A list of n cards has n + 1 places: above each card, and below the last.
-  /// They are measured with [id] taken out, because that is the list a drop
-  /// is applied to, and from the resting layout, because the cards that move
-  /// out of the way are moved by a transform and never change where they were
-  /// laid out.
+  /// Each is measured at both edges it touches, the top of the card after it
+  /// and the bottom of the card before it, because an empty stretch can sit
+  /// between the two and push them far apart. They are measured with [id]
+  /// taken out, because that is the list a drop is applied to, and from the
+  /// resting layout, because the cards that move out of the way are moved by
+  /// a transform and never change where they were laid out.
+  ///
+  /// A card scrolled out of the list's reach has no rect and no edges, but
+  /// still counts, so the places on either side of it keep their numbers.
   List<_Anchor> _measure(String id) {
-    final rects = <Rect>[];
-    for (final card in _cards) {
-      if (card.id == id) continue;
-      final rect = _rectOf(_cardKey(card.id));
-      if (rect != null) rects.add(rect);
-    }
+    final rest = _cards.where((card) => card.id != id).toList();
+    final anchors = <_Anchor>[];
 
-    final anchors = <_Anchor>[
-      if (rects.isEmpty)
-        ?_centerOf(id)
-      else ...[
-        for (var index = 0; index < rects.length; index++)
-          (index: index, y: rects[index].top, slot: null),
-        (index: rects.length, y: rects.last.bottom, slot: null),
-      ],
-    ];
+    for (var index = 0; index < rest.length; index++) {
+      final rect = _rectOf(_cardKey(rest[index].id));
+      if (rect == null) continue;
+
+      anchors
+        ..add(_edge(index, rect.top))
+        ..add(_edge(index + 1, rect.bottom));
+    }
+    if (anchors.isEmpty) anchors.addAll([?_centerOf(id)]);
 
     // The stretches are priced with the card lifted out, because that is the
     // day the drop lands in: a card that sat right beside a gap makes the gap
     // bigger by leaving it.
-    final rest = _cards.where((card) => card.id != id).toList();
     final lifted = TimelinePlan.freeSlots(rest);
-    for (final shown in _shownSlots) {
-      final rect = _rectOf(_freeKey(shown.start));
+    for (final room in _shownRooms) {
+      final shown = room.slot;
+      final rect = _rectOf(_freeKey(_rowOf(room)));
       if (rect == null) continue;
 
       final slot = lifted.where((it) => it.contains(shown.start)).firstOrNull;
       if (slot == null) continue;
 
-      anchors.add((index: slot.index, y: rect.center.dy, slot: slot));
+      anchors.add((
+        index: slot.index,
+        y: rect.center.dy,
+        slot: slot,
+        shown: shown,
+        area: (top: rect.top, bottom: rect.bottom),
+        row: _rowOf(room),
+      ));
     }
 
     return anchors;
   }
 
+  static _Anchor _edge(int index, double y) =>
+      (index: index, y: y, slot: null, shown: null, area: null, row: null);
+
   _Anchor? _centerOf(String id) {
     final rect = _rectOf(_cardKey(id));
-    return rect == null ? null : (index: 0, y: rect.center.dy, slot: null);
+    return rect == null ? null : _edge(0, rect.center.dy);
   }
 
-  GlobalKey _freeKey(DateTime start) =>
-      _freeKeys.putIfAbsent(start, GlobalKey.new);
+  GlobalKey _freeKey(_Row row) => _freeKeys.putIfAbsent(row, GlobalKey.new);
 
-  /// The place nearest [global], which is the one a drop lands on.
+  static _Row _rowOf(_Room room) => (room.slot.start, room.section);
+
+  /// The card in the air, when there is one.
+  TimelineEvent? get _draggedCard {
+    final id = _dragging;
+    return id == null ? null : _state.byId(id);
+  }
+
+  /// The place a drop at [global] lands on.
+  ///
+  /// A finger inside a free stretch is aiming at that stretch, wherever in it
+  /// the finger is. Anywhere else it is aiming at the nearest edge of a card,
+  /// unless the card is fixed: a fixed card keeps its hour between two cards,
+  /// so only empty room is somewhere for it to go.
   _Anchor? _nearest(Offset global) {
     if (_anchors.isEmpty) return null;
+
+    final inside = _anchors.where((anchor) {
+      final area = anchor.area;
+      return area != null && global.dy >= area.top && global.dy < area.bottom;
+    }).firstOrNull;
+    if (inside != null) return inside;
+    if (_draggedCard?.isAnchored ?? false) return null;
 
     return _anchors.reduce(
       (a, b) => (global.dy - a.y).abs() <= (global.dy - b.y).abs() ? a : b,
@@ -256,29 +333,46 @@ class _TimelineListState extends State<TimelineList> {
 
   /// Points the card in the air at [anchor]: a place between two cards opens
   /// up, a free stretch lights up.
-  void _aim(_Anchor? anchor, Offset global) {
+  void _aim(_Anchor? anchor) {
     _target = anchor?.slot == null ? anchor?.index : null;
     _aimedSlot = anchor?.slot;
-    _aimedRow = anchor?.slot == null ? null : _rowAt(global);
+    _aimedRow = anchor?.row;
+    _landing = anchor == null ? null : _landingFor(anchor);
   }
 
-  /// The free stretch on screen under [global], by where it starts.
-  DateTime? _rowAt(Offset global) {
-    DateTime? best;
-    var distance = double.infinity;
+  /// Where the card in the air would sit if it were let go over [anchor].
+  ///
+  /// A flexible card goes to the start of the room. A fixed one goes where
+  /// its top edge is, on the nearest quarter of an hour that keeps it whole.
+  /// Under Agora the room is not drawn to scale, so there is no height to
+  /// read an hour from, and it goes to the start too. A card too long for
+  /// the room is shown cut to what fits, which is what the drop will offer.
+  _Span? _landingFor(_Anchor anchor) {
+    final slot = anchor.slot;
+    final card = _draggedCard;
+    if (slot == null || card == null) return null;
 
-    for (final shown in _shownSlots) {
-      final rect = _rectOf(_freeKey(shown.start));
-      if (rect == null) continue;
-
-      final gap = (rect.center.dy - global.dy).abs();
-      if (gap < distance) {
-        distance = gap;
-        best = shown.start;
-      }
+    var start = slot.earliest;
+    final shown = anchor.shown;
+    final area = anchor.area;
+    final origin = _originRect;
+    if (card.isAnchored &&
+        shown != null &&
+        area != null &&
+        origin != null &&
+        anchor.row?.$2 != TimelineSection.agora) {
+      final aimed = TimelineScale.timeAt(
+        shown,
+        origin.top + _travel.dy - area.top,
+        area.bottom - area.top,
+      );
+      start = TimelineScale.landingIn(slot, aimed, card.durationMinutes);
     }
 
-    return best;
+    final room = slot.end.difference(start).inMinutes;
+    final minutes = card.durationMinutes <= room ? card.durationMinutes : room;
+
+    return (start: start, end: start.add(Duration(minutes: minutes)));
   }
 
   /// How far a row with [before] cards above it has to move to open the
@@ -325,7 +419,7 @@ class _TimelineListState extends State<TimelineList> {
       _slotHeight = rect.height + AppSpacing.s1;
       _anchors = _measure(id);
       _travel = Offset.zero;
-      _aim(_nearest(_down!), _down!);
+      _aim(_nearest(_down!));
     });
   }
 
@@ -335,6 +429,7 @@ class _TimelineListState extends State<TimelineList> {
 
     if (_dragging != null) {
       final wasArmed = _armedSolve;
+      final wasLanding = _landing?.start;
       final travel = event.position - down;
 
       setState(() {
@@ -348,15 +443,15 @@ class _TimelineListState extends State<TimelineList> {
         // A card on its way out of the timeline is not aiming at a place, so
         // nothing opens one for it: the list stays where it is and the only
         // thing left to read is the check.
-        _aim(
-          _axis == Axis.horizontal ? null : _nearest(event.position),
-          event.position,
-        );
+        _aim(_axis == Axis.horizontal ? null : _nearest(event.position));
       });
 
       // One tick as the gesture changes what letting go will do, and only on
-      // the change.
-      if (_armedSolve != wasArmed) unawaited(HapticFeedback.selectionClick());
+      // the change. A fixed card crossing a quarter of an hour is one.
+      if (_armedSolve != wasArmed ||
+          (_landing != null && _landing?.start != wasLanding)) {
+        unawaited(HapticFeedback.selectionClick());
+      }
       return;
     }
 
@@ -383,6 +478,7 @@ class _TimelineListState extends State<TimelineList> {
     final id = _dragging;
     final target = _target;
     final slot = _aimedSlot;
+    final landing = _landing;
     final pressed = _pressed;
     final solving = _armedSolve;
     final travel = _travel;
@@ -414,7 +510,7 @@ class _TimelineListState extends State<TimelineList> {
     }
 
     if (slot != null && card != null) {
-      unawaited(_dropInto(card, slot));
+      unawaited(_dropInto(card, slot, landing?.start ?? slot.earliest));
       return;
     }
 
@@ -454,19 +550,24 @@ class _TimelineListState extends State<TimelineList> {
     context.read<TimelineBloc>().add(EventFinished(id));
   }
 
-  /// Puts [card] at the start of the free stretch [slot].
+  /// Puts [card] into the free stretch [slot], starting at [start].
   ///
   /// A card that fits goes straight in. One that is longer than the stretch
   /// asks whether to cut it to the room there is, pause included, and a no
-  /// leaves the day exactly as it was.
-  Future<void> _dropInto(TimelineEvent card, FreeSlot slot) async {
+  /// leaves the day exactly as it was. A fixed card let go on the hour it
+  /// already had has not moved.
+  Future<void> _dropInto(
+    TimelineEvent card,
+    FreeSlot slot,
+    DateTime start,
+  ) async {
     final bloc = context.read<TimelineBloc>();
-    final room = slot.capacityMinutes;
+    final room = slot.end.difference(start).inMinutes;
+
+    if (card.isAnchored && start == card.startTime) return;
 
     if (card.durationMinutes <= room) {
-      bloc.add(
-        EventMoved(id: card.id, index: slot.index, after: slot.earliest),
-      );
+      bloc.add(EventMoved(id: card.id, index: slot.index, after: start));
       return;
     }
 
@@ -481,7 +582,7 @@ class _TimelineListState extends State<TimelineList> {
         EventMoved(
           id: card.id,
           index: slot.index,
-          after: slot.earliest,
+          after: start,
           minutes: room,
         ),
       );
@@ -511,6 +612,7 @@ class _TimelineListState extends State<TimelineList> {
       _target = null;
       _aimedSlot = null;
       _aimedRow = null;
+      _landing = null;
       _travel = Offset.zero;
     });
   }
@@ -573,6 +675,11 @@ class _TimelineListState extends State<TimelineList> {
   /// it simply is not drawn. The free stretches are written in between the
   /// cards they separate, and fall under a heading by where they start, like
   /// any card.
+  ///
+  /// Under Agora nothing changed: the cards take the height they need and the
+  /// break is its own quiet card. Later in the day every row is as tall as
+  /// its time, and room too short to be worth a drop is left out, so the next
+  /// card simply follows.
   List<Widget> _rows(TimelineState state, String? dragging) {
     final now = DateTime.now();
     var first = true;
@@ -588,17 +695,17 @@ class _TimelineListState extends State<TimelineList> {
         ),
     ];
 
-    final slots = TimelinePlan.freeSlots(state.cards, now: now);
-    _shownSlots = slots;
-    if (state.cards.isEmpty && slots.isEmpty) return [...rows, const _Empty()];
+    final rooms = _rooms(TimelinePlan.freeSlots(state.cards, now: now), now);
+    _shownRooms = rooms;
+    if (state.cards.isEmpty && rooms.isEmpty) return [...rows, const _Empty()];
 
     TimelineSection? section;
 
-    for (final entry in _entries(state.cards, slots)) {
+    for (final entry in _entries(state.cards, rooms)) {
       final card = entry.card;
-      final slot = entry.slot;
-      final entrySection = card?.section ?? _sectionOf(slot!, now);
-      final before = card == null ? slot!.index : state.indexOf(card.id);
+      final room = entry.room;
+      final entrySection = card?.section ?? room!.section;
+      final before = card == null ? room!.slot.index : state.indexOf(card.id);
 
       // A row only moves while there is a card in the air; the rest of the
       // time the offset is zero, so a dropped card cannot animate after it
@@ -621,14 +728,35 @@ class _TimelineListState extends State<TimelineList> {
           padding: const EdgeInsets.only(top: AppSpacing.s1),
           child: _Slid(
             dy: dy,
-            child: card == null
-                ? FreeTile(
-                    key: _freeKey(slot!.start),
-                    slot: slot,
-                    now: entrySection == TimelineSection.agora,
-                    targeted: dragging != null && _aimedRow == slot.start,
-                  )
-                : _tile(card, dragging),
+            child: switch ((card, entrySection)) {
+              (null, TimelineSection.agora) => FreeTile(
+                key: _freeKey(_rowOf(room!)),
+                slot: room.slot,
+                now: true,
+                targeted: dragging != null && _aimedRow == _rowOf(room),
+                // The break is not cut into hours, so a tap on it is always
+                // the room itself.
+                onTap: widget.onFreeTap == null
+                    ? null
+                    : () => widget.onFreeTap!(
+                        (from: room.slot.earliest, fixedAt: null),
+                      ),
+              ),
+              (null, _) => FreeStretch(
+                key: _freeKey(_rowOf(room!)),
+                slot: room.slot,
+                targeted: dragging != null && _aimedRow == _rowOf(room),
+                preview: dragging != null && _aimedRow == _rowOf(room)
+                    ? _landing
+                    : null,
+                onTap: widget.onFreeTap,
+              ),
+              (final card?, TimelineSection.agora) => _tile(card, dragging),
+              (final card?, _) => SizedBox(
+                height: TimelineScale.blockHeight(card),
+                child: _tile(card, dragging),
+              ),
+            },
           ),
         ),
       );
@@ -656,19 +784,34 @@ class _TimelineListState extends State<TimelineList> {
     );
   }
 
+  /// The free stretches as they are drawn, each under its heading.
+  ///
+  /// Under Agora the break is drawn whatever its length, as it always was.
+  /// Later in the day only room worth a drop is drawn. The break is also the
+  /// start of the rest of today, so when it is long enough it opens Ainda
+  /// hoje as well, the way any empty room there would.
+  static List<_Room> _rooms(List<FreeSlot> slots, DateTime now) {
+    return [
+      for (final slot in slots)
+        if (_sectionOf(slot, now) == TimelineSection.agora) ...[
+          (slot: slot, section: TimelineSection.agora),
+          if (TimelineScale.shows(slot))
+            (slot: slot, section: TimelineSection.hoje),
+        ] else if (TimelineScale.shows(slot))
+          (slot: slot, section: _sectionOf(slot, now)),
+    ];
+  }
+
   /// The cards and the free stretches as one list, in the order they happen.
-  static List<_Entry> _entries(
-    List<TimelineEvent> cards,
-    List<FreeSlot> slots,
-  ) {
+  static List<_Entry> _entries(List<TimelineEvent> cards, List<_Room> rooms) {
     final entries = <_Entry>[];
     var next = 0;
 
     for (var index = 0; index <= cards.length; index++) {
-      while (next < slots.length && slots[next].index == index) {
-        entries.add((card: null, slot: slots[next++]));
+      while (next < rooms.length && rooms[next].slot.index == index) {
+        entries.add((card: null, room: rooms[next++]));
       }
-      if (index < cards.length) entries.add((card: cards[index], slot: null));
+      if (index < cards.length) entries.add((card: cards[index], room: null));
     }
 
     return entries;
@@ -705,6 +848,7 @@ class _TimelineListState extends State<TimelineList> {
           card: card,
           dx: _travel.dx,
           progress: _solveProgress,
+          landing: _landing,
         ),
       ),
     );
@@ -759,9 +903,13 @@ class _Lifted extends StatelessWidget {
     required this.card,
     required this.dx,
     required this.progress,
+    this.landing,
   });
 
   final TimelineEvent card;
+
+  /// Where it would land, which its hours read while it is aimed somewhere.
+  final _Span? landing;
 
   /// How far sideways the finger has taken it.
   final double dx;
@@ -789,7 +937,7 @@ class _Lifted extends StatelessWidget {
         Positioned.fill(
           child: Transform.translate(
             offset: Offset(dx, 0),
-            child: EventTile(card: card, lifted: true),
+            child: EventTile(card: card, lifted: true, landing: landing),
           ),
         ),
       ],

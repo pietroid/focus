@@ -337,14 +337,21 @@ function requireEvent(dto: CreateEventDto): EventRequest {
   if (startTime !== undefined && Number.isNaN(Date.parse(startTime))) {
     throw new BadRequestException('startTime must be an ISO 8601 date-time');
   }
+  const notBefore = dto.notBefore;
+  if (notBefore !== undefined && Number.isNaN(Date.parse(notBefore))) {
+    throw new BadRequestException('notBefore must be an ISO 8601 date-time');
+  }
 
   // Only a fixed block names its hour. Carrying one on a flexible block would
-  // be the app asking for a slot the server is about to pick anyway.
+  // be the app asking for a slot the server is about to pick anyway. A
+  // flexible one may say where to start looking instead, which a fixed one
+  // has no use for.
   return {
     title,
     durationMinutes,
     fixed,
     startTime: fixed ? startTime : undefined,
+    notBefore: fixed ? undefined : notBefore,
   };
 }
 

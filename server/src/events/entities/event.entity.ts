@@ -92,6 +92,8 @@ export interface EventRequest {
   fixed: boolean;
   /** ISO 8601. Only a fixed block gets to name one. */
   startTime?: string;
+  /** ISO 8601. The earliest a flexible one may start. */
+  notBefore?: string;
 }
 
 /** Where a drop left a card, and what the drop asked for beyond the place. */

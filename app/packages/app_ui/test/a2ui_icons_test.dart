@@ -10,8 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// app draws nothing for one it does not know, and a name added to only one
 /// side fails silently in production as a missing glyph. So it is checked
 /// here, by reading the server's own source.
-File get _serverCatalog =>
-    File('../../../server/src/a2ui/a2ui.catalog.ts');
+File get _serverCatalog => File('../../../server/src/a2ui/a2ui.catalog.ts');
 
 Set<String> _serverIconNames(String source) {
   final block = RegExp(
@@ -21,10 +20,9 @@ Set<String> _serverIconNames(String source) {
 
   if (block == null) return <String>{};
 
-  return RegExp("'([a-zA-Z]+)'")
-      .allMatches(block.group(1)!)
-      .map((match) => match.group(1)!)
-      .toSet();
+  return RegExp(
+    "'([a-zA-Z]+)'",
+  ).allMatches(block.group(1)!).map((match) => match.group(1)!).toSet();
 }
 
 void main() {

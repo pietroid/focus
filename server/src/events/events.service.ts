@@ -180,6 +180,7 @@ export class EventsService {
       slot: Interval;
       fixed: boolean;
       threadSlug?: string;
+      notBefore?: Date;
     },
     trace: Trace,
   ): Promise<CalendarEvent> {
@@ -194,6 +195,7 @@ export class EventsService {
           endTime: event.slot.end.toISOString(),
           fixed: event.fixed,
           threadSlug: event.threadSlug,
+          notBefore: event.notBefore?.toISOString(),
         },
         trace,
       );

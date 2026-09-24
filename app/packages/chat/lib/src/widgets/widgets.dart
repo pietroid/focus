@@ -4,6 +4,8 @@ export 'chat_bubble.dart';
 export 'chat_composer.dart';
 export 'confirm_sheet.dart';
 export 'event_tile.dart';
+export 'free_stretch.dart';
 export 'free_tile.dart';
 export 'guard_sheet.dart';
 export 'now_surface.dart';
+export 'timeline_scale.dart';

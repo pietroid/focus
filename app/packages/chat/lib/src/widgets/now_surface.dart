@@ -190,7 +190,8 @@ class _GlowPainter extends CustomPainter {
 ///
 /// Every few seconds rather than every frame: the bar on a thirty minute
 /// block moves a pixel every several seconds anyway. A paused block stands
-/// still, because paused time is not work.
+/// still, because paused time is not work, and a block waiting to be begun
+/// reads as one paused before its first minute.
 /// {@endtemplate}
 class NowProgress extends StatefulWidget {
   /// {@macro now_progress}
@@ -213,9 +214,12 @@ class _NowProgressState extends State<NowProgress> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted && !widget.card.isPaused) setState(() {});
+      if (mounted && !_stopped) setState(() {});
     });
   }
+
+  /// Whether nothing is being worked on: paused, or not begun yet.
+  bool get _stopped => widget.card.isPaused || widget.card.awaitingStart;
 
   @override
   void dispose() {
@@ -226,7 +230,10 @@ class _NowProgressState extends State<NowProgress> {
   @override
   Widget build(BuildContext context) {
     final card = widget.card;
-    final progress = card.progressAt(DateTime.now());
+    final stopped = _stopped;
+    // The server slides a waiting block to the current minute, so its start
+    // is always a moment ago. None of that is work.
+    final progress = card.awaitingStart ? 0.0 : card.progressAt(DateTime.now());
     final left = (card.workMinutes * (1 - progress)).ceil();
 
     return Column(
@@ -236,11 +243,11 @@ class _NowProgressState extends State<NowProgress> {
           children: [
             Expanded(
               child: Text(
-                card.isPaused
+                stopped
                     ? 'Pausado · faltam ${_minutes(left)}'
                     : 'Faltam ${_minutes(left)}',
                 style: AppTypography.label.copyWith(
-                  color: card.isPaused ? AppColors.ink3 : AppColors.ink2,
+                  color: stopped ? AppColors.ink3 : AppColors.ink2,
                 ),
               ),
             ),
@@ -254,7 +261,7 @@ class _NowProgressState extends State<NowProgress> {
             value: progress,
             minHeight: 3,
             backgroundColor: AppColors.line,
-            color: card.isPaused ? AppColors.ink3 : AppColors.accent,
+            color: stopped ? AppColors.ink3 : AppColors.accent,
           ),
         ),
       ],

@@ -73,27 +73,7 @@ class _ShellPageState extends State<ShellPage> {
   }
 
   /// Writes something down with an hour on it. No conversation.
-  Future<void> _schedule() async {
-    final bloc = context.read<TimelineBloc>();
-    final result = await AppPromptSheet.show(
-      context,
-      // The sheet asks where something would land while the user is still
-      // typing, so the answer comes off the cards already on screen rather
-      // than out of a request per keystroke.
-      previewFor: (duration) =>
-          TimelinePlan.nextFreeStart(bloc.state.cards, duration),
-    );
-    if (result == null) return;
-
-    bloc.add(
-      EventCreated(
-        title: result.text,
-        durationMinutes: result.duration.inMinutes,
-        fixed: result.fixed,
-        startTime: result.startTime,
-      ),
-    );
-  }
+  Future<void> _schedule() => writeDownOnTimeline(context);
 
   /// Opens a new thread on whatever the user typed.
   Future<void> _converse() async {

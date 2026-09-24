@@ -88,9 +88,12 @@ class DemoTimelineRepository implements TimelineRepository {
     required int durationMinutes,
     required bool fixed,
     DateTime? startTime,
+    DateTime? notBefore,
   }) async {
     final duration = Duration(minutes: durationMinutes);
-    final start = startTime ?? TimelinePlan.nextFreeStart(_cards, duration);
+    final start =
+        startTime ??
+        TimelinePlan.nextFreeStart(_cards, duration, now: notBefore);
     final card = _card(
       'demo-${_cards.length}-${start.millisecondsSinceEpoch}',
       title,

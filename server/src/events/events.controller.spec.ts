@@ -105,6 +105,7 @@ class StubCalendarWriter {
       managed: true,
       fixed: patch.fixed === true,
       threadSlug: patch.threadSlug,
+      notBefore: patch.notBefore,
     };
 
     this._events.set(event.id, event);
@@ -1183,6 +1184,31 @@ describe('the day', () => {
     });
   });
 
+  describe('writing down from a tap on empty room', () => {
+    it('starts a flexible block where the room starts, and keeps it there', async () => {
+      const room = new Date();
+      room.setHours(room.getHours() + 3, 0, 0, 0);
+
+      const [drawn] = cards(
+        await add('Ler', 30, { notBefore: room.toISOString() }).expect(201),
+      );
+
+      expect(drawn.fixed).toBe(false);
+      expect(Date.parse(drawn.startTime)).toBe(room.getTime());
+      expect(drawn.notBefore).toBe(room.toISOString());
+    });
+
+    it('ignores a floor the clock has already passed', async () => {
+      const past = new Date(Date.now() - 3_600_000).toISOString();
+
+      const [drawn] = cards(
+        await add('Ler', 30, { notBefore: past }).expect(201),
+      );
+
+      expect(drawn.notBefore).toBeUndefined();
+    });
+  });
+
   describe('dropping into a gap', () => {
     it('starts the block where the gap starts, not earlier', async () => {
       const at = new Date();
@@ -1236,19 +1262,31 @@ describe('the day', () => {
     });
   });
 
-  it('will not drag a routine; the menu is where it changes', async () => {
+  it('moves one day of a routine and leaves it fixed', async () => {
+    const lunch = new Date();
+    lunch.setHours(lunch.getHours() + 2, 0, 0, 0);
     await agenda.upsert(owner, {
       id: 'lunch_20260310',
       title: 'Almoço',
-      startTime: new Date(Date.now() + 2 * 3_600_000).toISOString(),
-      endTime: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+      startTime: lunch.toISOString(),
+      endTime: new Date(lunch.getTime() + 60 * 60_000).toISOString(),
       managed: true,
       fixed: true,
       routine: 'daily',
     });
 
-    const [lunch] = await timeline();
-    expect(lunch.routine).toBe('daily');
-    await drag(lunch.id, 0).expect(400);
+    const later = new Date(lunch.getTime() + 2 * 3_600_000);
+    const day = outcome(
+      await request(app.getHttpServer())
+        .post('/events/lunch_20260310/move')
+        .send({ index: 0, after: later.toISOString() })
+        .expect(201),
+    ).cards;
+
+    const moved = day.find((it) => it.id === 'lunch_20260310')!;
+    expect(moved.routine).toBe('daily');
+    expect(moved.fixed).toBe(true);
+    expect(Date.parse(moved.startTime)).toBe(later.getTime());
+    expect(moved.durationMinutes).toBe(60);
   });
 });

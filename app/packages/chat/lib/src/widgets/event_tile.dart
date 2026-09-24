@@ -5,15 +5,18 @@ import 'package:chat/src/widgets/now_surface.dart';
 /// {@template event_tile}
 /// One card on the timeline: a block of time.
 ///
-/// The title and the hour it starts. Only the start: the next card says when
-/// this one ends, near enough, and two times per line made the day read like
-/// a timetable. A fixed card says so with a pin: it is the one card on the
-/// screen that will not move when the day is rearranged, and that is worth
-/// knowing before rearranging it. A routine's day carries a repeat mark and a
-/// faintly different fill, so lunch reads as lunch before its title does.
+/// The title, and the hours it starts and ends on the right. Later in the day
+/// the card is as tall as its time, near enough, and the hours are what say
+/// exactly how much of the day it takes. A fixed card says so with a pin: it
+/// is the one card on the screen that will not move when the day is
+/// rearranged, and that is worth knowing before rearranging it. A routine's
+/// day carries a repeat mark and a faintly different fill, so lunch reads as
+/// lunch before its title does.
 ///
-/// A flexible block whose hour has come waits for the user, and says so in
-/// place of the progress bar: begin it, or give it fifteen minutes more.
+/// A flexible block whose hour has come waits for the user. It is drawn as
+/// the running card exactly, paused at its first minute: the play button
+/// begins it, and +15 gives it fifteen minutes more, which takes it out of
+/// Agora until then.
 ///
 /// A meeting Focus did not book looks the same and behaves differently: it
 /// carries a small mark saying where it came from, and the list above ignores
@@ -30,6 +33,7 @@ class EventTile extends StatelessWidget {
     this.pressed = false,
     this.hidden = false,
     this.lifted = false,
+    this.landing,
     this.actionsKey,
     this.onPauseToggled,
     this.onAdjusted,
@@ -53,6 +57,10 @@ class EventTile extends StatelessWidget {
 
   /// Whether this is the copy that follows the finger.
   final bool lifted;
+
+  /// The hours it would have if it were let go now, which the copy under the
+  /// finger reads in place of its own.
+  final ({DateTime start, DateTime end})? landing;
 
   /// Put on the row of buttons, so the list's own gesture can leave a tap on
   /// one of them alone.
@@ -112,19 +120,13 @@ class EventTile extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.s3),
               Text(
-                _hhmm(card.startTime),
+                '${_hhmm(landing?.start ?? card.startTime)}–'
+                '${_hhmm(landing?.end ?? card.endTime)}',
                 style: AppTypography.label.copyWith(color: AppColors.ink3),
               ),
             ],
           ),
-          if (_isNow && card.awaitingStart) ...[
-            const SizedBox(height: AppSpacing.s2),
-            _StartPrompt(
-              key: actionsKey,
-              onStarted: onStarted,
-              onSnoozed: onSnoozed,
-            ),
-          ] else if (_isNow) ...[
+          if (_isNow) ...[
             const SizedBox(height: AppSpacing.s2),
             NowProgress(card: card, trailing: _actions()),
           ],
@@ -167,6 +169,8 @@ class EventTile extends StatelessWidget {
       key: actionsKey,
       card: card,
       onPauseToggled: onPauseToggled,
+      onStarted: onStarted,
+      onSnoozed: onSnoozed,
       onAdjusted: onAdjusted!,
       onDone: onDone!,
     );
@@ -192,6 +196,10 @@ class EventTile extends StatelessWidget {
 /// fifteen minutes either way, and done. The running card on the timeline and
 /// the block's own screen draw the same row, so a button means the same thing
 /// in both places.
+///
+/// A block waiting to be begun draws the same row as a paused one. Play
+/// begins it, and +15 is fifteen minutes before it asks again rather than
+/// fifteen minutes more of work, because none of its work has started.
 /// {@endtemplate}
 class EventControls extends StatelessWidget {
   /// {@macro event_controls}
@@ -201,6 +209,7 @@ class EventControls extends StatelessWidget {
     required this.onDone,
     this.onPauseToggled,
     this.onStarted,
+    this.onSnoozed,
     super.key,
   });
 
@@ -213,6 +222,9 @@ class EventControls extends StatelessWidget {
   /// Starts it now. Only drawn before it has started.
   final VoidCallback? onStarted;
 
+  /// Gives a waiting block fifteen minutes before it asks again.
+  final VoidCallback? onSnoozed;
+
   /// Asks for fifteen minutes more, or fewer when negative.
   final ValueChanged<int> onAdjusted;
 
@@ -224,6 +236,7 @@ class EventControls extends StatelessWidget {
     final now = DateTime.now();
     final running = card.isRunningAt(now);
     final shortens = card.canShorten(15, now);
+    final waiting = card.awaitingStart && onSnoozed != null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -271,8 +284,8 @@ class EventControls extends StatelessWidget {
           ),
         ),
         _Action(
-          tooltip: 'Mais 15 min',
-          onTap: () => onAdjusted(15),
+          tooltip: waiting ? 'Esperar 15 min' : 'Mais 15 min',
+          onTap: waiting ? onSnoozed : () => onAdjusted(15),
           child: Text(
             '+15',
             style: AppTypography.labelStrong.copyWith(color: AppColors.ink2),
@@ -287,51 +300,6 @@ class EventControls extends StatelessWidget {
             color: AppColors.ink2,
           ),
         ),
-      ],
-    );
-  }
-}
-
-/// What a waiting block says in place of its progress bar.
-///
-/// The hour came and nothing started, because a flexible block waits for the
-/// user. Two answers and nothing else: begin it now, or fifteen minutes more,
-/// after which it asks again.
-class _StartPrompt extends StatelessWidget {
-  const _StartPrompt({this.onStarted, this.onSnoozed, super.key});
-
-  final VoidCallback? onStarted;
-  final VoidCallback? onSnoozed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Hora de começar',
-            style: AppTypography.label.copyWith(color: AppColors.ink2),
-          ),
-        ),
-        if (onSnoozed != null)
-          _Action(
-            tooltip: 'Esperar 15 min',
-            onTap: onSnoozed,
-            child: Text(
-              '15 min',
-              style: AppTypography.labelStrong.copyWith(color: AppColors.ink2),
-            ),
-          ),
-        if (onStarted != null)
-          _Action(
-            tooltip: 'Começar',
-            onTap: onStarted,
-            child: const AppIcon(
-              iconData: AppIcons.play,
-              size: AppSpacing.s4,
-              color: AppColors.ink,
-            ),
-          ),
       ],
     );
   }
