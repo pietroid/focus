@@ -67,7 +67,9 @@ class _NowSurfaceState extends State<NowSurface>
     if (widget.paused) {
       _controller.stop();
     } else {
-      unawaited(_controller.repeat());
+      // repeat() is @awaitNotRequired, which discarded_futures ignores.
+      // ignore: discarded_futures
+      _controller.repeat();
     }
   }
 

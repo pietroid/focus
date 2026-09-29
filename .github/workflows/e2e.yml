@@ -81,12 +81,30 @@ jobs:
           curl -fsSL https://get.maestro.mobile.dev | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
 
+      # Ubuntu 24.04 stops unprivileged programs from creating user
+      # namespaces unless an AppArmor profile allows them. The system Chrome
+      # ships one; the Chrome for Testing that Maestro's Selenium downloads
+      # does not, so without this its sandbox fails and Chrome exits at start.
+      - name: Let Chrome for Testing use its sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       - name: Run the suite
         env:
           E2E_RECORD: '1'
           E2E_OUT: ${{ runner.temp }}/e2e
         run: |
           xvfb-run -a --server-args="-screen 0 1280x800x24" e2e/scripts/e2e.sh
+
+      # Only when something failed: start the Chrome Maestro downloaded by
+      # hand, so its own error reaches the log instead of Selenium's summary.
+      - name: Show why Chrome would not start
+        if: failure()
+        run: |
+          chrome="$(find "$HOME/.cache/selenium/chrome" -type f -name chrome 2> /dev/null | head -n1)"
+          if [ -z "$chrome" ]; then echo "No Chrome for Testing was downloaded."; exit 0; fi
+          echo "$chrome"; "$chrome" --version || true
+          timeout 30 xvfb-run -a "$chrome" --headless=new --disable-gpu --dump-dom about:blank 2>&1 | tail -n 30 || true
+          sudo dmesg | grep -i -E 'apparmor|chrome' | tail -n 10 || true
 
       - name: Upload artifacts
         if: always()

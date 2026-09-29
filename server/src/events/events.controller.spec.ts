@@ -383,7 +383,10 @@ describe('the day', () => {
     agenda = moduleRef.get(CalendarReaderService);
 
     app = moduleRef.createNestApplication();
-    await app.init();
+    // Bound to 127.0.0.1, the address supertest dials. Left to supertest, the
+    // server takes a random port on ::, which macOS hands out even when
+    // another process holds that port on 127.0.0.1, and the request lands there.
+    await app.listen(0, '127.0.0.1');
   });
 
   afterEach(async () => {

@@ -64,14 +64,14 @@ class ThingsBloc extends Bloc<ThingsEvent, ThingsState> {
         ),
         drawn: [
           for (final thing in state.things)
-            thing.id == event.id
-                ? Thing(
-                    id: thing.id,
-                    title: event.title ?? thing.title,
-                    durationMinutes:
-                        event.durationMinutes ?? thing.durationMinutes,
-                  )
-                : thing,
+            if (thing.id == event.id)
+              Thing(
+                id: thing.id,
+                title: event.title ?? thing.title,
+                durationMinutes: event.durationMinutes ?? thing.durationMinutes,
+              )
+            else
+              thing,
         ],
       );
 
