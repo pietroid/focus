@@ -59,7 +59,7 @@ version:
   commit baked into the image). `server/deploy/pi-deploy.sh` waits for it
   after a deploy.
 - The coder turns issues labelled `agent` into PRs. `coder.yml` SSHes to the
-  Raspberry Pi with a key that only runs `agent/coder/host/focus-coder`. That script clones the branch into
+  Raspberry Pi with the deploy key and runs `agent/coder/host/focus-coder`. That script clones the branch into
   `/opt/focus-coder/runs/<id>`, never the deploy checkout, and runs pi
   (pi.dev) in the `agent/coder/Dockerfile` container, built from
   `origin/main`. `agent/src/coder/` is the container's entry point. After

@@ -2,9 +2,8 @@
 # focus-coder
 #
 # The coder's side of the Raspberry Pi. Installed at
-# /opt/focus-coder/bin/focus-coder and reached only through the forced
-# command on the coder user's SSH key, so the GitHub workflow can run exactly
-# two things and nothing else:
+# /opt/focus-coder/bin/focus-coder, and run over SSH by the coder workflow
+# with the deploy key. It does two things:
 #
 #   run <run-id> <mode> <issue> <pr> <start-ref> <continuing> <push-branch>
 #       Clones start-ref into a fresh directory, starts the focus-coder
@@ -44,13 +43,9 @@ KEEP_DAYS=7
 
 die() { echo "focus-coder: $*" >&2; exit 2; }
 
-# Over SSH the words arrive in SSH_ORIGINAL_COMMAND. Split them without a
-# shell, then check every one against a strict pattern before it is used.
-if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
-  read -r -a args <<< "$SSH_ORIGINAL_COMMAND"
-else
-  args=("$@")
-fi
+# The words come from the workflow, which builds them from issue numbers and
+# branch names. Each one is checked against a strict pattern before use.
+args=("$@")
 
 want() { [[ "$2" =~ $3 ]] || die "bad $1: '$2'"; }
 

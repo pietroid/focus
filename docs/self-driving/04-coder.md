@@ -40,7 +40,7 @@ string. When the request is open, it asks instead of guessing.
 1. **route** (GitHub) works out the mode, the branch, and whether that branch
    already exists.
 2. **think** (GitHub, waiting on the Pi) opens the deploy tunnel with the
-   coder's own key and runs `run <id> <mode> <issue> <pr> <start-ref>
+   deploy key and runs `run <id> <mode> <issue> <pr> <start-ref>
    <continuing> <push-branch>`. On the Pi, `focus-coder`:
    - fetches `/opt/focus-coder/repo`;
    - builds the `focus-coder` image from **`origin/main`**. A branch the agent
@@ -86,9 +86,8 @@ told that, and CI checks the app on the push.
 **The model never holds the push credential.** pi can be steered by what it
 reads, issue text included. So your gh credentials stay outside the
 container, and only `focus-coder` pushes: after pi has exited, after its own
-path check, and only to the one branch the workflow named. The key GitHub
-uses to reach the Pi runs `focus-coder` through a forced command, and the
-script accepts `run` and `fetch` with strictly checked arguments.
+path check, and only to the one branch the workflow named. The script
+accepts `run` and `fetch` with strictly checked arguments.
 
 **What your credentials can do.** They are yours, so they can do anything
 you can, on every repository gh is allowed to reach. The script only ever
@@ -110,10 +109,10 @@ because it needs OpenRouter and npm, and so it can reach the Pi's published
 ports (nginx on 80). The backend and agent containers publish no ports, so
 the coder cannot reach them.
 
-**The key to the Pi matters.** The account runs Docker and holds your gh
-token, so the key that reaches it must stay locked to `focus-coder`. Keep
-the `command=` part on its `authorized_keys` line, and treat the private
-half like the key the deploy workflows log in with.
+**The deploy key reaches the coder.** The workflow logs in with
+`PI_SSH_PRIVATE_KEY`, the key every deploy workflow already holds. It opens
+a full shell on an account that runs Docker and holds your gh token, so
+guard it as before.
 
 **No GitHub App needed.** Only events caused by a workflow's own
 `GITHUB_TOKEN` fail to start other workflows. A push made with your
@@ -139,7 +138,7 @@ sudo mkdir -p /opt/focus-coder && sudo chown "$USER:$USER" /opt/focus-coder
 git clone https://github.com/pietroid/focus.git /opt/focus-coder/repo
 mkdir -p /opt/focus-coder/bin /opt/focus-coder/runs
 
-# 2. The script GitHub's key is locked to
+# 2. The script the workflow runs
 install -m 755 /opt/focus-coder/repo/agent/coder/host/focus-coder /opt/focus-coder/bin/focus-coder
 
 # 3. The model key, and nothing else
@@ -163,43 +162,23 @@ pi's catalog.
 Re-run step 2 whenever `agent/coder/host/focus-coder` changes on `main`. The
 image and the entry point rebuild on every run by themselves.
 
-### The key GitHub reaches the Pi with
+### Try it by hand
 
-On your Mac:
-
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/focus_coder -N "" -C "focus-coder"
-cat ~/.ssh/focus_coder.pub
-```
-
-On the Pi, add it to the same user's `~/.ssh/authorized_keys`, locked to the
-script. The `command=` part is what keeps this key from doing anything else:
+From your Mac, with the deploy key, run the coder for real on issue `<n>`.
+It pushes to `agent/issue-<n>` if pi changes something:
 
 ```bash
-echo 'command="/opt/focus-coder/bin/focus-coder",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA...your key... focus-coder' \
-  >> ~/.ssh/authorized_keys
-```
-
-The deploy workflows keep logging in with their own key, unrestricted, as
-before.
-
-Try it from your Mac on the local network. This runs the coder for real on
-issue `<n>`, and pushes to `agent/issue-<n>` if pi changes something:
-
-```bash
-ssh -i ~/.ssh/focus_coder <user>@<pi-ip> "run 1 issue <n> - main false agent/issue-<n>"
-ssh -i ~/.ssh/focus_coder <user>@<pi-ip> "fetch 1" | tar -tz
-ssh -i ~/.ssh/focus_coder <user>@<pi-ip> "run 2 issue <n> - main false main"   # refused: the default branch
-ssh -i ~/.ssh/focus_coder <user>@<pi-ip> "bash"                                  # refused: only focus-coder runs
+ssh -i ~/.ssh/focus_pi <user>@<pi-ip> "/opt/focus-coder/bin/focus-coder run 1 issue <n> - main false agent/issue-<n>"
+ssh -i ~/.ssh/focus_pi <user>@<pi-ip> "/opt/focus-coder/bin/focus-coder fetch 1" | tar -tz
+ssh -i ~/.ssh/focus_pi <user>@<pi-ip> "/opt/focus-coder/bin/focus-coder run 2 issue <n> - main false main"   # refused: the default branch
 ```
 
 ### On GitHub
 
-Add the secret `CODER_SSH_PRIVATE_KEY` with the whole `~/.ssh/focus_coder`,
-under **Settings → Secrets and variables → Actions**. The workflow logs in
-as `PI_USER`, the deploy user. Set the variable `CODER_PI_USER` only if the
-coder lives under another account. The tunnel secrets and `PI_HOST` are the
-deploy ones. The model key and your GitHub credentials stay on the Pi.
+Nothing new. The workflow uses the secrets and variables the deploys already
+have: `PI_SSH_PRIVATE_KEY`, `TUNNEL_SERVICE_TOKEN_ID`,
+`TUNNEL_SERVICE_TOKEN_SECRET`, `PI_USER` and `PI_HOST`. The model key and
+your GitHub credentials stay on the Pi.
 
 ## Using pi by hand
 
