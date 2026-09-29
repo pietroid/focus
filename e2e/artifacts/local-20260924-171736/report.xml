@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 16 Pro - iOS 18.3 - 5294FA98-9FC4-454A-BA40-DF42C7F5314D" tests="1" failures="0" time="55.031" timestamp="2026-09-24T17:18:02">
+    <testcase id="Coisas - anotar e excluir" name="Coisas - anotar e excluir" classname="Coisas - anotar e excluir" file="e2e/maestro/flows/01_things.yaml" time="54.992" timestamp="2026-09-24T17:18:02" status="SUCCESS">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+    </testcase>
+  </testsuite>
+</testsuites>

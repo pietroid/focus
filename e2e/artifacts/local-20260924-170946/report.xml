@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 16 Pro - iOS 18.3 - 5294FA98-9FC4-454A-BA40-DF42C7F5314D" tests="2" failures="2" time="46.451" timestamp="2026-09-24T17:10:16">
+    <testcase id="Coisas - anotar e excluir" name="Coisas - anotar e excluir" classname="Coisas - anotar e excluir" file="e2e/maestro/flows/01_things.yaml" time="24.953" timestamp="2026-09-24T17:10:16" status="ERROR">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+      <failure>Couldn't hide the keyboard. This can happen if the app uses a custom input or doesn't expose a standard dismiss action.</failure>
+    </testcase>
+    <testcase id="Tempo - criar e concluir bloco" name="Tempo - criar e concluir bloco" classname="Tempo - criar e concluir bloco" file="e2e/maestro/flows/02_tempo.yaml" time="21.456" timestamp="2026-09-24T17:10:41" status="ERROR">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+      <failure>Couldn't hide the keyboard. This can happen if the app uses a custom input or doesn't expose a standard dismiss action.</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

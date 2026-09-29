@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 16 Pro - iOS 18.3 - 5294FA98-9FC4-454A-BA40-DF42C7F5314D" tests="3" failures="3" time="144.589" timestamp="2026-09-24T17:11:38">
+    <testcase id="Coisas - anotar e excluir" name="Coisas - anotar e excluir" classname="Coisas - anotar e excluir" file="e2e/maestro/flows/01_things.yaml" time="57.13" timestamp="2026-09-24T17:11:38" status="ERROR">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+      <failure>Assertion is false: "Tempo" is visible</failure>
+    </testcase>
+    <testcase id="Coisas - anotar e excluir" name="Coisas - anotar e excluir" classname="Coisas - anotar e excluir" file="e2e/maestro/flows/01_things.yaml" time="36.934" timestamp="2026-09-24T17:12:35" status="ERROR">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+      <failure>Assertion is false: id: test-login-email is visible</failure>
+    </testcase>
+    <testcase id="Tempo - criar e concluir bloco" name="Tempo - criar e concluir bloco" classname="Tempo - criar e concluir bloco" file="e2e/maestro/flows/02_tempo.yaml" time="50.46" timestamp="2026-09-24T17:13:12" status="ERROR">
+      <properties>
+        <property name="tags" value="smoke"/>
+      </properties>
+      <failure>Assertion is false: "Tempo" is visible</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
