@@ -1,4 +1,5 @@
 import 'package:chat/src/models/chat_message.dart';
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 /// {@template thread}
@@ -61,5 +62,5 @@ class Thread extends Equatable {
 }
 
 DateTime _date(Object? value) {
-  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? DateTime.now();
+  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? clock.now();
 }

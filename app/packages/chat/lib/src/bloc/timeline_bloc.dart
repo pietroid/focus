@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/data/timeline_repository.dart';
 import 'package:chat/src/models/models.dart';
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 part 'timeline_event.dart';
@@ -317,7 +318,7 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
 
     final toggled = card.isPaused
         ? card.copyWith(clearPause: true)
-        : card.copyWith(pausedAt: DateTime.now());
+        : card.copyWith(pausedAt: clock.now());
 
     await _write(
       emit,

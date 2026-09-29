@@ -1,4 +1,5 @@
 import 'package:chat/src/models/chat_message.dart';
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 /// Which stretch of the clock a card falls in.
@@ -258,7 +259,7 @@ class TimelineEvent extends Equatable {
 }
 
 DateTime _date(Object? value) {
-  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? DateTime.now();
+  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? clock.now();
 }
 
 DateTime? _maybeDate(Object? value) {

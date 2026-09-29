@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:chat/src/widgets/now_surface.dart';
+import 'package:clock/clock.dart';
 
 /// {@template event_tile}
 /// One card on the timeline: a block of time.
@@ -243,7 +244,7 @@ class EventControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = clock.now();
     final running = card.isRunningAt(now);
     final shortens = card.canShorten(15, now);
     final waiting = card.awaitingStart && onSnoozed != null;

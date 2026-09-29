@@ -1,6 +1,7 @@
 import 'package:app_ui/app_ui.dart';
 import 'package:chat/src/data/chat_repository.dart';
 import 'package:chat/src/models/models.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// {@template conversations_section}
@@ -181,7 +182,7 @@ DateTime _dayOf(DateTime at) => DateTime(at.year, at.month, at.day);
 /// date, because "há 4 dias" makes the reader do arithmetic to work out which
 /// day it actually was.
 String _dayLabel(DateTime day, {DateTime? now}) {
-  final today = _dayOf(now ?? DateTime.now());
+  final today = _dayOf(now ?? clock.now());
   final difference = today.difference(day).inDays;
 
   if (difference == 0) return 'Hoje';
