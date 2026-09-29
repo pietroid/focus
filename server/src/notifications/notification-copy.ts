@@ -15,13 +15,13 @@ export const EVENING_TITLE = 'Boa noite';
 export const MORNING_MESSAGES: readonly string[] = [
   'Um dia novinho em folha. Bora?',
   'Café na mão e um passo de cada vez.',
-  'Hoje é um bom dia pra fazer uma coisa bem feita.',
+  'Hoje é um bom dia pra fazer um projeto bem feito.',
   'Respira fundo. O dia é seu.',
   'Começa pequeno. O resto vem.',
-  'Que tal escolher uma coisa só pra hoje?',
+  'Que tal escolher um projeto só pra hoje?',
   'O sol já levantou. E você?',
   'Devagar também chega. Bom dia!',
-  'Uma coisa de cada vez, e tudo dá certo.',
+  'Um projeto de cada vez, e tudo dá certo.',
   'Dia bom começa com um sorriso. Até torto vale.',
 ];
 

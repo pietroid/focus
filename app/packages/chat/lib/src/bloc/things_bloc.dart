@@ -8,7 +8,7 @@ part 'things_event.dart';
 part 'things_state.dart';
 
 /// {@template things_bloc}
-/// Holds Coisas: what has no hour yet, in the order the user means to do it.
+/// Holds Projects: what has no hour yet, in the order the user means to do it.
 ///
 /// Every change lands on screen first and is taken back if the server
 /// refuses it. Nothing here is arithmetic the server has to do, so there is

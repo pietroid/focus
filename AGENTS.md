@@ -670,11 +670,11 @@ alone. The routine as a whole is edited only from the menu. The reader's
 cache is invalidated after a routine write, because only Google knows which
 days the new series lands on.
 
-#### Coisas and Conversas
+#### Projetos and Conversas
 
-The four tabs are **Tempo**, **Coisas**, **Conversas** and **Menu**.
+The four tabs are **Tempo**, **Projetos**, **Conversas** and **Menu**.
 
-**Coisas** is the timeline with the clock taken out: things with a title and a
+**Projetos** is the timeline with the clock taken out: things with a title and a
 length and no hour, in the order the user drags them into. It lives in
 `server/src/things/`, one JSON file per person beside the day folders
 (`<root>/<userId>/things.json`), because a thing has no day and is not a
@@ -682,7 +682,7 @@ calendar event. Right swipe is done, left swipe deletes after asking, and each
 row has one button, `POST /things/:id/schedule`, which books it as a flexible
 block through the same `create` the orb uses and then takes it off the list.
 
-**Conversas** is the thread list that used to be called Coisas, unchanged.
+**Conversas** is the thread list that used to be called Projetos, unchanged.
 
 #### The orb
 
@@ -690,7 +690,7 @@ One button, three meanings, decided by the tab under it. On **Tempo** it opens
 the creation sheet: a line of text, flexible or fixed, a duration, and a line
 saying what hour that works out to. A fixed block picks a day as well as an
 hour, each its own pill, the day from a wheel a year long. No model runs and nothing is proposed. The card is on the timeline by
-the time the sheet closes. On **Coisas** the same sheet opens without the
+the time the sheet closes. On **Projetos** the same sheet opens without the
 clock: text and a duration. On **Conversas**, and everywhere else, it starts a
 conversation.
 

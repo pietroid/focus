@@ -105,7 +105,7 @@ class _DemoHome extends StatelessWidget {
         center: AppOrb(onTap: () => _schedule(context)),
         items: const [
           AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
-          AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
+          AppBottomBarItem(iconData: AppIcons.things, label: 'Projetos'),
           AppBottomBarItem(
             iconData: AppIcons.conversations,
             label: 'Conversas',

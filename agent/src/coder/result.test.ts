@@ -12,12 +12,12 @@ test('the answer file wins over the printed output', () => {
 test('without a file, the last JSON object in the output is the answer', () => {
   const stdout = [
     'I looked at {"not": "an answer"} first.',
-    'Done: {"kind": "changes", "title": "Rename heading", "body": "It says {Minhas coisas}", "commit_message": "feat: rename"}',
+    'Done: {"kind": "changes", "title": "Rename heading", "body": "It says {Meus projetos}", "commit_message": "feat: rename"}',
   ].join('\n');
   assert.deepEqual(parseAnswer(undefined, stdout), {
     kind: 'changes',
     title: 'Rename heading',
-    body: 'It says {Minhas coisas}',
+    body: 'It says {Meus projetos}',
     commitMessage: 'feat: rename',
   });
 });
@@ -52,12 +52,12 @@ test('the task names the issue and its conversation', () => {
     continuing: false,
     issue: {
       number: 7,
-      title: 'Renomear Coisas',
-      body: 'O título deve ser Minhas coisas.',
+      title: 'Renomear Projetos',
+      body: 'O título deve ser Meus projetos.',
       comments: [{ author: 'pietroid', body: 'Só o título.', createdAt: '2026-09-28T12:00:00Z' }],
     },
   });
   assert.match(prompt, /^Implement this issue\./);
-  assert.match(prompt, /Issue #7: Renomear Coisas/);
+  assert.match(prompt, /Issue #7: Renomear Projetos/);
   assert.match(prompt, /@pietroid .*:\nSó o título\./);
 });

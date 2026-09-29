@@ -79,8 +79,8 @@ two values agree on the same port.
 
 ## Try the whole loop
 
-8. Open a small issue, for example "Rename the Coisas heading to Minhas
-    coisas", and label it `agent`. To run it again later, remove the label
+8. Open a small issue, for example "Rename the Projetos heading to Meus
+    projetos", and label it `agent`. To run it again later, remove the label
     and add it back. You should get a question on the issue, or a PR. CI and
     E2E run on its branch, and the video is linked on the PR when E2E
     finishes.

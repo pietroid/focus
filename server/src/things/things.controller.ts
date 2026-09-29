@@ -21,7 +21,7 @@ import { ThingsService } from './things.service';
 type DecodedIdToken = adminAuth.DecodedIdToken;
 
 /**
- * Coisas: the list of what has no hour yet.
+ * Projects: the list of what has no hour yet.
  *
  * Every route answers with the whole list, so the app never has to work out
  * what a change did to the order.

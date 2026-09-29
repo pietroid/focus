@@ -40,7 +40,7 @@ interface ActionResult {
 export class ThreadsController {
   constructor(private readonly threadsService: ThreadsService) {}
 
-  /** Every open thread, most recently replied to first. What Coisas draws. */
+  /** Every open thread, most recently replied to first. What Projects draws. */
   @Get()
   async findAll(@CurrentUser() user: DecodedIdToken): Promise<ThreadItem[]> {
     return this.threadsService.findItems(user.uid);

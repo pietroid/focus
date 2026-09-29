@@ -18,7 +18,7 @@ class ChatRepository {
 
   /// Every open thread, most recently replied to first.
   ///
-  /// What Coisas draws, and all of what it draws: every conversation the user
+  /// What Projects draws, and all of what it draws: every conversation the user
   /// has open, whether or not an hour was ever set aside for any of them.
   Future<List<ThreadItem>> fetchItems() async {
     final response = await apiClient.get<List<dynamic>>('/threads');
@@ -40,7 +40,7 @@ class ChatRepository {
   /// Marks a thread solved, or opens a closed one again.
   ///
   /// Returns the open list, because closing a conversation changes which
-  /// conversations Coisas has in it and not only the one that was touched. It
+  /// conversations Projects has in it and not only the one that was touched. It
   /// says nothing about the calendar: an hour is given back by finishing the
   /// block, which is a different act on a different screen.
   Future<List<ThreadItem>> setSolved(

@@ -46,7 +46,7 @@ class AppPromptResult {
 /// Opened from a tap on a full hour of empty room, it starts fixed at that
 /// hour, which is what tapping an hour means.
 ///
-/// On Coisas the same sheet asks without the clock: no flexible or fixed, no
+/// On Projects the same sheet asks without the clock: no flexible or fixed, no
 /// hour, only what it is and how long it will take once it is on the day.
 /// {@endtemplate}
 class AppPromptSheet extends StatefulWidget {
@@ -63,7 +63,7 @@ class AppPromptSheet extends StatefulWidget {
   ///
   /// Passed in rather than worked out here: the sheet knows how to ask a
   /// question and nothing at all about what is already on the day. Null asks
-  /// without the clock at all, which is how Coisas writes something down.
+  /// without the clock at all, which is how Projects writes something down.
   final DateTime Function(Duration duration)? previewFor;
 
   /// What the field starts with, when something is being edited.

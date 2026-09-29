@@ -49,7 +49,7 @@ export class ThreadsService {
   /**
    * Every open thread as a row, most recently replied to first.
    *
-   * What Coisas draws, and all of what it draws: every conversation the user
+   * What Projects draws, and all of what it draws: every conversation the user
    * has open, whether or not any hour was ever set aside for it. Solved
    * threads are left out because they have a screen of their own.
    */

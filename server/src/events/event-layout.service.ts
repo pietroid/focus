@@ -606,7 +606,7 @@ export class EventLayoutService {
    *
    * The thread is not a mirror of the block, but it is about it: a block the
    * user has finished with is not something they still have an open question
-   * about, and leaving the conversation in Coisas would be the app asking
+   * about, and leaving the conversation in Projects would be the app asking
    * them to close the same thing twice.
    */
   private async _closeThread(

@@ -1,4 +1,4 @@
-# Coisas: write a thing down, see it on the list, rename it.
+# Projetos: write a thing down, see it on the list, rename it.
 #
 # Touches the backend's things store only, no calendar and no model, so it is
 # the flow that should never be flaky. Every CI run starts on an empty data
@@ -10,7 +10,7 @@
 # Rows are found by identifier (thing:<title>). On Flutter web a row's text
 # only reaches the DOM as aria-label, which Maestro does not read.
 url: ${APP_URL}
-name: Coisas - anotar e renomear
+name: Projetos - anotar e renomear
 tags:
   - smoke
 ---
@@ -20,7 +20,7 @@ tags:
 - evalScript: ${output.thing = 'Comprar pão E2E ' + Math.floor(Math.random() * 100000)}
 - evalScript: ${output.renamed = output.thing + ' integral'}
 
-- tapOn: Coisas
+- tapOn: Projetos
 - tapOn:
     id: orb
 - extendedWaitUntil:

@@ -1,6 +1,6 @@
 part of 'things_bloc.dart';
 
-/// The status of Coisas.
+/// The status of Projects.
 enum ThingsStatus {
   /// Nothing has been requested yet.
   initial,
@@ -16,7 +16,7 @@ enum ThingsStatus {
 }
 
 /// {@template things_state}
-/// The state of Coisas.
+/// The state of Projects.
 /// {@endtemplate}
 final class ThingsState extends Equatable {
   /// {@macro things_state}

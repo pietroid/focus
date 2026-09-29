@@ -31,8 +31,8 @@ session as `transcript.html` in the run's `coder-<id>` artifact. If
 `make check-server` or `check-agent` is still red after two fix rounds, the
 PR opens as a draft and says why.
 
-It works best on a request with a clear end: "the Coisas heading should read
-Minhas coisas". Say what the user should see, in Portuguese when it is a
+It works best on a request with a clear end: "the Projetos heading should read
+Meus projetos". Say what the user should see, in Portuguese when it is a
 string. When the request is open, it asks instead of guessing.
 
 ## How a run works
