@@ -59,8 +59,10 @@ class DefaultFirebaseOptions {
     messagingSenderId: '392630770562',
     projectId: 'focus-production',
     storageBucket: 'focus-production.firebasestorage.app',
-    androidClientId: '392630770562-674kfcfn2f1qebj30hib25h9p3hcmcqk.apps.googleusercontent.com',
-    iosClientId: '392630770562-sm05h5l29140puk6osh709c9uunqt376.apps.googleusercontent.com',
+    androidClientId:
+        '392630770562-674kfcfn2f1qebj30hib25h9p3hcmcqk.apps.googleusercontent.com',
+    iosClientId:
+        '392630770562-sm05h5l29140puk6osh709c9uunqt376.apps.googleusercontent.com',
     iosBundleId: 'com.pietroid.focus',
   );
   static const FirebaseOptions web = FirebaseOptions(

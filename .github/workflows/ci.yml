@@ -1,0 +1,61 @@
+name: CI
+
+# The same checks as `make check`, one job per part so a red one says which.
+# Required on every PR (see docs/self-driving/03-ci-checks.md).
+#
+# It runs on every push to any branch, so a branch the coder pushed from the
+# Pi is checked whether or not a PR exists yet. There is deliberately no
+# pull_request trigger: a skipped run of a required check counts as a pass.
+on:
+  push:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ''
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: make check-server
+
+  agent:
+    name: agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+      - run: make check-agent
+
+  app:
+    name: app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: make check-app

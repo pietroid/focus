@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/data/timeline_repository.dart';
 import 'package:chat/src/models/models.dart';
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 part 'timeline_event.dart';
@@ -154,7 +155,7 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
       state.copyWith(
         cards: [
           for (final it in state.cards)
-            it.id == event.id ? it.copyWith(awaitingStart: false) : it,
+            if (it.id == event.id) it.copyWith(awaitingStart: false) else it,
         ],
       ),
     );
@@ -317,7 +318,7 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
 
     final toggled = card.isPaused
         ? card.copyWith(clearPause: true)
-        : card.copyWith(pausedAt: DateTime.now());
+        : card.copyWith(pausedAt: clock.now());
 
     await _write(
       emit,
@@ -325,7 +326,8 @@ class TimelineBloc extends Bloc<TimelineBlocEvent, TimelineState> {
           ? _repository.resumeEvent(event.id)
           : _repository.pauseEvent(event.id),
       drawn: [
-        for (final it in state.cards) it.id == event.id ? toggled : it,
+        for (final it in state.cards)
+          if (it.id == event.id) toggled else it,
       ],
     );
   }

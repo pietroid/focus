@@ -10,8 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
 import 'package:focus/auth_token_provider.dart';
 import 'package:focus/bootstrap.dart';
-import 'package:focus/firebase_options_production.dart' as prod;
-import 'package:focus/firebase_options_dev.dart' as dev;
+import 'package:focus/environment.dart';
 import 'package:focus/notifications/background_refresh.dart';
 import 'package:notifications/notifications.dart';
 import 'package:user/user.dart';
@@ -21,26 +20,19 @@ const _kGoogleSignInClientId = String.fromEnvironment(
 );
 const _kApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
-const _kFlavor = String.fromEnvironment('FLAVOR', defaultValue: 'production');
-
 Future<void> main() async {
-  // The flavor selects the Firebase project. Production uses focus-production
-  // and the dev build uses focus-local-dev.
-  final FirebaseOptions options;
-  switch (_kFlavor) {
-    case 'dev':
-      options = dev.DefaultFirebaseOptions.currentPlatform;
-    case 'production':
-    default:
-      options = prod.DefaultFirebaseOptions.currentPlatform;
-  }
+  // The flavor selects the Firebase project: focus-production, or
+  // focus-local-dev for the dev build. See environment.dart.
+  final options = firebaseOptions();
 
   await _runAppWithFirebaseOptions(options);
 }
 
 Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
   WidgetsFlutterBinding.ensureInitialized();
+  ensureSemanticsForTests();
   await Firebase.initializeApp(options: firebaseOptions);
+  await connectAuthEmulatorIfAsked();
 
   final authRepository = FirebaseAuthRepository(
     clientId: kIsWeb ? _kGoogleSignInClientId : null,
@@ -59,6 +51,13 @@ Future<void> _runAppWithFirebaseOptions(FirebaseOptions firebaseOptions) async {
   );
   await notificationScheduler.initialize();
   unawaited(registerBackgroundRefresh());
+
+  // E2E builds sign their account in here, before the first screen, so the
+  // run opens on the app rather than on a login form.
+  await signInTestAccountIfAsked(
+    authRepository,
+    onSignedIn: userRepository.signUpUserIfNeeded,
+  );
 
   final initialUser = await authRepository.user.first;
   final initialLocation = initialUser == null ? '/auth' : '/';

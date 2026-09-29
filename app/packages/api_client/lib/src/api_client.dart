@@ -14,18 +14,19 @@ class ApiClient {
     required String baseUrl,
     required TokenProvider tokenProvider,
     Dio? dio,
-  }) : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: baseUrl,
-                contentType: Headers.jsonContentType,
-                // Required for cross-origin requests when the backend sets
-                // `Access-Control-Allow-Credentials: true`. The web adapter
-                // reads this value from RequestOptions.extra; it is ignored
-                // on mobile platforms.
-                extra: const {'withCredentials': true},
-              ),
-            ) {
+  }) : _dio =
+           dio ??
+           Dio(
+             BaseOptions(
+               baseUrl: baseUrl,
+               contentType: Headers.jsonContentType,
+               // Required for cross-origin requests when the backend sets
+               // `Access-Control-Allow-Credentials: true`. The web adapter
+               // reads this value from RequestOptions.extra; it is ignored
+               // on mobile platforms.
+               extra: const {'withCredentials': true},
+             ),
+           ) {
     _dio.interceptors.add(
       AuthInterceptor(
         tokenProvider: tokenProvider,
@@ -79,8 +80,9 @@ class ApiClient {
         handler.next(options);
       },
       onResponse: (response, handler) {
+        final uri = response.requestOptions.uri;
         log(
-          '[ApiClient] << ${response.statusCode} ${response.requestOptions.uri}',
+          '[ApiClient] << ${response.statusCode} $uri',
           name: 'api_client',
           error: {
             'data': response.data,
@@ -89,13 +91,14 @@ class ApiClient {
         handler.next(response);
       },
       onError: (error, handler) {
+        final status = error.response?.statusCode ?? 'network';
         log(
-          '[ApiClient] !! ${error.response?.statusCode ?? 'network'} ${error.requestOptions.uri}',
+          '[ApiClient] !! $status ${error.requestOptions.uri}',
           name: 'api_client',
           error: {
             'message': error.message,
             'responseData': error.response?.data,
-            'stackTrace': error.stackTrace?.toString(),
+            'stackTrace': error.stackTrace.toString(),
           },
         );
         handler.next(error);

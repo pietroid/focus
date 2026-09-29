@@ -240,15 +240,13 @@ class StubCalendarReader {
  * see it in "agora" fail for a reason that has nothing to do with the code
  * they are covering.
  *
- * Ten in the morning, with the rest of the day ahead of it. The zone is set
- * before anything reads a clock, so `systemZone`, the local `Date` methods
- * the tests do their arithmetic with and the hours the routes come back with
- * are all the same zone on every machine.
+ * Ten in the morning, with the rest of the day ahead of it. The zone is
+ * America/Sao_Paulo, set by `jest.timezone.js` before any worker starts, so
+ * `systemZone`, the local `Date` methods the tests do their arithmetic with
+ * and the hours the routes come back with are all the same zone on every
+ * machine.
  */
-const ZONE = 'America/Sao_Paulo';
 const NOW = new Date('2026-03-10T13:00:00Z');
-
-process.env.TZ = ZONE;
 
 /**
  * Only `Date` is frozen.
@@ -383,7 +381,10 @@ describe('the day', () => {
     agenda = moduleRef.get(CalendarReaderService);
 
     app = moduleRef.createNestApplication();
-    await app.init();
+    // Bound to 127.0.0.1, the address supertest dials. Left to supertest, the
+    // server takes a random port on ::, which macOS hands out even when
+    // another process holds that port on 127.0.0.1, and the request lands there.
+    await app.listen(0, '127.0.0.1');
   });
 
   afterEach(async () => {

@@ -17,6 +17,20 @@ export function initializeFirebaseAdmin() {
   //
   //   Optional: set FIREBASE_PROJECT_ID to force a specific Firebase project
   //   when ADC cannot infer one (e.g. some local gcloud credentials).
+  //
+  //   Local E2E: with FIREBASE_AUTH_EMULATOR_HOST and FIRESTORE_EMULATOR_HOST
+  //   set, the SDK talks to the Firebase emulators and needs no key at all.
+  //   The project id still has to match the one the app signs in against.
+  const onEmulators =
+    !!process.env.FIREBASE_AUTH_EMULATOR_HOST &&
+    !!process.env.FIRESTORE_EMULATOR_HOST;
+  if (onEmulators) {
+    initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID ?? 'focus-local-dev',
+    });
+    return;
+  }
+
   const options = process.env.FIREBASE_PROJECT_ID
     ? {
         projectId: process.env.FIREBASE_PROJECT_ID,

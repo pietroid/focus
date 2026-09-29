@@ -1,0 +1,9 @@
+{
+  "FLAVOR": "dev",
+  "PROJECT_ID": "focus-local-dev",
+  "GOOGLE_SIGN_IN_CLIENT_ID": "",
+  "API_BASE_URL": "http://localhost:3100",
+  "AUTH_EMULATOR_HOST": "localhost:9099",
+  "TEST_LOGIN_EMAIL": "focus.main.agent@gmail.com",
+  "TEST_LOGIN_PASSWORD": "emulator-only-focus-e2e"
+}

@@ -19,6 +19,7 @@ class AuthScreen extends StatelessWidget {
     this.onUserAuthenticated,
     this.onAuthenticated,
     this.child,
+    this.testSignIn = false,
     super.key,
   });
 
@@ -37,6 +38,12 @@ class AuthScreen extends StatelessWidget {
   /// What the screen shows. It must hold an [AuthSignInButton].
   final Widget? child;
 
+  /// Whether the test account's email form is drawn over [child].
+  ///
+  /// It exists so an automated run can get past Google, which no test driver
+  /// can click through reliably. Builds for production leave it off.
+  final bool testSignIn;
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -46,7 +53,19 @@ class AuthScreen extends StatelessWidget {
       ),
       child: _AuthScreenView(
         onAuthenticated: onAuthenticated,
-        child: child ?? const _DefaultAuthBody(),
+        child: testSignIn
+            ? Stack(
+                children: [
+                  Positioned.fill(child: child ?? const _DefaultAuthBody()),
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: AuthTestSignInForm(),
+                  ),
+                ],
+              )
+            : child ?? const _DefaultAuthBody(),
       ),
     );
   }
@@ -172,6 +191,85 @@ class AuthSignInButton extends StatelessWidget {
       icon: const AppIcon(iconData: AppIcons.google, color: AppColors.onAccent),
       text: label ?? 'Entrar com Google',
       expand: expand,
+    );
+  }
+}
+
+/// {@template auth_test_sign_in_form}
+/// The test account's way in: an email, a password and a button.
+///
+/// Drawn only on builds that are not production, pinned to the foot
+/// of the sign-in screen. Every field carries a semantics identifier so a
+/// Maestro flow can find it without depending on the words around it.
+/// {@endtemplate}
+class AuthTestSignInForm extends StatefulWidget {
+  /// {@macro auth_test_sign_in_form}
+  const AuthTestSignInForm({super.key});
+
+  @override
+  State<AuthTestSignInForm> createState() => _AuthTestSignInFormState();
+}
+
+class _AuthTestSignInFormState extends State<AuthTestSignInForm> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final email = _email.text.trim();
+    if (email.isEmpty || _password.text.isEmpty) return;
+
+    context.read<AuthBloc>().add(
+      AuthEmailSignInRequested(email: email, password: _password.text),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: AppColors.bg,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Conta de teste', style: AppTypography.label),
+              Semantics(
+                identifier: 'test-login-email',
+                child: TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  decoration: const InputDecoration(hintText: 'E-mail'),
+                ),
+              ),
+              Semantics(
+                identifier: 'test-login-password',
+                child: TextField(
+                  controller: _password,
+                  obscureText: true,
+                  decoration: const InputDecoration(hintText: 'Senha'),
+                  onSubmitted: (_) => _submit(),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              Semantics(
+                identifier: 'test-login-submit',
+                child: AppButton.text(onPressed: _submit, text: 'Entrar'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

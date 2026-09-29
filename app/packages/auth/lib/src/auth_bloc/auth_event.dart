@@ -27,6 +27,23 @@ class AuthGoogleSignInRequested extends AuthEvent {
   const AuthGoogleSignInRequested();
 }
 
+/// {@template auth_email_sign_in_requested}
+/// Request to sign in with the test account's email and password.
+/// {@endtemplate}
+class AuthEmailSignInRequested extends AuthEvent {
+  /// {@macro auth_email_sign_in_requested}
+  const AuthEmailSignInRequested({required this.email, required this.password});
+
+  /// The account's email.
+  final String email;
+
+  /// The account's password.
+  final String password;
+
+  @override
+  List<Object?> get props => [email, password];
+}
+
 /// {@template auth_failure_occurred}
 /// Authentication failed with [message].
 /// {@endtemplate}

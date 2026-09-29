@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 /// Who wrote a message.
@@ -152,7 +153,7 @@ class ChatMessage extends Equatable {
       text: json['text'] as String? ?? '',
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ??
-          DateTime.now(),
+          clock.now(),
       metadata: rawMetadata != null
           ? ChatMessageMetadata.fromJson(rawMetadata)
           : null,
@@ -164,7 +165,7 @@ class ChatMessage extends Equatable {
   /// Carries a local id so the optimistic copy can be told apart from the one
   /// that comes back, and is otherwise an ordinary message.
   factory ChatMessage.pending(String text) {
-    final now = DateTime.now();
+    final now = clock.now();
     return ChatMessage(
       id: 'pending-${now.microsecondsSinceEpoch}',
       role: MessageRole.user,

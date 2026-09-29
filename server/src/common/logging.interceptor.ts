@@ -5,7 +5,7 @@ import {
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 
@@ -24,7 +24,7 @@ export class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const http = context.switchToHttp();
     const req = http.getRequest<RequestWithUser>();
-    const res = http.getResponse();
+    const res = http.getResponse<Response>();
 
     const start = Date.now();
     const userId = req.user?.uid ?? 'anonymous';
@@ -49,11 +49,16 @@ export class LoggingInterceptor implements NestInterceptor {
           `<< ${method} ${url} - user=${userId} status=${status} duration=${duration}ms`,
         );
       }),
-      catchError((error) => {
+      catchError((error: unknown) => {
         const duration = Date.now() - start;
-        const status = error.status ?? res.statusCode ?? 500;
-        const message = error.message ?? String(error);
-        const stack = error.stack;
+        const failure = (error ?? {}) as {
+          status?: number;
+          message?: string;
+          stack?: string;
+        };
+        const status = failure.status ?? res.statusCode ?? 500;
+        const message = failure.message ?? String(error);
+        const stack = failure.stack;
 
         this.logger.error(
           `<< ${method} ${url} - user=${userId} status=${status} duration=${duration}ms error=${message}`,

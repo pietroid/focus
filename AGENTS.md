@@ -31,6 +31,48 @@ user-facing string in English is a bug.
   - Production: `com.pietroid.focus`
   - Dev: `com.pietroid.focus.dev`
 
+## Environments and the self-driving loop
+
+Code runs in three places: **local** (your laptop, the dev environment on
+`focus-local-dev`), an **isolated E2E run** per push on a GitHub runner (the
+dev flavor on the Firebase emulators), and **production** on the Pi. `docs/self-driving/` is the full guide. The short
+version:
+
+- `make check` is the gate. CI runs the same `make check-*` targets.
+- `e2e/scripts/e2e.sh` is one isolated run. It builds and starts server,
+  agent and web from the checkout on ports 3100, 3101 and 8100, with the
+  Firebase emulators and an empty temp data dir. The E2E build
+  (`app/env/e2e.json`) signs focus.main.agent@gmail.com in by itself at
+  launch, and `server/scripts/test-account.mjs` creates that account in the
+  emulator first. Then it runs Maestro on
+  Flutter web and deletes the account. Flows tagged `calendar` are skipped.
+- On Flutter web, Maestro reads DOM text and `flt-semantics-identifier`,
+  never `aria-label`. A row's merged label is aria-label, so rows carry
+  `Semantics(container: true, identifier: 'thing:<title>')` and
+  `'event:<title>'`. Any control a flow needs that has no DOM text gets an
+  identifier. Maestro cannot swipe on Flutter web.
+- The app's env files set `FLAVOR`. `app/lib/environment.dart` picks the
+  Firebase project from it (`dev` is focus-local-dev) for the app and the
+  background refresh, and draws the test login, uses the Auth emulator and
+  turns on web semantics only when `FLAVOR` is not `production`.
+- `/health` reports `env` (`FOCUS_ENV`) and `version` (`FOCUS_VERSION`, the
+  commit baked into the image). `server/deploy/pi-deploy.sh` waits for it
+  after a deploy.
+- The coder turns issues labelled `agent` into PRs. `coder.yml` SSHes to the
+  Raspberry Pi with a key that only runs `agent/coder/host/focus-coder`. That script clones the branch into
+  `/opt/focus-coder/runs/<id>`, never the deploy checkout, and runs pi
+  (pi.dev) in the `agent/coder/Dockerfile` container, built from
+  `origin/main`. `agent/src/coder/` is the container's entry point. After
+  the container exits, the script commits and pushes to the branch with the
+  Pi account's own GitHub credentials (gh), which pi never sees, and never
+  to the default branch.
+  A change under `.github/`, `.git/`, `.secrets/` or any `.env*` is refused
+  twice, in the container and on the host. No GitHub App is involved.
+- CI and E2E start from `push`, not `pull_request`, so the coder's branches
+  are checked before a PR exists. Do not add a `pull_request` trigger to a
+  workflow with required checks: a skipped run counts as a pass.
+- Merged PRs become releases (`release.yml`) carrying the E2E video.
+
 ## Deployment Overview
 
 Deployment is fully SSH-based. Everything is built on an x64 machine (your dev

@@ -1,0 +1,69 @@
+name: Connect to the Pi
+description: >
+  Loads the deploy key, opens the Cloudflare Access tunnel to the Pi's SSH
+  port on localhost:2222, and writes an SSH config entry named focus-pi so
+  every later step can just run `ssh focus-pi` or `rsync ... focus-pi:`.
+inputs:
+  ssh-private-key:
+    description: Private key that can log in to the Pi as pi-user.
+    required: true
+  tunnel-token-id:
+    description: Cloudflare Access service token id.
+    required: true
+  tunnel-token-secret:
+    description: Cloudflare Access service token secret.
+    required: true
+  pi-user:
+    description: SSH user on the Pi.
+    required: true
+  pi-host:
+    description: >
+      Host to SSH to. The tunnel listens on localhost, which is what PI_HOST
+      holds today; left configurable in case it ever points elsewhere.
+    required: false
+    default: localhost
+  tunnel-hostname:
+    description: Cloudflare Access hostname in front of the Pi's SSH port.
+    required: false
+    default: deploy.pietroteruya.dev
+runs:
+  using: composite
+  steps:
+    - name: Load deploy key
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-private-key }}
+
+    - name: Install cloudflared
+      shell: bash
+      run: |
+        set -euo pipefail
+        arch="$(dpkg --print-architecture)"
+        wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${arch}.deb"
+        sudo dpkg -i "cloudflared-linux-${arch}.deb"
+
+    - name: Start Cloudflare SSH proxy
+      shell: bash
+      env:
+        TUNNEL_SERVICE_TOKEN_ID: ${{ inputs.tunnel-token-id }}
+        TUNNEL_SERVICE_TOKEN_SECRET: ${{ inputs.tunnel-token-secret }}
+      run: |
+        set -euo pipefail
+        nohup cloudflared access tcp --hostname "${{ inputs.tunnel-hostname }}" --url localhost:2222 > /tmp/cloudflared.log 2>&1 &
+        sleep 5
+        cat /tmp/cloudflared.log
+
+    - name: Write SSH config
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p ~/.ssh
+        cat >> ~/.ssh/config <<CONFIG
+        Host focus-pi
+          HostName ${{ inputs.pi-host || 'localhost' }}
+          Port 2222
+          User ${{ inputs.pi-user }}
+          StrictHostKeyChecking accept-new
+        CONFIG
+        chmod 600 ~/.ssh/config
+        ssh focus-pi true

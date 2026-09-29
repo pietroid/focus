@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 /// {@template thread_item}
@@ -84,7 +85,7 @@ class ThreadItem extends Equatable {
 }
 
 DateTime _requiredDate(Object? value) {
-  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? DateTime.now();
+  return DateTime.tryParse(value as String? ?? '')?.toLocal() ?? clock.now();
 }
 
 /// A date the API may simply not have, which is different from one it got

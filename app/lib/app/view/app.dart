@@ -5,6 +5,7 @@ import 'package:auth/auth.dart';
 import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:focus/app/app.dart';
+import 'package:focus/environment.dart';
 import 'package:focus/l10n/l10n.dart';
 import 'package:focus/landing/landing.dart';
 import 'package:focus/routines/routines.dart';
@@ -62,6 +63,10 @@ class App extends StatelessWidget {
                authRepository: context.read<AuthRepository>(),
                onUserAuthenticated: onUserAuthenticated,
                onAuthenticated: () => context.go('/'),
+               // The analyzer reads it as false, the value it has with no env
+               // file, and calls it redundant. Local and E2E builds say true.
+               // ignore: avoid_redundant_argument_values
+               testSignIn: testSignInEnabled,
                child: const LandingPage(),
              ),
            ),

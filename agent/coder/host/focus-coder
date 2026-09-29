@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# focus-coder
+#
+# The coder's side of the Raspberry Pi. Installed at
+# /opt/focus-coder/bin/focus-coder and reached only through the forced
+# command on the coder user's SSH key, so the GitHub workflow can run exactly
+# two things and nothing else:
+#
+#   run <run-id> <mode> <issue> <pr> <start-ref> <continuing> <push-branch>
+#       Clones start-ref into a fresh directory, starts the focus-coder
+#       container on it, and waits, printing pi's progress. When pi made a
+#       change, checks it, commits it and pushes it to push-branch with this
+#       account's own GitHub credentials. Never to the default branch.
+#   fetch <run-id>
+#       Writes the run's output directory to stdout as a .tar.gz.
+#
+# Everything lives under /opt/focus-coder, owned by the account that runs it:
+#   repo/        a clone of the GitHub repo, used as a local object cache
+#                and to build the image. Never the deploy checkout (~/focus).
+#   runs/<id>/   work/ (the clone pi edits) and out/ (what comes back)
+#   coder.env    OPENROUTER_API_KEY, optional CODER_MODEL and GITHUB_TOKEN
+#
+# Pushing uses whatever git already uses on this account: gh, after
+# `gh auth setup-git`, or any other credential helper. Only this script
+# pushes, after the container has exited; pi never sees the credential.
+# Set FOCUS_CODER_PUSH_KEY to push with an SSH deploy key instead.
+#
+# Setup: docs/self-driving/04-coder.md.
+set -euo pipefail
+
+ROOT="${FOCUS_CODER_ROOT:-/opt/focus-coder}"
+REPOSITORY="${FOCUS_CODER_REPOSITORY:-pietroid/focus}"
+REMOTE="https://github.com/$REPOSITORY.git"
+PUSH_KEY="${FOCUS_CODER_PUSH_KEY:-}"
+if [ -n "$PUSH_KEY" ]; then
+  PUSH_REMOTE="${FOCUS_CODER_PUSH_REMOTE:-git@github.com:$REPOSITORY.git}"
+else
+  PUSH_REMOTE="${FOCUS_CODER_PUSH_REMOTE:-$REMOTE}"
+fi
+AUTHOR_NAME="${FOCUS_CODER_AUTHOR_NAME:-Focus Coder}"
+AUTHOR_EMAIL="${FOCUS_CODER_AUTHOR_EMAIL:-focus-coder@users.noreply.github.com}"
+IMAGE=focus-coder:latest
+KEEP_DAYS=7
+
+die() { echo "focus-coder: $*" >&2; exit 2; }
+
+# Over SSH the words arrive in SSH_ORIGINAL_COMMAND. Split them without a
+# shell, then check every one against a strict pattern before it is used.
+if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
+  read -r -a args <<< "$SSH_ORIGINAL_COMMAND"
+else
+  args=("$@")
+fi
+
+want() { [[ "$2" =~ $3 ]] || die "bad $1: '$2'"; }
+
+run() {
+  [ ${#args[@]} -eq 8 ] || die "usage: run <run-id> <mode> <issue> <pr> <start-ref> <continuing> <push-branch>"
+  local id="${args[1]}" mode="${args[2]}" issue="${args[3]}" pr="${args[4]}" ref="${args[5]}" continuing="${args[6]}" branch="${args[7]}"
+  want run-id "$id" '^[0-9]+(-[0-9]+)?$'
+  want mode "$mode" '^(issue|feedback)$'
+  want issue "$issue" '^(-|[0-9]+)$'
+  want pr "$pr" '^(-|[0-9]+)$'
+  want start-ref "$ref" '^[A-Za-z0-9._/-]+$'
+  want continuing "$continuing" '^(true|false)$'
+  want push-branch "$branch" '^[A-Za-z0-9._/-]+$'
+  [[ "$ref" != *..* ]] || die "bad start-ref: '$ref'"
+  [[ "$branch" != *..* && "$branch" != -* && "$branch" != */ ]] || die "bad push-branch: '$branch'"
+  [ "$issue" = - ] && issue=""
+  [ "$pr" = - ] && pr=""
+
+  [ -f "$ROOT/coder.env" ] || die "missing $ROOT/coder.env"
+  local dir="$ROOT/runs/$id"
+  [ ! -e "$dir" ] || die "run $id already exists"
+  mkdir -p "$dir/out"
+
+  echo "== Updating $ROOT/repo"
+  git -C "$ROOT/repo" fetch --quiet --prune origin
+  local default
+  default="$(git -C "$ROOT/repo" symbolic-ref --short refs/remotes/origin/HEAD 2> /dev/null || echo origin/main)"
+  default="${default#origin/}"
+  [ "$branch" != "$default" ] || die "refusing to push to the default branch '$default'"
+
+  # The image comes from main, which a person reviewed. A branch the agent
+  # wrote never gets to change the tool that runs it.
+  echo "== Building $IMAGE from origin/main"
+  git -C "$ROOT/repo" archive origin/main:agent | docker build --quiet -t "$IMAGE" -f coder/Dockerfile - > /dev/null
+
+  echo "== Cloning $ref"
+  git clone --quiet --reference-if-able "$ROOT/repo" --dissociate --branch "$ref" "$REMOTE" "$dir/work"
+
+  echo "== Running pi"
+  local status=0
+  timeout --signal=TERM 55m docker run --rm \
+    --name "focus-coder-$id" \
+    --user "$(id -u):$(id -g)" \
+    --memory 3g --cpus 3 --pids-limit 1024 \
+    --cap-drop ALL --security-opt no-new-privileges \
+    --env-file "$ROOT/coder.env" \
+    -e GITHUB_REPOSITORY="$REPOSITORY" \
+    -e CODER_MODE="$mode" -e CODER_ISSUE="$issue" -e CODER_PR="$pr" -e CODER_CONTINUING="$continuing" \
+    -v "$dir/work:/workspace" \
+    -v "$dir/out:/out" \
+    "$IMAGE" || status=$?
+
+  echo "$status" > "$dir/out/exit-code"
+  echo "== pi finished with status $status"
+
+  if [ "$status" = 0 ] && [ -s "$dir/out/changes.patch" ] && [ -s "$dir/out/commit-message" ]; then
+    push "$dir" "$branch" "$issue" || status=$?
+  fi
+
+  # Old runs go; the output of recent ones stays for fetch and for a look.
+  find "$ROOT/runs" -mindepth 1 -maxdepth 1 -type d -mtime +"$KEEP_DAYS" -exec rm -rf {} + 2> /dev/null || true
+  rm -rf "$dir/work"
+  exit "$status"
+}
+
+# Commits what pi left staged in the clone and pushes it. The second lock:
+# the container already refused these paths, and this refuses them again
+# with nothing pi could have influenced.
+#
+# Called as `push ... || status=$?`, where bash turns set -e off, so every
+# step that can fail says so itself.
+push() {
+  local dir="$1" branch="$2" issue="$3" work="$1/work"
+  local forbidden
+  forbidden="$(git -C "$work" diff --cached --name-only \
+    | grep -E '^(\.github/|\.git/|\.secrets/)|(^|/)\.env($|\.)' | grep -v '\.example$' || true)"
+  if [ -n "$forbidden" ]; then
+    echo "== Not pushing: the change touches files no agent may touch:"
+    echo "$forbidden"
+    printf '%s\n' "$forbidden" > "$dir/out/forbidden"
+    return 3
+  fi
+
+  local message="$dir/out/commit-message"
+  if [ -n "$issue" ]; then printf '\nRefs #%s\n' "$issue" >> "$message"; fi
+  git -C "$work" -c user.name="$AUTHOR_NAME" -c user.email="$AUTHOR_EMAIL" commit --quiet -F "$message" \
+    || { echo "== Commit failed"; return 5; }
+
+  echo "== Pushing to $branch"
+  local ssh_command=""
+  if [ -n "$PUSH_KEY" ]; then
+    ssh_command="ssh -i $PUSH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+  fi
+  GIT_SSH_COMMAND="${ssh_command:-ssh}" git -C "$work" push --quiet "$PUSH_REMOTE" "HEAD:refs/heads/$branch" \
+    || { echo "== Push failed: check the account's GitHub credentials, or someone pushed to $branch meanwhile."; return 6; }
+  git -C "$work" rev-parse HEAD > "$dir/out/pushed-sha"
+  echo "== Pushed $(cat "$dir/out/pushed-sha")"
+}
+
+fetch() {
+  [ ${#args[@]} -eq 2 ] || die "usage: fetch <run-id>"
+  want run-id "${args[1]}" '^[0-9]+(-[0-9]+)?$'
+  local dir="$ROOT/runs/${args[1]}"
+  [ -d "$dir/out" ] || die "no output for run ${args[1]}"
+  tar -C "$dir" -czf - out
+}
+
+case "${args[0]:-}" in
+  run) run ;;
+  fetch) fetch ;;
+  *) die "unknown command '${args[0]:-}'. Use run or fetch." ;;
+esac

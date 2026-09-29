@@ -1,4 +1,5 @@
 import 'package:chat/src/models/timeline_event.dart';
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 /// {@template free_slot}
@@ -74,7 +75,7 @@ abstract final class TimelinePlan {
   }) {
     final booked = [...cards]
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
-    var start = _earliest(now ?? DateTime.now());
+    var start = _earliest(now ?? clock.now());
 
     // One pass per block it steps over, plus one per day it spills out of.
     for (var attempt = 0; attempt < 500; attempt++) {
@@ -111,26 +112,26 @@ abstract final class TimelinePlan {
     List<TimelineEvent> cards, {
     DateTime? now,
   }) {
-    final clock = now ?? DateTime.now();
+    final from = now ?? clock.now();
     final sorted = [...cards]
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
     final slots = <FreeSlot>[];
 
     for (var offset = 0; offset < 2; offset++) {
       final dayStart = DateTime(
-        clock.year,
-        clock.month,
-        clock.day + offset,
+        from.year,
+        from.month,
+        from.day + offset,
         startHour,
       );
       final dayEnd = DateTime(
-        clock.year,
-        clock.month,
-        clock.day + offset,
+        from.year,
+        from.month,
+        from.day + offset,
         endHour,
       );
-      var cursor = offset == 0 && clock.isAfter(dayStart)
-          ? _toMinute(clock)
+      var cursor = offset == 0 && from.isAfter(dayStart)
+          ? _toMinute(from)
           : dayStart;
       if (!cursor.isBefore(dayEnd)) continue;
 

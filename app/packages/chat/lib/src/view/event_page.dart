@@ -8,6 +8,7 @@ import 'package:chat/src/data/timeline_repository.dart';
 import 'package:chat/src/models/models.dart';
 import 'package:chat/src/view/chat_page.dart';
 import 'package:chat/src/widgets/widgets.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// {@template event_page}
@@ -181,7 +182,7 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = clock.now();
     final running = card.isRunningAt(now);
     final controls = card.isInteractive ? _controls(context) : null;
 
@@ -255,7 +256,7 @@ class _When extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final started = !card.startTime.isAfter(DateTime.now());
+    final started = !card.startTime.isAfter(clock.now());
     final editable = card.isInteractive;
 
     return Row(
@@ -286,7 +287,7 @@ class _When extends StatelessWidget {
 
   /// "14:30", or "amanhã 09:00" when it is not today.
   static String _startLabel(DateTime start) {
-    final now = DateTime.now();
+    final now = clock.now();
     final days = DateTime(
       start.year,
       start.month,
@@ -304,7 +305,7 @@ class _When extends StatelessWidget {
   /// the day is part of naming it.
   Future<void> _pickStart(BuildContext context) async {
     final bloc = context.read<TimelineBloc>();
-    final now = DateTime.now();
+    final now = clock.now();
     final picked = await AppWheelPicker.dayAndTime(
       context,
       initial: card.startTime.isBefore(now) ? now : card.startTime,

@@ -1,5 +1,8 @@
 # Project Setup
 
+> Environments (local, E2E, production), CI checks, Maestro E2E and
+> releases are covered in [docs/self-driving/](docs/self-driving/README.md).
+
 ## 1. Package and App Name
 
 Already configured for Focus:
