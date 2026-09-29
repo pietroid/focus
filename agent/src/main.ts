@@ -1,7 +1,7 @@
 import { createServer } from './server.js';
 import { toolRegistry } from './generate.js';
 
-const port = parseInt(process.env.PORT ?? '3001', 10);
+const port = parseInt(process.env.PORT ?? '3002', 10);
 
 createServer().listen(port, () => {
   console.log(

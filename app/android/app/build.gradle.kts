@@ -67,7 +67,7 @@ android {
             applicationIdSuffix = ""
             manifestPlaceholders["appName"] = "Focus"
         }
-        create("development") {
+        create("dev") {
             dimension = "default"
             applicationIdSuffix = ".dev"
             manifestPlaceholders["appName"] = "[DEV] Focus"

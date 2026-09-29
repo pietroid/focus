@@ -11,6 +11,7 @@ import 'package:focus/app/app.dart';
 import 'package:focus/auth_token_provider.dart';
 import 'package:focus/bootstrap.dart';
 import 'package:focus/firebase_options_production.dart' as prod;
+import 'package:focus/firebase_options_dev.dart' as dev;
 import 'package:focus/notifications/background_refresh.dart';
 import 'package:notifications/notifications.dart';
 import 'package:user/user.dart';
@@ -20,11 +21,19 @@ const _kGoogleSignInClientId = String.fromEnvironment(
 );
 const _kApiBaseUrl = String.fromEnvironment('API_BASE_URL');
 
+const _kFlavor = String.fromEnvironment('FLAVOR', defaultValue: 'production');
+
 Future<void> main() async {
-  // The development Firebase project is no longer used; both flavors talk to
-  // the production project. The flavor only controls the backend URL and the
-  // app bundle ID.
-  final options = prod.DefaultFirebaseOptions.currentPlatform;
+  // The flavor selects the Firebase project. Production uses focus-production
+  // and the dev build uses focus-local-dev.
+  final FirebaseOptions options;
+  switch (_kFlavor) {
+    case 'dev':
+      options = dev.DefaultFirebaseOptions.currentPlatform;
+    case 'production':
+    default:
+      options = prod.DefaultFirebaseOptions.currentPlatform;
+  }
 
   await _runAppWithFirebaseOptions(options);
 }

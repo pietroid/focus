@@ -28,7 +28,7 @@ services:
     container_name: focus-agent
     restart: unless-stopped
     expose:
-      - "3001"
+      - "3002"
     environment:
       # The same zone as the backend, and for the same reason. The agent also
       # writes it onto the Google calendars it creates, so the day the user

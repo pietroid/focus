@@ -198,7 +198,7 @@ export class CalendarReaderService {
     to: Date,
   ): Promise<{ events: CalendarEvent[]; timeZone?: string }> {
     const agentUrl =
-      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
+      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3002';
 
     const query = new URLSearchParams({
       userId: user.id,

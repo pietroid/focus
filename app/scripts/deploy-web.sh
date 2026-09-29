@@ -8,20 +8,35 @@ set -euo pipefail
 # Usage:
 #   scripts/deploy-web.sh <pi-host>
 #
-# Example:
+# Examples:
 #   scripts/deploy-web.sh pi@192.168.1.42
+#   scripts/deploy-web.sh focus-pi
 #
 # Requirements:
 #   - Flutter SDK installed locally.
 #   - ssh and rsync available locally.
 #   - app/env/production.json exists with GOOGLE_SIGN_IN_CLIENT_ID and PROJECT_ID.
-#   - The Pi already has /opt/focus/web created and the focus-web container is
-#     running (started by the backend deploy script).
+#   - The Pi already has /opt/focus/web created and the focus-web container is running.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PI_HOST="${1:-}"
+PI_HOST=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      echo "Usage: $0 <pi-host>"
+      echo "Example: $0 pi@192.168.1.42"
+      exit 0
+      ;;
+    *)
+      PI_HOST="$1"
+      shift
+      ;;
+  esac
+done
+
 if [ -z "$PI_HOST" ]; then
   echo "Error: Pi host is required."
   echo "Usage: scripts/deploy-web.sh <pi-host>"
@@ -63,13 +78,16 @@ flutter build web \
   --release \
   --dart-define-from-file "$WEB_ENV_FILE"
 
+WEB_ROOT="/opt/focus/web"
+NGINX_CONTAINER="focus-web"
+
 echo ""
-echo "Deploying to Pi ($PI_HOST)..."
-rsync -avz --delete "$ROOT_DIR/build/web/" "$PI_HOST:/opt/focus/web/"
+echo "Deploying to Pi ($PI_HOST) at ${WEB_ROOT}..."
+rsync -avz --delete "$ROOT_DIR/build/web/" "$PI_HOST:${WEB_ROOT}/"
 
 echo ""
 echo "Reloading nginx on the Pi..."
-ssh "$PI_HOST" "docker exec focus-web nginx -s reload 2>/dev/null || echo 'Container not running — start it with the backend deploy script.'"
+ssh "$PI_HOST" "docker exec ${NGINX_CONTAINER} nginx -s reload 2>/dev/null || echo 'Container not running — start it with the backend deploy script.'"
 
 echo ""
 echo "Web deployment complete."

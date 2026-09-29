@@ -26,10 +26,10 @@ user-facing string in English is a bug.
 ## Firebase
 
 - Production project: `focus-production`
-- Development project: `focus-development` (placeholder, not actively used)
+- Dev project: `focus-local-dev` (used for local development with a localhost backend)
 - Bundle IDs:
   - Production: `com.pietroid.focus`
-  - Development: `com.pietroid.focus.dev`
+  - Dev: `com.pietroid.focus.dev`
 
 ## Deployment Overview
 
@@ -805,28 +805,29 @@ NestJS backend.
 - `agent/.env.production` is gitignored; use `agent/.env.example` as a template.
 - The SSH deploy key can log in to the Pi. Keep the private key safe and limit
   what the Pi user can do (do not give it root unless necessary).
-- `app/lib/firebase_options_production.dart` is tracked (it only contains public Firebase client API keys). Other generated Firebase config files (`firebase_options_development.dart`, `google-services.json`, `GoogleService-Info.plist`) remain gitignored and must be regenerated with `./app/update_firebase_config.sh` after Firebase changes.
+- `app/lib/firebase_options_production.dart` and `app/lib/firebase_options_dev.dart` are tracked (they only contain public Firebase client API keys). Other generated Firebase config files (`google-services.json`, `GoogleService-Info.plist`) remain gitignored and must be regenerated with `./app/update_firebase_config.sh` after Firebase changes.
+- `app/env/dev.json`, `app/env/production.json` and `app/env/*.local.json` are gitignored; use `app/env/dev.example.json` and `app/env/production.example.json` as templates.
 
 ## Common Commands
 
 ```bash
-# App local dev
+# App local dev (uses dev Firebase + localhost backend)
 cd app
 flutter pub get
-flutter run --flavor production --dart-define-from-file env/production.json
+flutter run --flavor dev --dart-define-from-file env/dev.json
 
-# Backend local dev
+# Backend local dev (uses dev Firebase + localhost agent)
 cd server
 npm install
-export GOOGLE_APPLICATION_CREDENTIALS="$HOME/keys/focus-backend-prod.json"
-npm run start:dev
+export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.config/focus/focus-backend-dev.json"
+npm run start:local
 
-# Agent local dev
+# Agent local dev (uses dev calendars + local data)
 cd agent
 npm install
-npm run start:dev
+npm run start:local
 
-# Web deploy from your dev machine
+# Web deploy from your dev machine (production)
 cd app
 ./scripts/deploy-web.sh focus-pi
 ```

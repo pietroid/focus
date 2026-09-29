@@ -10,12 +10,12 @@ set -euo pipefail
 #
 # Must be run from inside the Raspberry Pi where the repo is cloned.
 # It builds the Flutter web app and copies the output to /opt/focus/web,
-# which is mounted by the focus-web nginx container.
+# which is mounted by the nginx container.
 #
 # Requirements:
 #   - Flutter SDK installed on the Pi.
 #   - app/env/production.json exists with GOOGLE_SIGN_IN_CLIENT_ID and PROJECT_ID.
-#   - The backend has already been deployed (so the focus-web container is running).
+#   - The backend has already been deployed (so the nginx container is running).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -54,16 +54,19 @@ flutter build web \
   --release \
   --dart-define-from-file "$WEB_ENV_FILE"
 
+WEB_ROOT="/opt/focus/web"
+NGINX_CONTAINER="focus-web"
+
 echo ""
-echo "Copying build output to /opt/focus/web..."
-mkdir -p /opt/focus/web
-rsync -avz --delete "$ROOT_DIR/build/web/" /opt/focus/web/
+echo "Copying build output to ${WEB_ROOT}..."
+mkdir -p "${WEB_ROOT}"
+rsync -avz --delete "$ROOT_DIR/build/web/" "${WEB_ROOT}/"
 
 echo ""
 echo "Reloading nginx..."
-docker exec focus-web nginx -s reload 2>/dev/null || {
-  echo "Warning: focus-web container is not running."
-  echo "Deploy the backend first with: cd server && npm run deploy:prod"
+docker exec "${NGINX_CONTAINER}" nginx -s reload 2>/dev/null || {
+  echo "Warning: ${NGINX_CONTAINER} container is not running."
+  echo "Deploy the backend first."
   exit 1
 }
 

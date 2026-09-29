@@ -156,7 +156,7 @@ export class AgentService {
     method: 'GET' | 'POST' = 'POST',
   ): Promise<unknown> {
     const agentUrl =
-      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
+      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3002';
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

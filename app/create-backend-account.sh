@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_ENV_FILE="$SCRIPT_DIR/env/development.json"
+DEFAULT_ENV_FILE="$SCRIPT_DIR/env/dev.json"
 ENV_FILE="$DEFAULT_ENV_FILE"
 PROJECT_ID=""
 BACKEND_ACCOUNT_NAME=""
@@ -23,7 +23,7 @@ while [ "$#" -gt 0 ]; do
       echo ""
       echo "Examples:"
       echo "  $0"
-      echo "  $0 focus-development focus-backend"
+  echo "  $0 focus-local-dev focus-backend"
       echo "  $0 --env-file env/production.json"
       exit 0
       ;;
@@ -68,7 +68,7 @@ if [ -z "$PROJECT_ID" ] || [ -z "$BACKEND_ACCOUNT_NAME" ]; then
   echo "or set PROJECT_ID and BACKEND_SERVICE_ACCOUNT in the env file."
   echo ""
   echo "Example:"
-  echo "  $0 focus-development focus-backend"
+  echo "  $0 focus-local-dev focus-backend"
   exit 1
 fi
 

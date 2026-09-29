@@ -4,16 +4,15 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with your Firebase apps.
+/// Dev [FirebaseOptions] for the `focus-local-dev` project.
 ///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
+/// TODO: Replace the placeholder values below by running:
+///
+///   cd app
+///   ./update_firebase_config.sh
+///
+/// after `env/dev.json` has been filled in. The script regenerates this
+/// file from the Firebase project.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -46,29 +45,29 @@ class DefaultFirebaseOptions {
     }
   }
 
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDstlCT2_HMWYx9Jy8Gd3QblTKZdX8HbPg',
+    appId: '1:122163867410:web:0730f6ab7c7ae9b73a8dcb',
+    messagingSenderId: '122163867410',
+    projectId: 'focus-local-dev',
+    authDomain: 'focus-local-dev.firebaseapp.com',
+    storageBucket: 'focus-local-dev.firebasestorage.app',
+  );
+
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBKxvTkb7lZMDNHPDR8tmhWEwP6p66xYPQ',
-    appId: '1:392630770562:android:1d469b95cc3e61977a0d9b',
-    messagingSenderId: '392630770562',
-    projectId: 'focus-production',
-    storageBucket: 'focus-production.firebasestorage.app',
+    apiKey: 'AIzaSyDPNxdIiY2FTuVDjogt-tkVxkb0DZxPAx8',
+    appId: '1:122163867410:android:7e8d909444010d183a8dcb',
+    messagingSenderId: '122163867410',
+    projectId: 'focus-local-dev',
+    storageBucket: 'focus-local-dev.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBljHWQYynq6J6tZuKrWUKEM4VdZUiL-oA',
-    appId: '1:392630770562:ios:b7a18a9babfb37977a0d9b',
-    messagingSenderId: '392630770562',
-    projectId: 'focus-production',
-    storageBucket: 'focus-production.firebasestorage.app',
-    androidClientId: '392630770562-674kfcfn2f1qebj30hib25h9p3hcmcqk.apps.googleusercontent.com',
-    iosClientId: '392630770562-sm05h5l29140puk6osh709c9uunqt376.apps.googleusercontent.com',
-    iosBundleId: 'com.pietroid.focus',
-  );
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDdYymFwwvNditKs8xb_lowbjye5bwrVC8',
-    appId: '1:392630770562:web:66d91ba0f58081f57a0d9b',
-    messagingSenderId: '392630770562',
-    projectId: 'focus-production',
-    authDomain: 'focus-production.firebaseapp.com',
-    storageBucket: 'focus-production.firebasestorage.app',
+    apiKey: 'AIzaSyBqK4plVlZktnmNtiXrFeoZx5Q-PEKi44I',
+    appId: '1:122163867410:ios:19f6b0640c19d5403a8dcb',
+    messagingSenderId: '122163867410',
+    projectId: 'focus-local-dev',
+    storageBucket: 'focus-local-dev.firebasestorage.app',
+    iosClientId: '122163867410-586l67ekldu8k5mtmv419u5ge3311nbj.apps.googleusercontent.com',
+    iosBundleId: 'com.pietroid.focus.dev',
   );
 }

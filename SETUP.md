@@ -5,7 +5,7 @@
 Already configured for Focus:
 
 - Dart package: `focus`
-- Android/iOS bundle ID: `com.pietroid.focus` (production), `com.pietroid.focus.dev` (development)
+- Android/iOS bundle ID: `com.pietroid.focus` (production), `com.pietroid.focus.dev` (dev)
 - App display name: `Focus`
 
 ## 2. Icon and Splash Screen
@@ -16,15 +16,14 @@ Already configured for Focus:
 
 ## 3. Firebase
 
-This project is pre-wired for **production** and **development** Firebase flavors.
+This project is pre-wired for **production** and **dev** Firebase flavors.
+Local development uses the dev project (`focus-local-dev`) with a localhost backend.
 The production Firebase project is `focus-production`.
-
-We are using **production only** for now. Development files exist as placeholders.
 
 ### 3.1. Firebase Project
 
 - Production project: `focus-production` (already created).
-- Development project: `focus-development` (create later if needed).
+- Local development uses the dev project (`focus-local-dev`) with a localhost backend.
 
 ### 3.2. Firestore Database
 
@@ -45,17 +44,18 @@ The app uses the [`google_sign_in`](https://pub.dev/packages/google_sign_in) plu
 1. In the [Google Cloud Credentials page](https://console.cloud.google.com/apis/credentials), open the `focus-production` project.
 2. Find the **Web client** OAuth 2.0 Client ID and copy its Client ID.
 3. Paste it into `app/env/production.json` as `GOOGLE_SIGN_IN_CLIENT_ID`.
-4. Add authorized origins:
+4. Copy `app/env/dev.example.json` to `app/env/dev.json` and paste the dev Web client ID into `GOOGLE_SIGN_IN_CLIENT_ID`.
+5. Add authorized origins:
    - `http://localhost:7357` for local development.
-   - Your production domain(s) once the Pi has a hostname.
-5. Enable the [People API](https://console.cloud.google.com/apis/library/people.googleapis.com) in `focus-production`. `google_sign_in` uses it to fetch the user's profile.
+   - Your production domain once the Pi has a hostname.
+6. Enable the [People API](https://console.cloud.google.com/apis/library/people.googleapis.com) in `focus-production` and `focus-local-dev`. `google_sign_in` uses it to fetch the user's profile.
 
 #### Android / iOS
 
 Run the FlutterFire helper (see 3.6) after creating the apps in Firebase. The helper uses the bundle/package IDs:
 
 - Production: `com.pietroid.focus`
-- Development: `com.pietroid.focus.dev`
+- Dev: `com.pietroid.focus.dev`
 
 ### 3.5. SHA-1 for Android
 
@@ -79,7 +79,7 @@ Run the FlutterFire helper (see 3.6) after creating the apps in Firebase. The he
 
 ### 3.7. Generate Firebase Config Files
 
-Run the helper script from the `app` directory:
+Make sure `app/env/production.json` and `app/env/dev.json` have the correct `PROJECT_ID` values, then run the helper script from the `app` directory:
 
 ```bash
 cd app
@@ -89,22 +89,22 @@ cd app
 This regenerates:
 
 - `lib/firebase_options_production.dart`
-- `lib/firebase_options_development.dart`
+- `lib/firebase_options_dev.dart` (used by the dev build)
 - `android/app/src/production/google-services.json`
-- `android/app/src/development/google-services.json`
+- `android/app/src/dev/google-services.json`
 - `ios/Runner/GoogleService-Info.plist`
-- `ios/Runner/GoogleService-Info-Development.plist`
+- `ios/Runner/GoogleService-Info-Dev.plist`
 
-> `lib/firebase_options_production.dart` is tracked in the repository. The remaining generated files are gitignored and must be regenerated before the app can talk to `focus-production`.
+> `lib/firebase_options_production.dart` and `lib/firebase_options_dev.dart` are tracked in the repository. The remaining generated files are gitignored and must be regenerated before the app can talk to Firebase.
 
 ### 3.8. iOS URL Schemes
 
 After running `./update_firebase_config.sh`, verify that the `CFBundleURLSchemes` entries in `ios/Runner/Info.plist` match the `REVERSED_CLIENT_ID` values in:
 
 - `ios/Runner/GoogleService-Info.plist`
-- `ios/Runner/GoogleService-Info-Development.plist`
+- `ios/Runner/GoogleService-Info-Dev.plist`
 
-Update them if they change.
+Update them if they change. Remove any stale development URL scheme if present.
 
 ## 4. Backend API
 
@@ -114,7 +114,7 @@ The Flutter app communicates with the NestJS backend via the `api_client` packag
 
 The backend URL is read from the environment files:
 
-- `app/env/development.local.json` — local backend URL (`http://localhost:3000`)
+- `app/env/dev.json` — dev backend URL (`http://localhost:3001`), uses dev Firebase
 - `app/env/production.json` — production backend URL on the Pi
 
 Update `API_BASE_URL` in `app/env/production.json` once the Pi hostname is known, e.g.:
@@ -127,8 +127,7 @@ Update `API_BASE_URL` in `app/env/production.json` once the Pi hostname is known
 
 Use the VS Code launch targets to run the app with the correct environment file:
 
-- **App - Development** uses `env/development.json`
-- **App - Local Development** uses `env/development.local.json` (pointing to `localhost:3000`)
+- **App - Dev** uses `env/dev.json` (dev Firebase + localhost backend)
 - **App - Production** uses `env/production.json`
 
 ### 4.2. Backend Service Accounts
@@ -159,12 +158,15 @@ gcloud iam service-accounts keys create ~/keys/focus-backend-prod.json \
 
 Save the key **outside the repo** (e.g. `~/keys/focus-backend-prod.json`).
 
+Repeat for the dev project (`focus-local-dev`) and save the key as `~/.config/focus/focus-backend-dev.json`.
+
 #### Running locally
 
-Point `GOOGLE_APPLICATION_CREDENTIALS` to the production key:
+Local development uses the `focus-local-dev` Firebase project. Create `server/.env.local` (gitignored) with the dev service account key:
 
 ```bash
-export GOOGLE_APPLICATION_CREDENTIALS="$HOME/keys/focus-backend-prod.json"
+cp server/.env.example server/.env.local
+# Edit GOOGLE_APPLICATION_CREDENTIALS to point to ~/.config/focus/focus-backend-dev.json.
 ```
 
 Then:
@@ -172,20 +174,20 @@ Then:
 ```bash
 cd server
 npm install
-npm run start:dev
+npm run start:local
 ```
 
-The backend will pick the service account via Application Default Credentials. No `.env` file is required for local development.
+The backend will pick the service account via Application Default Credentials.
 
 ### 4.3. Run the backend locally
 
 ```bash
 cd server
 npm install
-npm run start:dev
+npm run start:local
 ```
 
-The backend runs on `http://localhost:3000`.
+The backend runs on `http://localhost:3000` and points at the `focus-local-dev` Firebase project.
 
 ## 5. Deploy to Raspberry Pi
 
@@ -243,6 +245,6 @@ The current setup uses HTTP on port 3000. When you are ready:
 
 ## 6. Notes
 
-- `app/env/production.json` is gitignored because it will contain your real backend URL and Google client ID.
-- Use `app/env/production.example.json` as a template.
-- All server `.env.*.local` files and service-account JSON keys are gitignored.
+- `app/env/dev.json`, `app/env/production.json` and `app/env/*.local.json` are gitignored because they contain real backend URLs and Google client IDs.
+- Use `app/env/dev.example.json` and `app/env/production.example.json` as templates.
+- All server/agent `.env.*.local` files and service-account JSON keys are gitignored.

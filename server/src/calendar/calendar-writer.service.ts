@@ -193,7 +193,7 @@ export class CalendarWriterService {
     body?: unknown,
   ): Promise<T> {
     const agentUrl =
-      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3001';
+      this._config.get<string>('AGENT_URL') ?? 'http://localhost:3002';
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15_000);
