@@ -11,11 +11,11 @@ name: Coder
 #   - Comment `/agent <feedback>` on its PR (as the owner) to have it change
 #     the PR.
 #
-# `think` reaches the Pi over the deploy tunnel with a key of its own, which
-# the Pi only lets run agent/coder/host/focus-coder. That script runs pi in a
-# container, then checks the change, commits it and pushes it to the branch
-# with the Pi account's own GitHub credentials, which pi never sees. The push
-# starts CI and E2E like anyone's push does. `publish`, back on GitHub, opens the PR or
+# `think` reaches the Pi over the deploy tunnel, with the deploy key, and runs
+# agent/coder/host/focus-coder there. That script runs pi in a container, then
+# checks the change, commits it and pushes it to the branch with the Pi
+# account's own GitHub credentials, which pi never sees. The push starts CI
+# and E2E like anyone's push does. `publish`, back on GitHub, opens the PR or
 # comments, with this workflow's own token.
 #
 # Guide: docs/self-driving/04-coder.md
@@ -97,13 +97,13 @@ jobs:
           sparse-checkout: .github
           persist-credentials: false
 
-      - name: Connect to the Pi with the coder's key
+      - name: Connect to the Pi
         uses: ./.github/actions/pi-ssh
         with:
-          ssh-private-key: ${{ secrets.CODER_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.PI_SSH_PRIVATE_KEY }}
           tunnel-token-id: ${{ secrets.TUNNEL_SERVICE_TOKEN_ID }}
           tunnel-token-secret: ${{ secrets.TUNNEL_SERVICE_TOKEN_SECRET }}
-          pi-user: ${{ vars.CODER_PI_USER || vars.PI_USER }}
+          pi-user: ${{ vars.PI_USER }}
           pi-host: ${{ vars.PI_HOST }}
 
       - name: Run pi on the Pi
@@ -115,8 +115,8 @@ jobs:
           CONTINUING: ${{ needs.route.outputs.continuing }}
           BRANCH: ${{ needs.route.outputs.branch }}
         run: |
-          # The forced command on the Pi reads these words and nothing else.
-          ssh -o ServerAliveInterval=30 focus-pi "run $RUN $MODE $ISSUE $PR $START_REF $CONTINUING $BRANCH"
+          # Every word is checked by the script before it is used.
+          ssh -o ServerAliveInterval=30 focus-pi "/opt/focus-coder/bin/focus-coder run $RUN $MODE $ISSUE $PR $START_REF $CONTINUING $BRANCH"
 
       - name: Fetch the result
         id: result
@@ -124,7 +124,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/coder"
-          ssh focus-pi "fetch $RUN" | tar -xz -C "$RUNNER_TEMP/coder" --strip-components=1
+          ssh focus-pi "/opt/focus-coder/bin/focus-coder fetch $RUN" | tar -xz -C "$RUNNER_TEMP/coder" --strip-components=1
           ls -la "$RUNNER_TEMP/coder"
           echo "pushed=$(cat "$RUNNER_TEMP/coder/pushed-sha" 2> /dev/null || true)" >> "$GITHUB_OUTPUT"
 

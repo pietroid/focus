@@ -64,8 +64,9 @@ and no secrets.
 ### The coder
 
 Merge this work to `main` first. The Pi builds the coder from `origin/main`.
-[04-coder.md](04-coder.md#setup) has every command. No GitHub App and no
-deploy key: the Pi pushes with the GitHub credentials it already has.
+[04-coder.md](04-coder.md#setup) has every command. No GitHub App, no
+deploy key and no new secret: the workflow reaches the Pi with the deploy
+key it already has, and the Pi pushes with its own GitHub credentials.
 
 1. **Prepare the Raspberry Pi,** as the user that already has `gh` and Docker.
    Clone the repo to `/opt/focus-coder/repo`, separate from the deploy
@@ -73,21 +74,14 @@ deploy key: the Pi pushes with the GitHub credentials it already has.
    `/opt/focus-coder/bin/`, and write `/opt/focus-coder/coder.env` with
    `OPENROUTER_API_KEY` (give it a spend limit) and `CODER_MODEL`. Run
    `gh auth setup-git` so plain `git push` uses gh's credentials.
-2. **Give GitHub a way in.** Generate `~/.ssh/focus_coder` on your Mac, and
-   add its public half to that user's `~/.ssh/authorized_keys` with
-   `command="/opt/focus-coder/bin/focus-coder"`, so this key can run that
-   script and nothing else. Try `run` and `fetch` from your Mac.
-3. **Give GitHub that key.** Add the secret `CODER_SSH_PRIVATE_KEY` with the
-   whole `~/.ssh/focus_coder`. The tunnel secrets, `PI_HOST` and `PI_USER` are
-   the deploy ones, already there.
-4. **Create the label.** Go to **Issues → Labels → New label → `agent`**.
+2. **Create the label.** Go to **Issues → Labels → New label → `agent`**.
 
 ### GitHub
 
-5. **Create the `production` environment** under **Settings →
+3. **Create the `production` environment** under **Settings →
    Environments**. The deploy jobs name it. The existing deploy secrets and
    variables from `AGENTS.md` do not change.
-6. **Protect `main`.** Go to **Settings → Rules → New branch ruleset**,
+4. **Protect `main`.** Go to **Settings → Rules → New branch ruleset**,
    targeting `main`. Require a pull request, require the status checks
    `server`, `agent`, `app` and `e2e`, and block force pushes and deletions.
    Leave the bypass list empty. In particular, do not add **Repository
@@ -95,12 +89,12 @@ deploy key: the Pi pushes with the GitHub credentials it already has.
 
 ### Prove it
 
-7. **Locally:** run `make e2e`. See
+5. **Locally:** run `make e2e`. See
    [02-e2e-maestro.md](02-e2e-maestro.md#run-it-locally) for the tools to
    install first.
-8. **On a branch:** push any branch and open a PR for it. CI and `e2e`
+6. **On a branch:** push any branch and open a PR for it. CI and `e2e`
    start from the push. When `e2e` ends, a comment on the PR links to a draft
    release that holds `video.mp4`. Watch the video.
-9. **The coder:** open an issue with something small and concrete, for
+7. **The coder:** open an issue with something small and concrete, for
    example "Rename the Coisas heading to Minhas coisas", and label it
    `agent`. It should come back with a PR, or with a question on the issue.
