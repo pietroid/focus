@@ -164,3 +164,9 @@ agent/*.tsbuildinfo
 agent/.nyc_output/
 
 .secrets
+
+# Firebase emulator logs (make e2e)
+e2e/*-debug.log
+
+# Local Pi SSH script, holds Cloudflare tunnel secrets
+pi-connect.sh
