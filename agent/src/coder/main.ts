@@ -28,19 +28,20 @@ import { Answer, forbiddenPaths, parseAnswer, tail } from './result.js';
  *   CODER_MODEL        pi model id, default openrouter/anthropic/claude-sonnet-5
  *   CODER_MINUTES      wall-clock budget for pi, default 40
  *   CODER_PROMPT_FILE  run on this prompt instead of a GitHub thread (local tries)
- *   CODER_CHECKS       the make targets of the gate, default
- *                      "check-server check-agent"; "none" skips the gate and
- *                      leaves the checks to CI, for a Pi short on memory
+ *   CODER_CHECKS       the make targets of the gate, default "check-light"
+ *                      (types and tests, sized for a 1 GB Pi); "none" skips
+ *                      the gate and leaves the checks to CI
  *   OPENROUTER_API_KEY, GITHUB_REPOSITORY, optional GITHUB_TOKEN (read-only)
  */
 const WORKSPACE = process.env.CODER_WORKSPACE ?? '/workspace';
 const OUT = process.env.CODER_OUT ?? '/out';
 const ANSWER = path.join(OUT, 'answer.json');
 const SESSIONS = path.join(OUT, 'session');
-const FIX_ROUNDS = 2;
+// pi does not run the checks itself, so the gate's feedback is its only one.
+const FIX_ROUNDS = 3;
 
 /** The make targets the gate runs, or none. */
-const CHECKS = (process.env.CODER_CHECKS ?? 'check-server check-agent')
+const CHECKS = (process.env.CODER_CHECKS ?? 'check-light')
   .split(/\s+/)
   .filter((target) => target !== '' && target !== 'none');
 
@@ -144,10 +145,11 @@ async function readAnswer(stdout: string): Promise<Answer | undefined> {
 }
 
 /**
- * The part of make check this machine can run. Flutter is not on the Pi,
- * so check-app runs in CI on the pull request instead. The model's key is
- * kept out of the checks' environment. With no targets, the gate passes and
- * CI is the only check.
+ * The part of make check this machine can run, after pi has exited so the
+ * two never share the memory. Flutter is not on the Pi, so check-app runs in
+ * CI instead, and so do the lint and the builds. The model's key is kept out
+ * of the checks' environment. With no targets, the gate passes and CI is the
+ * only check.
  */
 async function runChecks(): Promise<{ ok: boolean; output: string }> {
   if (CHECKS.length === 0) return { ok: true, output: '' };

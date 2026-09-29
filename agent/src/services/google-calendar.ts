@@ -1,6 +1,8 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { google, calendar_v3 } from 'googleapis';
+// Calendar alone, not the googleapis bundle: the bundle carries the types of
+// every Google API, and compiling it needs over a gigabyte of memory.
+import { auth, calendar, calendar_v3 } from '@googleapis/calendar';
 
 /**
  * The Google Calendar client, and the few calls made against it.
@@ -131,11 +133,11 @@ export async function getCalendarClient(): Promise<calendar_v3.Calendar> {
 
   try {
     const credentials = JSON.parse(content) as Record<string, unknown>;
-    const auth = new google.auth.GoogleAuth({
+    const googleAuth = new auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/calendar'],
     });
-    return google.calendar({ version: 'v3', auth });
+    return calendar({ version: 'v3', auth: googleAuth });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse GOOGLE_APPLICATION_CREDENTIALS file "${credentialsPath}": ${message}`);

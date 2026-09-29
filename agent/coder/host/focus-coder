@@ -17,6 +17,9 @@
 #   repo/        a clone of the GitHub repo, used as a local object cache
 #                and to build the image. Never the deploy checkout (~/focus).
 #   runs/<id>/   work/ (the clone pi edits) and out/ (what comes back)
+#   cache/       node_modules of server/ and agent/, one per package-lock.json,
+#                hard-linked into each run so npm ci only runs when the
+#                lockfile changes
 #   coder.env    OPENROUTER_API_KEY, optional CODER_MODEL and GITHUB_TOKEN
 #
 # Pushing uses whatever git already uses on this account: gh, after
@@ -39,8 +42,11 @@ fi
 AUTHOR_NAME="${FOCUS_CODER_AUTHOR_NAME:-Focus Coder}"
 AUTHOR_EMAIL="${FOCUS_CODER_AUTHOR_EMAIL:-focus-coder@users.noreply.github.com}"
 IMAGE=focus-coder:latest
-# The container's memory cap. Raise it on a bigger Pi, lower it on a smaller one.
-MEMORY="${FOCUS_CODER_MEMORY:-3g}"
+# The container's memory cap, from CODER_MEMORY in coder.env. Keep it under
+# what production leaves free, so that if memory runs out the kernel stops
+# the coder and not a production container.
+MEMORY="$(sed -n 's/^CODER_MEMORY=//p' "$ROOT/coder.env" 2> /dev/null | tail -n1)"
+MEMORY="${FOCUS_CODER_MEMORY:-${MEMORY:-3g}}"
 KEEP_DAYS=7
 
 die() { echo "focus-coder: $*" >&2; exit 2; }
@@ -67,6 +73,7 @@ run() {
   [ "$pr" = - ] && pr=""
 
   [ -f "$ROOT/coder.env" ] || die "missing $ROOT/coder.env"
+  want CODER_MEMORY "$MEMORY" '^[0-9]+[kmg]?$'
   local dir="$ROOT/runs/$id"
   [ ! -e "$dir" ] || die "run $id already exists"
   mkdir -p "$dir/out"
@@ -86,6 +93,8 @@ run() {
   echo "== Cloning $ref"
   git clone --quiet --reference-if-able "$ROOT/repo" --dissociate --branch "$ref" "$REMOTE" "$dir/work"
 
+  restore_modules "$dir/work"
+
   echo "== Running pi"
   local status=0
   timeout --signal=TERM 55m docker run --rm \
@@ -103,6 +112,8 @@ run() {
   echo "$status" > "$dir/out/exit-code"
   echo "== pi finished with status $status"
 
+  save_modules "$dir/work"
+
   if [ "$status" = 0 ] && [ -s "$dir/out/changes.patch" ] && [ -s "$dir/out/commit-message" ]; then
     push "$dir" "$branch" "$issue" || status=$?
   fi
@@ -111,6 +122,42 @@ run() {
   find "$ROOT/runs" -mindepth 1 -maxdepth 1 -type d -mtime +"$KEEP_DAYS" -exec rm -rf {} + 2> /dev/null || true
   rm -rf "$dir/work"
   exit "$status"
+}
+
+# The npm packages a run needs, kept between runs. npm ci is the heaviest
+# step of the checks, so a run starts with the node_modules the last run
+# installed for the same package-lock.json, hard-linked: instant, and no
+# extra disk.
+PACKAGES=(server agent)
+
+lock_key() { cksum < "$1/package-lock.json" | tr ' ' '-'; }
+
+restore_modules() {
+  local work="$1" pkg key
+  for pkg in "${PACKAGES[@]}"; do
+    [ -f "$work/$pkg/package-lock.json" ] || continue
+    key="$(lock_key "$work/$pkg")"
+    if [ -d "$ROOT/cache/$pkg-$key" ]; then
+      cp -al "$ROOT/cache/$pkg-$key" "$work/$pkg/node_modules"
+      echo "== Reusing $pkg/node_modules"
+    fi
+  done
+}
+
+save_modules() {
+  local work="$1" pkg key stamp
+  for pkg in "${PACKAGES[@]}"; do
+    [ -f "$work/$pkg/package-lock.json" ] || continue
+    key="$(lock_key "$work/$pkg")"
+    stamp="$(cat "$work/$pkg/node_modules/.lock-cksum" 2> /dev/null || true)"
+    # Only an install that matches this lockfile, and only once per lockfile.
+    [ "$stamp" = "$(cksum < "$work/$pkg/package-lock.json")" ] || continue
+    [ -d "$ROOT/cache/$pkg-$key" ] && continue
+    mkdir -p "$ROOT/cache"
+    rm -rf "$ROOT/cache/$pkg-"*
+    cp -al "$work/$pkg/node_modules" "$ROOT/cache/$pkg-$key"
+    echo "== Saved $pkg/node_modules for later runs"
+  done
 }
 
 # Commits what pi left staged in the clone and pushes it. The second lock:

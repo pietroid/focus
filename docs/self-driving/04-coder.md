@@ -182,26 +182,45 @@ your GitHub credentials stay on the Pi.
 
 ### On a Pi with little memory
 
-The image compiles only the coder's own files, which takes about 200 MB. The
-checks are heavier: `make check-server` and `make check-agent` compile the
-whole server and agent, including Google's API types. The container gives
-Node a 2 GB heap for that, and caps the container at 3 GB. See how much you
-have with `free -h`. If RAM plus swap is under about 3 GB, add swap:
+The coder is sized for a 1 GB Pi that also runs production. Measured peaks,
+largest single process:
 
-```bash
-sudo dphys-swapfile swapoff
-sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
-sudo dphys-swapfile setup && sudo dphys-swapfile swapon
-free -h
-```
+| Step | Peak | Where it runs |
+|---|---|---|
+| agent compile, with the whole `googleapis` bundle | 1265 MB | nowhere anymore: the agent uses `@googleapis/calendar` |
+| agent compile, with `@googleapis/calendar` | 220 MB | the Pi's gate and CI |
+| server lint with type information | 770 MB | CI only |
+| server `npm ci` | 460 to 550 MB | the Pi, only when `server/package-lock.json` changed |
+| server `nest build` | 413 MB | CI only |
+| server `tsc --noEmit` | 330 MB | the Pi's gate and CI |
+| server tests | 185 MB | the Pi's gate and CI |
+| building the coder's image | about 200 MB | the Pi |
 
-The knobs, in `coder.env` unless noted:
+What keeps a run under about 330 MB:
+
+- The gate runs `make check-light`: types and tests of server and agent,
+  without the lint and the builds. CI runs everything.
+- pi does not run the checks itself. The gate runs them after pi has
+  exited, so the two are never in memory together, and sends failures back
+  to pi, three rounds at most.
+- `npm ci` runs only when a lockfile changed. The coder keeps each installed
+  `node_modules` in `/opt/focus-coder/cache`, one per lockfile, and
+  hard-links it into the next run. The install spike happens once per
+  lockfile change, and the swap you have absorbs it.
+
+The settings, in `coder.env`:
 
 | Setting | Default | Effect |
 |---|---|---|
-| `NODE_OPTIONS` | `--max-old-space-size=2048` | Node's heap for pi's checks and the gate |
-| `CODER_CHECKS` | `check-server check-agent` | the gate's make targets. `none` skips the gate and tells pi not to run checks, leaving them to CI |
-| `FOCUS_CODER_MEMORY` (host environment) | `3g` | the container's memory cap |
+| `CODER_CHECKS` | `check-light` | the gate's make targets. `check-server check-agent` on a bigger machine; `none` leaves the checks to CI |
+| `NODE_OPTIONS` | `--max-old-space-size=400` | Node's heap inside the container |
+| `CODER_MEMORY` | `3g` | the container's memory cap. On a 1 GB Pi, `450m`: enough for the checks, low enough that running out stops the coder and not production |
+
+For a 1 GB Pi, add this to `coder.env`:
+
+```
+CODER_MEMORY=450m
+```
 
 ## Using pi by hand
 

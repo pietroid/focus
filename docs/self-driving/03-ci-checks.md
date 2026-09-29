@@ -19,6 +19,7 @@ gate, and CI runs them on every PR.
 |---|---|---|
 | `check-server` | `npm ci`, `eslint`, `tsc --noEmit`, `jest`, `nest build` | a lint error (typescript-eslint strict and prettier), a type error, a failing spec, a build error |
 | `check-agent` | `npm ci`, `tsc`, `node --test dist/**/*.test.js` | a type error or a failing test |
+| `check-light` | `npm ci` only when the lockfile changed, server `tsc --noEmit` and `jest`, agent `tsc` and tests | what the coder's gate runs on the Pi: the same types and tests, without the lint and the builds, peaking around 330 MB |
 | `check-app` | `flutter pub get`, `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test` in `app_ui`, `chat`, `notifications` | unformatted Dart, any analyzer issue (very_good_analysis), a failing test |
 
 The server lint used to have twelve standing errors in

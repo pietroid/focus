@@ -37,7 +37,8 @@ secret.
    chmod 600 /opt/focus-coder/coder.env
    ```
    `CODER_MODEL` takes any id from `pi --list-models`. Changing it needs no
-   redeploy; the next run picks it up.
+   redeploy; the next run picks it up. On a Pi with 1 GB of RAM, also add
+   `CODER_MEMORY=450m`, so the coder can never take memory from production.
 
 4. **Log git in to GitHub and check it can push.** If `gh auth login` is
    already done, run `gh auth setup-git` once so plain `git push` uses it. A

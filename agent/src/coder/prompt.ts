@@ -13,9 +13,10 @@ export type CoderTask =
  * limits, and what this machine cannot check.
  */
 export function coderRules(answerPath: string, checks: string[]): string {
+  const ran = checks.map((target) => `\`make ${target}\``).join(' and ');
   const checkRule =
     checks.length > 0
-      ? `- Check your work with ${checks.map((target) => `\`make ${target}\``).join(' and ')}.`
+      ? `- Do not run make, npm, tsc or the tests yourself: this machine is short on memory. When you finish, the pipeline runs ${ran} and sends you any failure to fix.`
       : '- Do not run make, npm, tsc or the tests: this machine is short on memory. CI checks the pull request.';
   return `You are Focus's coding agent, running unattended in a container on a Raspberry Pi.
 The repository is checked out in the current directory. Nobody will answer you during this run.

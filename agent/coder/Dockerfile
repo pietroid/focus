@@ -30,9 +30,10 @@ RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.87.1
 # The coder has no dependencies at run time, only the compiled files.
 COPY --from=build /coder/dist-coder /coder/dist
 
-# The checks compile the whole server and agent, which needs more than the
-# heap Node picks by itself on a small Pi. NODE_OPTIONS in coder.env wins.
-ENV NODE_OPTIONS=--max-old-space-size=2048
+# The heaviest check, the server's type check, needs about 330 MB. Node picks
+# a smaller heap by itself inside a capped container, so name one. On a
+# bigger machine, raise it with NODE_OPTIONS in coder.env.
+ENV NODE_OPTIONS=--max-old-space-size=400
 
 # The run passes --user so files in the mounts belong to the host's user.
 # HOME is a throwaway directory for pi's config and npm's cache.

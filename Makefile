@@ -9,9 +9,19 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+# npm ci in $(1), only when package-lock.json changed since the last install.
+# It is the heaviest step in check-light (about 460 MB), and the coder on the
+# Pi hands each run the node_modules of the last one, so it pays for it once
+# per lockfile change instead of on every run.
+define npm_install
+	cd $(1) && if [ "$$(cksum < package-lock.json)" != "$$(cat node_modules/.lock-cksum 2> /dev/null)" ]; then \
+		npm ci --no-audit --no-fund && cksum < package-lock.json > node_modules/.lock-cksum; \
+	fi
+endef
 FLUTTER_PACKAGES := app_ui chat notifications
 
-.PHONY: help check check-server check-agent check-app \
+.PHONY: help check check-server check-agent check-app check-light \
 	install dev-server dev-agent \
 	e2e
 
@@ -32,6 +42,14 @@ check-server: ## Lint, type-check, test and build the NestJS backend
 check-agent: ## Build and test the agent
 	cd agent && npm ci --no-audit --no-fund
 	cd agent && npm run build
+	cd agent && npm test
+
+check-light: ## Types and tests of server and agent, small enough for a 1 GB Pi (no lint, no build)
+	$(call npm_install,server)
+	cd server && npx tsc --noEmit -p tsconfig.json
+	cd server && npm test --silent
+	$(call npm_install,agent)
+	cd agent && npx tsc
 	cd agent && npm test
 
 check-app: ## Analyze and test the Flutter app and its packages
