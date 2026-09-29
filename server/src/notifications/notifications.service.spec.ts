@@ -180,7 +180,7 @@ describe('reminder ids', () => {
   it('change when the block is renamed', async () => {
     const [before] = ofKind(await itemsFor([block()]), 'confirmStart');
     const [after] = ofKind(
-      await itemsFor([block({ title: 'Outra coisa' })]),
+      await itemsFor([block({ title: 'Outro projeto' })]),
       'confirmStart',
     );
 

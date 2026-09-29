@@ -7,7 +7,7 @@ import { ScheduledThing, Thing } from './entities/thing.entity';
 import { ThingsStore } from './things.store';
 
 /**
- * Coisas: what the user means to do, in the order they mean to do it.
+ * Projects: what the user means to do, in the order they mean to do it.
  *
  * It behaves like the timeline with the clock taken out. Things are written
  * down, dragged into order, finished or thrown away, and none of that

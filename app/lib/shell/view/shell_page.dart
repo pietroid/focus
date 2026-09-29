@@ -17,7 +17,7 @@ import 'package:go_router/go_router.dart';
 ///
 /// The orb is the app's one action from anywhere, and it does the thing the
 /// screen under it is about. On Tempo that is writing something down with an
-/// hour on it, and on Coisas writing something down without one; neither
+/// hour on it, and on Projects writing something down without one; neither
 /// involves the model. On Conversas, and everywhere else, it is starting a
 /// conversation. The tab bar underneath already says which one is live.
 /// {@endtemplate}
@@ -33,7 +33,7 @@ class _ShellPageState extends State<ShellPage> {
   /// Tempo, where the orb writes something straight onto the timeline.
   static const _timelineIndex = 0;
 
-  /// Coisas, where the orb writes down something with no hour.
+  /// Projects, where the orb writes down something with no hour.
   static const _thingsIndex = 1;
 
   int _index = 0;
@@ -58,7 +58,7 @@ class _ShellPageState extends State<ShellPage> {
     await _converse();
   }
 
-  /// Writes a thing down on Coisas: what it is and how long, no hour.
+  /// Writes a thing down on Projects: what it is and how long, no hour.
   Future<void> _note() async {
     final bloc = context.read<ThingsBloc>();
     final result = await AppPromptSheet.show(context);
@@ -108,7 +108,7 @@ class _ShellPageState extends State<ShellPage> {
           center: AppOrb(onTap: _onOrbTapped),
           items: const [
             AppBottomBarItem(iconData: AppIcons.time, label: 'Tempo'),
-            AppBottomBarItem(iconData: AppIcons.things, label: 'Coisas'),
+            AppBottomBarItem(iconData: AppIcons.things, label: 'Projetos'),
             AppBottomBarItem(
               iconData: AppIcons.conversations,
               label: 'Conversas',

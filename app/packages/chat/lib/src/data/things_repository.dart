@@ -3,7 +3,7 @@ import 'package:chat/src/data/chat_failure.dart';
 import 'package:chat/src/models/models.dart';
 
 /// {@template things_repository}
-/// Coisas: what has no hour yet, in the order the user means to do it.
+/// Projects: what has no hour yet, in the order the user means to do it.
 ///
 /// Every call answers with the whole list, so the app never has to work out
 /// what a change did to the order.

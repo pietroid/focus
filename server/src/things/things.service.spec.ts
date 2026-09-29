@@ -8,7 +8,7 @@ import { ThingsStore } from './things.store';
 
 const USER = { id: 'test-user' };
 
-describe('Coisas', () => {
+describe('Projects', () => {
   let root: string;
   let booked: { title: string; durationMinutes: number; fixed: boolean }[];
   let refuse: boolean;

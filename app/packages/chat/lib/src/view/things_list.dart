@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// {@template things_list}
-/// Coisas: the timeline with the clock taken out.
+/// Projects: the timeline with the clock taken out.
 ///
 /// The same gestures as the day and none of its hours. A press held for a
 /// moment picks a thing up and puts it somewhere else in the order; carried
@@ -264,7 +264,7 @@ class _Empty extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.s2),
       child: Text(
-        'Nada por aqui. Toque no orbe para anotar uma coisa.',
+        'Nada por aqui. Toque no orbe para anotar um projeto.',
         style: AppTypography.body.copyWith(color: AppColors.ink3),
       ),
     );

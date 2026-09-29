@@ -96,5 +96,5 @@ key it already has, and the Pi pushes with its own GitHub credentials.
    start from the push. When `e2e` ends, a comment on the PR links to a draft
    release that holds `video.mp4`. Watch the video.
 7. **The coder:** open an issue with something small and concrete, for
-   example "Rename the Coisas heading to Minhas coisas", and label it
+   example "Rename the Projetos heading to Meus projetos", and label it
    `agent`. It should come back with a PR, or with a question on the issue.

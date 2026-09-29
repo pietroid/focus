@@ -6,7 +6,7 @@ import { ThingsService } from './things.service';
 import { ThingsStore } from './things.store';
 
 /**
- * Coisas: what has no hour yet.
+ * Projects: what has no hour yet.
  *
  * Depends on events for the one move that gives a thing an hour, and on
  * nothing else. The events module knows nothing about it.

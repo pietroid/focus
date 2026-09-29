@@ -334,7 +334,7 @@ describe('ThreadsController', () => {
     expect(visibleText(reply)).toContain('On it.');
   });
 
-  describe('the Coisas list', () => {
+  describe('the Projects list', () => {
     it('says nothing about when a thread happens', async () => {
       await request(app.getHttpServer())
         .post('/threads')
@@ -554,7 +554,7 @@ describe('ThreadsController', () => {
 
       const created = await request(app.getHttpServer())
         .post('/threads')
-        .send({ message: 'Agenda alguma coisa' })
+        .send({ message: 'Agenda algum projeto' })
         .expect(201);
 
       const reply = thread(created).messages[1];

@@ -1,7 +1,7 @@
 part of 'things_bloc.dart';
 
 /// {@template things_event}
-/// Something that happened to Coisas.
+/// Something that happened to Projects.
 /// {@endtemplate}
 sealed class ThingsEvent extends Equatable {
   /// {@macro things_event}

@@ -5,7 +5,7 @@ import 'package:chat/chat.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// {@template things_page}
-/// Coisas: what the user means to do and has not given an hour.
+/// Projects: what the user means to do and has not given an hour.
 ///
 /// The timeline with the clock taken out. The orb on this tab writes a thing
 /// down, a thing is dragged into order, carried off to be done or deleted,
@@ -67,7 +67,7 @@ class ThingsPage extends StatelessWidget {
                       top: AppSpacing.s5,
                       bottom: AppSpacing.s2,
                     ),
-                    child: Text('Coisas', style: AppTypography.headline),
+                    child: Text('Projetos', style: AppTypography.headline),
                   ),
                   Expanded(
                     child: ThingsList(

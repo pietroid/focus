@@ -523,10 +523,10 @@ describe('the day', () => {
 
   it('asks what to do with what is running before starting something else', async () => {
     await add('Em andamento', 60).expect(201);
-    await add('Outra coisa', 30).expect(201);
+    await add('Outro projeto', 30).expect(201);
     await begin('Em andamento');
 
-    const response = await drag((await card('Outra coisa')).id, 0).expect(201);
+    const response = await drag((await card('Outro projeto')).id, 0).expect(201);
 
     expect(question(outcome(response).guard)).toBe('Começar agora?');
     expect(buttons(outcome(response).guard).map((b) => b.text)).toEqual([
@@ -538,25 +538,25 @@ describe('the day', () => {
 
   it('changes nothing while it is asking', async () => {
     await add('Em andamento', 60).expect(201);
-    await add('Outra coisa', 30).expect(201);
+    await add('Outro projeto', 30).expect(201);
     await begin('Em andamento');
 
     const before = await timeline();
-    await drag((await card('Outra coisa')).id, 0).expect(201);
+    await drag((await card('Outro projeto')).id, 0).expect(201);
 
     expect(await timeline()).toEqual(before);
   });
 
   it('finishes the running block and gives its hour back', async () => {
     await add('Em andamento', 60).expect(201);
-    await add('Outra coisa', 30).expect(201);
+    await add('Outro projeto', 30).expect(201);
     await begin('Em andamento');
 
-    const guard = outcome(await drag((await card('Outra coisa')).id, 0)).guard;
+    const guard = outcome(await drag((await card('Outro projeto')).id, 0)).guard;
     const solve = buttons(guard).find((b) => b.text === 'Concluir o atual');
     await answer(solve!.action).expect(201);
 
-    expect((await timeline()).map((it) => it.title)).toEqual(['Outra coisa']);
+    expect((await timeline()).map((it) => it.title)).toEqual(['Outro projeto']);
 
     await sync();
     expect(calendar.removed).toHaveLength(1);
@@ -564,15 +564,15 @@ describe('the day', () => {
 
   it('pushes the running block down when told to keep it', async () => {
     await add('Em andamento', 60).expect(201);
-    await add('Outra coisa', 30).expect(201);
+    await add('Outro projeto', 30).expect(201);
     await begin('Em andamento');
 
-    const guard = outcome(await drag((await card('Outra coisa')).id, 0)).guard;
+    const guard = outcome(await drag((await card('Outro projeto')).id, 0)).guard;
     const later = buttons(guard).find((b) => b.text === 'Deixar para depois');
     await answer(later!.action).expect(201);
 
     const day = await timeline();
-    expect(day.map((it) => it.title)).toEqual(['Outra coisa', 'Em andamento']);
+    expect(day.map((it) => it.title)).toEqual(['Outro projeto', 'Em andamento']);
     expect(gapBetween(day[0], day[1])).toBeGreaterThanOrEqual(5);
   });
 

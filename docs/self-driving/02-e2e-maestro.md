@@ -16,7 +16,7 @@ e2e/
     config.yaml            the suite: every file in flows/
     subflows/launch.yaml   a clean browser
     subflows/signed_in.yaml  waits for the app to open signed in as focus.main.agent@gmail.com
-    flows/01_things.yaml   Coisas: write a thing down, rename it
+    flows/01_things.yaml   Projetos: write a thing down, rename it
     flows/02_tempo.yaml    Tempo: put a block on the day, finish it (tag: calendar, skipped)
   scripts/
     e2e.sh                 one isolated run: build, start, sign up, test, record, clean up
@@ -27,7 +27,7 @@ e2e/
 ## What was proven, and how
 
 The whole `e2e.sh` run was done on a Mac in emulator mode. It built all
-three parts, started the emulators, created the agent's account, and the Coisas
+three parts, started the emulators, created the agent's account, and the Projetos
 flow passed in 48 seconds. Then the account was deleted and every port was
 freed. That run showed that each of the following works on Flutter web:
 
@@ -46,7 +46,7 @@ These did not work, and the flows are written around them:
 - **Row text.** Flutter web puts a row's merged label into `aria-label`
   whenever the row has child nodes, such as a button. Maestro only reads an
   element's own DOM text, so it cannot see that label. Rows therefore carry
-  an identifier with their title: `thing:<title>` on Coisas rows,
+  an identifier with their title: `thing:<title>` on Projetos rows,
   `event:<title>` on timeline cards. Screen readers ignore identifiers, so
   accessibility does not change.
 - **Swipes.** On Flutter web, Maestro turns every swipe, element or
@@ -105,7 +105,7 @@ logs/{server,agent,web,emulators,build-*}.log
 ## Writing flows
 
 - **Find by what the user sees** when it is DOM text: tab names, headings,
-  labelled buttons, dialog words. `tapOn: Coisas` is fine.
+  labelled buttons, dialog words. `tapOn: Projetos` is fine.
 - **Everything else gets an identifier.** Current ids: `orb`,
   `prompt-field`, `prompt-send`, `thing:<title>`, `event:<title>`,
   `event-done`, and `test-login-email`, `test-login-password`,

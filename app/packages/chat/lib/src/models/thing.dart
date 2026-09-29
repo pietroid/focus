@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 /// {@template thing}
 /// One thing to do that has no hour yet.
 ///
-/// Coisas is the timeline with the clock taken out: an order and nothing
+/// Projects is the timeline with the clock taken out: an order and nothing
 /// else. What is at the top is what the user means to get to first, and the
 /// one way a thing gets an hour is being moved onto the timeline, where it
 /// stops being a thing and becomes a block.

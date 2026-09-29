@@ -28,7 +28,7 @@ export class Thread {
 /**
  * A thread as a row in a list.
  *
- * What Coisas draws, and the concluded screen with it. The only claim it
+ * What Projects draws, and the concluded screen with it. The only claim it
  * makes about time is when it was last spoken to, which is the one thing a
  * conversation genuinely knows.
  */
