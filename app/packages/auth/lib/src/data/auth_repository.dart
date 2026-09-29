@@ -23,6 +23,15 @@ abstract class AuthRepository {
   /// Signs in with Google.
   Future<void> signInWithGoogle();
 
+  /// Signs in with an email and a password.
+  ///
+  /// Only the test account uses this, on builds that are not production.
+  /// A production build never draws the form that calls it.
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  });
+
   /// Signs the current user out.
   Future<void> signOut();
 }
@@ -76,6 +85,17 @@ class FirebaseAuthRepository implements AuthRepository {
     );
 
     await _firebaseAuth.signInWithCredential(credential);
+  }
+
+  @override
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    await _firebaseAuth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
   }
 
   @override

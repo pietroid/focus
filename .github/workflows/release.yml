@@ -1,0 +1,71 @@
+name: Release
+
+# Every merged PR becomes a release: what changed (the PR's own description)
+# plus what proved it (the Maestro video and report that the PR's E2E job
+# attached to a draft release called pr-<number>). A PR merged without an
+# E2E run still gets a release, marked as such.
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - name: Write release notes
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          URL: ${{ github.event.pull_request.html_url }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          draft_id="$(gh api "repos/$REPO/releases?per_page=100" \
+            --jq ".[] | select(.draft and .tag_name == \"pr-$PR\") | .id" | head -n1)"
+          echo "draft_id=$draft_id" >> "$GITHUB_ENV"
+
+          {
+            echo "## $TITLE"
+            echo
+            echo "${BODY:-_No description._}"
+            echo
+            echo "---"
+            echo "Merged from $URL by @$AUTHOR."
+            echo
+            if [ -n "$draft_id" ]; then
+              gh api "repos/$REPO/releases/$draft_id" --jq .body
+            else
+              echo "> No Maestro run was attached to this PR, so this release has no recorded proof."
+            fi
+          } > notes.md
+          cat notes.md
+
+      - name: Publish
+        run: |
+          set -euo pipefail
+          tag="v$(date -u +%Y.%m.%d)-pr$PR"
+          title="$(jq -r .pull_request.title "$GITHUB_EVENT_PATH")"
+          if [ -n "$draft_id" ]; then
+            gh api -X PATCH "repos/$REPO/releases/$draft_id" \
+              -f tag_name="$tag" \
+              -f target_commitish="$MERGE_SHA" \
+              -f name="$title" \
+              -F body=@notes.md \
+              -F draft=false \
+              -f make_latest=true
+          else
+            gh release create "$tag" --repo "$REPO" --target "$MERGE_SHA" \
+              --title "$title" --notes-file notes.md --latest
+          fi
+          echo "Released $tag."

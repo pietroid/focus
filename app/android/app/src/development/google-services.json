@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "82829937690",
+    "project_id": "focus-development",
+    "storage_bucket": "focus-development.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82829937690:android:cb3d763d317cad52b315a3",
+        "android_client_info": {
+          "package_name": "com.pietroid.focus.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "82829937690-gpfbo9039rgv4jkggima24l7lchiuq3t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg48poF-M2HjTsPm4Vqs-WdfMuZ6SjZFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "82829937690-gpfbo9039rgv4jkggima24l7lchiuq3t.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

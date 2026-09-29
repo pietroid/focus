@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>392630770562-sm05h5l29140puk6osh709c9uunqt376.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.392630770562-sm05h5l29140puk6osh709c9uunqt376</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>392630770562-674kfcfn2f1qebj30hib25h9p3hcmcqk.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBljHWQYynq6J6tZuKrWUKEM4VdZUiL-oA</string>
+	<key>GCM_SENDER_ID</key>
+	<string>392630770562</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.pietroid.focus</string>
+	<key>PROJECT_ID</key>
+	<string>focus-production</string>
+	<key>STORAGE_BUCKET</key>
+	<string>focus-production.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:392630770562:ios:b7a18a9babfb37977a0d9b</string>
+</dict>
+</plist>

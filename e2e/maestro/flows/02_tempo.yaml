@@ -1,0 +1,48 @@
+# Tempo: put a flexible block on the day, open it, finish it.
+#
+# Goes through the agent to Google Calendar, so it needs a run whose agent has
+# a calendar service account. e2e.sh has none and skips it (tag: calendar).
+# Finishing the block takes its event off Google, so it cleans up after
+# itself.
+url: ${APP_URL}
+name: Tempo - criar e concluir bloco
+tags:
+  - smoke
+  - calendar
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow: ../subflows/signed_in.yaml
+
+- evalScript: ${output.block = 'Revisar E2E ' + Math.floor(Math.random() * 100000)}
+
+- tapOn: Tempo
+- tapOn:
+    id: orb
+- extendedWaitUntil:
+    visible:
+      id: prompt-field
+    timeout: 10000
+- inputText: ${output.block}
+- tapOn:
+    id: prompt-send
+
+# Booking waits for Google, so give it room.
+- extendedWaitUntil:
+    visible:
+      id: event:${output.block}
+    timeout: 45000
+- takeScreenshot: 02_tempo_added
+
+- tapOn:
+    id: event:${output.block}
+- extendedWaitUntil:
+    visible:
+      id: event-done
+    timeout: 15000
+- tapOn:
+    id: event-done
+- extendedWaitUntil:
+    notVisible:
+      id: event:${output.block}
+    timeout: 45000
+- takeScreenshot: 02_tempo_done

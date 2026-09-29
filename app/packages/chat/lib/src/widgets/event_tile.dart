@@ -134,6 +134,16 @@ class EventTile extends StatelessWidget {
       ),
     );
 
+    // The title rides in the identifier so a Maestro flow can find the card.
+    // See _Row in things_list.dart.
+    return Semantics(
+      container: true,
+      identifier: 'event:${card.title}',
+      child: _surface(body),
+    );
+  }
+
+  Widget _surface(Widget body) {
     return Opacity(
       opacity: hidden ? 0 : 1,
       child: Material(
@@ -293,6 +303,7 @@ class EventControls extends StatelessWidget {
         ),
         _Action(
           tooltip: 'Concluir',
+          identifier: 'event-done',
           onTap: onDone,
           child: const AppIcon(
             iconData: AppIcons.check,
@@ -311,9 +322,13 @@ class _Action extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     required this.child,
+    this.identifier,
   });
 
   final String tooltip;
+
+  /// For Maestro flows. The tooltip is not DOM text on web.
+  final String? identifier;
 
   /// Null when the button cannot do anything right now.
   final VoidCallback? onTap;
@@ -321,6 +336,14 @@ class _Action extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      identifier: identifier,
+      child: _button(),
+    );
+  }
+
+  Widget _button() {
     return InkResponse(
       onTap: onTap,
       radius: AppSpacing.s5,

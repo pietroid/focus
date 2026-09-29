@@ -1,0 +1,59 @@
+# Coisas: write a thing down, see it on the list, rename it.
+#
+# Touches the backend's things store only, no calendar and no model, so it is
+# the flow that should never be flaky. Every CI run starts on an empty data
+# directory, so nothing needs deleting afterwards.
+#
+# Swipes are not tested: on Flutter web Maestro turns every swipe into wheel
+# scrolling, which Dismissible ignores.
+#
+# Rows are found by identifier (thing:<title>). On Flutter web a row's text
+# only reaches the DOM as aria-label, which Maestro does not read.
+url: ${APP_URL}
+name: Coisas - anotar e renomear
+tags:
+  - smoke
+---
+- runFlow: ../subflows/launch.yaml
+- runFlow: ../subflows/signed_in.yaml
+
+- evalScript: ${output.thing = 'Comprar pão E2E ' + Math.floor(Math.random() * 100000)}
+- evalScript: ${output.renamed = output.thing + ' integral'}
+
+- tapOn: Coisas
+- tapOn:
+    id: orb
+- extendedWaitUntil:
+    visible:
+      id: prompt-field
+    timeout: 10000
+- inputText: ${output.thing}
+- tapOn:
+    id: prompt-send
+
+- extendedWaitUntil:
+    visible:
+      id: thing:${output.thing}
+    timeout: 20000
+- takeScreenshot: 01_things_added
+
+# Tapping a row opens the same sheet with its text, to rename it.
+- tapOn:
+    id: thing:${output.thing}
+- extendedWaitUntil:
+    visible:
+      id: prompt-field
+    timeout: 10000
+- tapOn:
+    id: prompt-field
+- eraseText: 60
+- inputText: ${output.renamed}
+- tapOn:
+    id: prompt-send
+- extendedWaitUntil:
+    visible:
+      id: thing:${output.renamed}
+    timeout: 20000
+- assertNotVisible:
+    id: thing:${output.thing}
+- takeScreenshot: 01_things_renamed

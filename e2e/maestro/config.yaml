@@ -1,0 +1,7 @@
+# Maestro workspace for Focus. Run it with e2e/scripts/e2e.sh (make e2e),
+# which starts the stack, passes APP_URL and writes the report.
+# Guide: docs/self-driving/02-e2e-maestro.md
+flows:
+  - flows/*
+executionOrder:
+  continueOnFailure: false

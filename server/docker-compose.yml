@@ -14,6 +14,8 @@ services:
       # UTC, which is four in the morning here, and anything booked in the
       # evening would land on tomorrow. Override it per deployment.
       TZ: ${FOCUS_TIMEZONE:-America/Sao_Paulo}
+      # Reported by /health next to the image's commit.
+      FOCUS_ENV: production
     env_file:
       - .env.production
     volumes:

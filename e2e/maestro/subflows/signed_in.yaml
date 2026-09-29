@@ -1,0 +1,13 @@
+# Waits for the app to open signed in. The E2E build signs
+# focus.main.agent@gmail.com in by itself at launch (TEST_LOGIN_EMAIL in
+# app/env/e2e.json), so there is no form to fill. If that sign-in failed, the
+# app opens on the landing page instead, and this is where the run stops.
+url: ${APP_URL}
+---
+- extendedWaitUntil:
+    visible: Conversas
+    timeout: 60000
+# The landing page's demo phone draws the same tab names, so the tabs alone
+# prove nothing. Its headline is what says we are not signed in.
+- assertNotVisible: Lock-in and relax.
+- assertVisible: Tempo

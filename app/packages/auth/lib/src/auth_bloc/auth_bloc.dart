@@ -18,6 +18,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }) : super(const AuthState()) {
     on<AuthStarted>(_onStarted);
     on<AuthGoogleSignInRequested>(_onGoogleSignInRequested);
+    on<AuthEmailSignInRequested>(_onEmailSignInRequested);
     on<AuthFailureOccurred>(_onFailureOccurred);
 
     add(const AuthStarted());
@@ -62,11 +63,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onGoogleSignInRequested(
     AuthGoogleSignInRequested event,
     Emitter<AuthState> emit,
+  ) => _signIn(emit, _authRepository.signInWithGoogle);
+
+  Future<void> _onEmailSignInRequested(
+    AuthEmailSignInRequested event,
+    Emitter<AuthState> emit,
+  ) => _signIn(
+    emit,
+    () => _authRepository.signInWithEmail(
+      email: event.email,
+      password: event.password,
+    ),
+  );
+
+  /// Runs one way of signing in, then creates the user on the backend before
+  /// anything navigates.
+  Future<void> _signIn(
+    Emitter<AuthState> emit,
+    Future<void> Function() signIn,
   ) async {
     _isSigningIn = true;
     emit(state.copyWith(status: AuthStatus.loading));
     try {
-      await _authRepository.signInWithGoogle();
+      await signIn();
       final user = (await _authRepository.user.firstWhere(
         (user) => user != null,
       ))!;
@@ -82,7 +101,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(
         state.copyWith(
           status: AuthStatus.failure,
-          errorMessage: e.message ?? 'Google sign in failed',
+          errorMessage: e.message ?? 'Não foi possível entrar',
         ),
       );
     } on Exception catch (e) {

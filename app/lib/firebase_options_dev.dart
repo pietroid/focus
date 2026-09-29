@@ -67,7 +67,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '122163867410',
     projectId: 'focus-local-dev',
     storageBucket: 'focus-local-dev.firebasestorage.app',
-    iosClientId: '122163867410-586l67ekldu8k5mtmv419u5ge3311nbj.apps.googleusercontent.com',
+    iosClientId:
+        '122163867410-586l67ekldu8k5mtmv419u5ge3311nbj.apps.googleusercontent.com',
     iosBundleId: 'com.pietroid.focus.dev',
   );
 }

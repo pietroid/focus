@@ -109,7 +109,8 @@ function serializeBody(message: Message): string {
     return message.text.trim();
   }
 
-  const { contentType: _contentType, a2ui, ...meta } = metadata;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { contentType, a2ui, ...meta } = metadata;
   const body: StoredBody = { a2ui };
   if (Object.keys(meta).length > 0) body.meta = meta;
 

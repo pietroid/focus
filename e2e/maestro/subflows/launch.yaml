@@ -1,0 +1,5 @@
+# Opens the app in a clean browser: no signed-in user, no stored state.
+url: ${APP_URL}
+---
+- launchApp:
+    clearState: true

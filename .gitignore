@@ -164,3 +164,6 @@ agent/*.tsbuildinfo
 agent/.nyc_output/
 
 .secrets
+
+# Firebase emulator logs (make e2e)
+e2e/*-debug.log

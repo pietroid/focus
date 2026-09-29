@@ -1,0 +1,7 @@
+# Local E2E data and run output.
+.data/
+artifacts/
+*.log
+
+# Local secrets.
+.env

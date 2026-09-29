@@ -7,7 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:focus/auth_token_provider.dart';
-import 'package:focus/firebase_options_production.dart' as prod;
+import 'package:focus/environment.dart';
 import 'package:notifications/notifications.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -59,8 +59,9 @@ void notificationsRefreshDispatcher() {
     try {
       WidgetsFlutterBinding.ensureInitialized();
       await Firebase.initializeApp(
-        options: prod.DefaultFirebaseOptions.currentPlatform,
+        options: firebaseOptions(),
       );
+      await connectAuthEmulatorIfAsked();
 
       final authRepository = FirebaseAuthRepository();
       // The signed-in user is restored from disk, which takes a moment.

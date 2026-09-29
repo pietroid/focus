@@ -1,0 +1,211 @@
+name: Coder
+
+# Focus's coding agent. It takes requests as GitHub issues and answers them
+# with pull requests. The editing is done by pi (pi.dev) on the Raspberry Pi,
+# in a container, in a clone of its own that is never the deploy checkout.
+#
+#   - Label an issue `agent` to start it. Only people with triage access can
+#     label, and the job also checks that the owner did it.
+#   - Comment on that issue (as the owner) to answer a question it asked, or
+#     to ask for more.
+#   - Comment `/agent <feedback>` on its PR (as the owner) to have it change
+#     the PR.
+#
+# `think` reaches the Pi over the deploy tunnel with a key of its own, which
+# the Pi only lets run agent/coder/host/focus-coder. That script runs pi in a
+# container, then checks the change, commits it and pushes it to the branch
+# with the Pi account's own GitHub credentials, which pi never sees. The push
+# starts CI and E2E like anyone's push does. `publish`, back on GitHub, opens the PR or
+# comments, with this workflow's own token.
+#
+# Guide: docs/self-driving/04-coder.md
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: coder-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  route:
+    name: route
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'agent' && github.event.sender.login == github.repository_owner) ||
+      (github.event_name == 'issue_comment' && github.event.comment.author_association == 'OWNER' && (
+        (github.event.issue.pull_request && startsWith(github.event.comment.body, '/agent')) ||
+        (!github.event.issue.pull_request && contains(github.event.issue.labels.*.name, 'agent'))
+      ))
+    outputs:
+      mode: ${{ steps.route.outputs.mode }}
+      issue: ${{ steps.route.outputs.issue }}
+      pr: ${{ steps.route.outputs.pr }}
+      branch: ${{ steps.route.outputs.branch }}
+      continuing: ${{ steps.route.outputs.continuing }}
+    steps:
+      - id: route
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          IS_PR: ${{ github.event.issue.pull_request != null }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_PR" = true ]; then
+            branch="$(gh pr view "$NUMBER" --repo "$REPO" --json headRefName -q .headRefName)"
+            issue="$(sed -nE 's#^agent/issue-([0-9]+)$#\1#p' <<< "$branch")"
+            {
+              echo "mode=feedback"; echo "pr=$NUMBER"; echo "issue=$issue"
+              echo "branch=$branch"; echo "continuing=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branch="agent/issue-$NUMBER"
+          pr="$(gh pr list --repo "$REPO" --head "$branch" --state open --json number -q '.[0].number // empty')"
+          if git ls-remote --exit-code --heads "https://github.com/$REPO" "$branch" > /dev/null 2>&1; then
+            continuing=true
+          else
+            continuing=false
+          fi
+          {
+            echo "mode=issue"; echo "issue=$NUMBER"; echo "pr=$pr"
+            echo "branch=$branch"; echo "continuing=$continuing"
+          } >> "$GITHUB_OUTPUT"
+
+  think:
+    name: think (on the Pi)
+    needs: route
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    outputs:
+      pushed: ${{ steps.result.outputs.pushed }}
+    env:
+      RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      # Only for the pi-ssh action. The code pi edits is cloned on the Pi.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Connect to the Pi with the coder's key
+        uses: ./.github/actions/pi-ssh
+        with:
+          ssh-private-key: ${{ secrets.CODER_SSH_PRIVATE_KEY }}
+          tunnel-token-id: ${{ secrets.TUNNEL_SERVICE_TOKEN_ID }}
+          tunnel-token-secret: ${{ secrets.TUNNEL_SERVICE_TOKEN_SECRET }}
+          pi-user: ${{ vars.CODER_PI_USER || vars.PI_USER }}
+          pi-host: ${{ vars.PI_HOST }}
+
+      - name: Run pi on the Pi
+        env:
+          MODE: ${{ needs.route.outputs.mode }}
+          ISSUE: ${{ needs.route.outputs.issue || '-' }}
+          PR: ${{ needs.route.outputs.pr || '-' }}
+          START_REF: ${{ needs.route.outputs.continuing == 'true' && needs.route.outputs.branch || github.event.repository.default_branch }}
+          CONTINUING: ${{ needs.route.outputs.continuing }}
+          BRANCH: ${{ needs.route.outputs.branch }}
+        run: |
+          # The forced command on the Pi reads these words and nothing else.
+          ssh -o ServerAliveInterval=30 focus-pi "run $RUN $MODE $ISSUE $PR $START_REF $CONTINUING $BRANCH"
+
+      - name: Fetch the result
+        id: result
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/coder"
+          ssh focus-pi "fetch $RUN" | tar -xz -C "$RUNNER_TEMP/coder" --strip-components=1
+          ls -la "$RUNNER_TEMP/coder"
+          echo "pushed=$(cat "$RUNNER_TEMP/coder/pushed-sha" 2> /dev/null || true)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coder-${{ github.run_id }}
+          path: ${{ runner.temp }}/coder
+          retention-days: 14
+
+  publish:
+    name: publish
+    needs: [route, think]
+    # Also after a failed think, so the issue hears about it.
+    if: ${{ !cancelled() && needs.route.result == 'success' }}
+    runs-on: ubuntu-latest
+    # The push already happened on the Pi. This only talks.
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: coder-${{ github.run_id }}
+          path: ${{ runner.temp }}/coder
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ needs.route.outputs.issue }}
+          PR: ${{ needs.route.outputs.pr }}
+          BRANCH: ${{ needs.route.outputs.branch }}
+          PUSHED: ${{ needs.think.outputs.pushed }}
+          BASE: ${{ github.event.repository.default_branch }}
+          ARTIFACT: coder-${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/coder"
+          target="${PR:-$ISSUE}"
+          say() { gh issue comment "$target" --repo "$REPO" --body "$1"; }
+
+          if [ ! -f "$dir/result.json" ]; then
+            say "The agent's run on the Pi failed before it produced a result. Log: $RUN_URL"
+            exit 1
+          fi
+          kind="$(jq -r .kind "$dir/result.json")"
+
+          if [ "$kind" = question ]; then
+            say "$(jq -r '"**The agent has a question:**\n\n" + .question + "\n\nReply here and it picks up from there."' "$dir/result.json")"
+            exit 0
+          fi
+          if [ -f "$dir/forbidden" ]; then
+            say "$(printf 'The agent changed files it may not touch, so nothing was pushed:\n\n```\n%s\n```\n\nLog: %s' "$(cat "$dir/forbidden")" "$RUN_URL")"
+            exit 1
+          fi
+          if [ "$kind" != changes ]; then
+            say "The agent stopped without a change: $(jq -r .reason "$dir/result.json"). Log: $RUN_URL"
+            exit 0
+          fi
+          if [ -z "$PUSHED" ]; then
+            say "The agent made a change but the push from the Pi failed. Log: $RUN_URL"
+            exit 1
+          fi
+
+          checks="$(jq -r .checksPassed "$dir/result.json")"
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --repo "$REPO" --body "Pushed \`${PUSHED:0:7}\`: $(jq -r .title "$dir/result.json")"
+            exit 0
+          fi
+          {
+            jq -r .body "$dir/result.json"
+            echo; echo "Closes #$ISSUE"
+            echo; echo "Written by pi on the Pi. Its whole session is \`transcript.html\` in the \`$ARTIFACT\` artifact of $RUN_URL"
+            if [ "$checks" != true ]; then
+              echo; echo "> \`make check-server\` or \`make check-agent\` still failed after the agent's attempts, so this PR is a draft."
+            fi
+          } > body.md
+          draft=()
+          if [ "$checks" != true ]; then draft=(--draft); fi
+          gh pr create --repo "$REPO" --head "$BRANCH" --base "$BASE" \
+            --title "$(jq -r .title "$dir/result.json")" --body-file body.md "${draft[@]}"

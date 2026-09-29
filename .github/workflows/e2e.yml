@@ -1,0 +1,114 @@
+name: E2E
+
+# Every PR runs its own Focus on the runner: backend, agent and web built from
+# the PR's commit, the Firebase emulators, an empty data directory, and a test
+# account made for this run alone. Maestro drives the web app in Chrome on a
+# virtual display while ffmpeg records it. Nothing is deployed and no secret
+# is used.
+#
+# The video, the report and the screenshots go to the PR's draft release
+# (pr-<number>), which release.yml publishes when the PR merges.
+# Guide: docs/self-driving/02-e2e-maestro.md
+#
+# It runs on every push to a branch other than main, so a branch the coder
+# pushed from the Pi gets its run whether or not a PR exists yet. The results
+# go to the branch's open PR when there is one.
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test
+        type: string
+        default: main
+      pr:
+        description: PR number to publish the results to (optional)
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      pr:
+        type: string
+        default: ''
+
+concurrency:
+  group: e2e-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      MAESTRO_VERSION: 2.10.0
+      PR: ${{ inputs.pr }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            agent/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Xvfb, ffmpeg and Maestro
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb x11-utils ffmpeg > /dev/null
+          curl -fsSL https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      - name: Run the suite
+        env:
+          E2E_RECORD: '1'
+          E2E_OUT: ${{ runner.temp }}/e2e
+        run: |
+          xvfb-run -a --server-args="-screen 0 1280x800x24" e2e/scripts/e2e.sh
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/e2e
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish to the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          # A push has no PR attached; look for the branch's open one.
+          if [ -z "$PR" ] && [ "${{ github.event_name }}" = push ]; then
+            PR="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number -q '.[0].number // empty')"
+          fi
+          if [ -z "$PR" ]; then
+            echo "No open PR for this run; the results are in the artifact."
+            exit 0
+          fi
+          e2e/scripts/publish.sh "$PR" "$RUNNER_TEMP/e2e" "$(git rev-parse HEAD)"

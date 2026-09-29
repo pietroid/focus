@@ -183,6 +183,17 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The title rides in the identifier so a Maestro flow can find the row.
+    // On web the row's label only reaches the DOM as aria-label, which
+    // Maestro does not read. Screen readers ignore identifiers.
+    return Semantics(
+      container: true,
+      identifier: 'thing:${thing.title}',
+      child: _tile(),
+    );
+  }
+
+  Widget _tile() {
     return Material(
       color: AppColors.fill,
       borderRadius: BorderRadius.circular(AppSpacing.chipRadius),

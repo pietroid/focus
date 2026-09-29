@@ -320,9 +320,13 @@ void main() {
     final empty = find.byType(FreeTile);
 
     expect(tester.getSize(empty).height, busy);
-    // It is now, and the card after it says when now ends.
+    // It is now, and the card after it says when now ends. Its phrases may
+    // hold a colon ("Pausa de verdade: sem celular."), so look for a time.
     expect(
-      find.descendant(of: empty, matching: find.textContaining(':')),
+      find.descendant(
+        of: empty,
+        matching: find.textContaining(RegExp(r'\d:\d\d')),
+      ),
       findsNothing,
     );
   });

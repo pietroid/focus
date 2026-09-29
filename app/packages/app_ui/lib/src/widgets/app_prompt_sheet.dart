@@ -310,6 +310,13 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Semantics(
+      identifier: 'prompt-field',
+      child: _textField(),
+    );
+  }
+
+  Widget _textField() {
     return TextField(
       controller: controller,
       autofocus: true,
@@ -454,22 +461,27 @@ class _Send extends StatelessWidget {
       builder: (context, value, _) {
         final enabled = value.text.trim().isNotEmpty;
 
-        return SizedBox.square(
-          dimension: AppSpacing.tapTarget,
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: enabled ? onPressed : null,
-              customBorder: const CircleBorder(),
-              child: Center(
-                child: AnimatedOpacity(
-                  opacity: enabled ? 1 : 0.35,
-                  duration: const Duration(milliseconds: 160),
-                  child: const AppIcon(
-                    iconData: AppIcons.check,
-                    size: AppSpacing.s5,
-                    color: AppColors.ink,
+        return Semantics(
+          identifier: 'prompt-send',
+          button: true,
+          enabled: enabled,
+          child: SizedBox.square(
+            dimension: AppSpacing.tapTarget,
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: enabled ? onPressed : null,
+                customBorder: const CircleBorder(),
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: enabled ? 1 : 0.35,
+                    duration: const Duration(milliseconds: 160),
+                    child: const AppIcon(
+                      iconData: AppIcons.check,
+                      size: AppSpacing.s5,
+                      color: AppColors.ink,
+                    ),
                   ),
                 ),
               ),

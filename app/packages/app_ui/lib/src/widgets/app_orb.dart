@@ -70,6 +70,16 @@ class _AppOrbState extends State<AppOrb> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Identified for Maestro flows, which have no words on the orb to find.
+    return Semantics(
+      identifier: 'orb',
+      button: true,
+      label: 'Novo',
+      child: _sphere(),
+    );
+  }
+
+  Widget _sphere() {
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => setState(() => _pressed = true),
