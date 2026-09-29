@@ -28,6 +28,9 @@ import { Answer, forbiddenPaths, parseAnswer, tail } from './result.js';
  *   CODER_MODEL        pi model id, default openrouter/anthropic/claude-sonnet-5
  *   CODER_MINUTES      wall-clock budget for pi, default 40
  *   CODER_PROMPT_FILE  run on this prompt instead of a GitHub thread (local tries)
+ *   CODER_CHECKS       the make targets of the gate, default
+ *                      "check-server check-agent"; "none" skips the gate and
+ *                      leaves the checks to CI, for a Pi short on memory
  *   OPENROUTER_API_KEY, GITHUB_REPOSITORY, optional GITHUB_TOKEN (read-only)
  */
 const WORKSPACE = process.env.CODER_WORKSPACE ?? '/workspace';
@@ -35,6 +38,11 @@ const OUT = process.env.CODER_OUT ?? '/out';
 const ANSWER = path.join(OUT, 'answer.json');
 const SESSIONS = path.join(OUT, 'session');
 const FIX_ROUNDS = 2;
+
+/** The make targets the gate runs, or none. */
+const CHECKS = (process.env.CODER_CHECKS ?? 'check-server check-agent')
+  .split(/\s+/)
+  .filter((target) => target !== '' && target !== 'none');
 
 async function main(): Promise<void> {
   const env = (key: string, fallback?: string): string => {
@@ -57,7 +65,7 @@ async function main(): Promise<void> {
   const model = env('CODER_MODEL', 'openrouter/anthropic/claude-sonnet-5');
   const deadline = Date.now() + Number(process.env.CODER_MINUTES ?? 40) * 60 * 1000;
 
-  await fs.writeFile(path.join(OUT, 'rules.md'), coderRules(ANSWER), 'utf8');
+  await fs.writeFile(path.join(OUT, 'rules.md'), coderRules(ANSWER, CHECKS), 'utf8');
   await fs.writeFile(path.join(OUT, 'prompt.md'), prompt, 'utf8');
 
   let round = 1;
@@ -72,7 +80,7 @@ async function main(): Promise<void> {
     if (checks.ok || round > FIX_ROUNDS || Date.now() > deadline) break;
     round++;
     await fs.rm(ANSWER, { force: true });
-    piOutput = await runPi(model, ['--continue', fixPrompt(checks.output, ANSWER)], round, deadline);
+    piOutput = await runPi(model, ['--continue', fixPrompt(CHECKS, checks.output, ANSWER)], round, deadline);
     answer = (await readAnswer(piOutput)) ?? answer;
   }
 
@@ -138,14 +146,16 @@ async function readAnswer(stdout: string): Promise<Answer | undefined> {
 /**
  * The part of make check this machine can run. Flutter is not on the Pi,
  * so check-app runs in CI on the pull request instead. The model's key is
- * kept out of the checks' environment.
+ * kept out of the checks' environment. With no targets, the gate passes and
+ * CI is the only check.
  */
 async function runChecks(): Promise<{ ok: boolean; output: string }> {
+  if (CHECKS.length === 0) return { ok: true, output: '' };
   const env = { ...process.env };
   delete env.OPENROUTER_API_KEY;
   delete env.GITHUB_TOKEN;
   return new Promise((resolve) => {
-    const child = spawn('make', ['check-server', 'check-agent'], { cwd: WORKSPACE, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('make', CHECKS, { cwd: WORKSPACE, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
     child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));

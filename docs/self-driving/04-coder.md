@@ -180,6 +180,29 @@ have: `PI_SSH_PRIVATE_KEY`, `TUNNEL_SERVICE_TOKEN_ID`,
 `TUNNEL_SERVICE_TOKEN_SECRET`, `PI_USER` and `PI_HOST`. The model key and
 your GitHub credentials stay on the Pi.
 
+### On a Pi with little memory
+
+The image compiles only the coder's own files, which takes about 200 MB. The
+checks are heavier: `make check-server` and `make check-agent` compile the
+whole server and agent, including Google's API types. The container gives
+Node a 2 GB heap for that, and caps the container at 3 GB. See how much you
+have with `free -h`. If RAM plus swap is under about 3 GB, add swap:
+
+```bash
+sudo dphys-swapfile swapoff
+sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+sudo dphys-swapfile setup && sudo dphys-swapfile swapon
+free -h
+```
+
+The knobs, in `coder.env` unless noted:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `NODE_OPTIONS` | `--max-old-space-size=2048` | Node's heap for pi's checks and the gate |
+| `CODER_CHECKS` | `check-server check-agent` | the gate's make targets. `none` skips the gate and tells pi not to run checks, leaving them to CI |
+| `FOCUS_CODER_MEMORY` (host environment) | `3g` | the container's memory cap |
+
 ## Using pi by hand
 
 pi is also a fine editor to drive yourself. It reads `AGENTS.md` like the

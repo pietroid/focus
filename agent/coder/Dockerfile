@@ -7,6 +7,17 @@
 #
 # The run mounts a fresh clone at /workspace and an output directory at /out,
 # and nothing else. See docs/self-driving/04-coder.md.
+
+# Only the coder's own files are compiled (tsconfig.coder.json). They use
+# nothing but Node's built-ins, and compiling the whole agent, with Google's
+# API types, runs a small Pi out of memory.
+FROM node:24-bookworm-slim AS build
+WORKDIR /coder
+COPY package*.json tsconfig.json tsconfig.coder.json ./
+RUN npm ci --no-audit --no-fund
+COPY src ./src
+RUN npx tsc -p tsconfig.coder.json
+
 FROM node:24-bookworm-slim
 
 RUN apt-get update \
@@ -16,14 +27,15 @@ RUN apt-get update \
 # Pinned. Move it on purpose, after reading pi's changelog.
 RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.87.1
 
-WORKDIR /coder
-COPY package*.json tsconfig.json ./
-RUN npm ci --no-audit --no-fund
-COPY src ./src
-RUN npm run build && npm prune --omit=dev
+# The coder has no dependencies at run time, only the compiled files.
+COPY --from=build /coder/dist-coder /coder/dist
 
-# The run passes --user so files in the mounts belong to the host's coder
-# user. HOME is a throwaway directory for pi's config and npm's cache.
+# The checks compile the whole server and agent, which needs more than the
+# heap Node picks by itself on a small Pi. NODE_OPTIONS in coder.env wins.
+ENV NODE_OPTIONS=--max-old-space-size=2048
+
+# The run passes --user so files in the mounts belong to the host's user.
+# HOME is a throwaway directory for pi's config and npm's cache.
 ENV HOME=/tmp/home
 RUN mkdir -p /tmp/home && chmod 1777 /tmp/home
 WORKDIR /workspace

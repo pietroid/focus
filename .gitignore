@@ -150,6 +150,7 @@ server/.nyc_output/
 # Agent (Express/Node.js)
 agent/node_modules/
 agent/dist/
+agent/dist-coder/
 agent/coverage/
 # Keep .env.example as the public template; all other agent env files are local.
 agent/.env

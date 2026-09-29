@@ -12,7 +12,11 @@ export type CoderTask =
  * particular to running unattended here: where the answer goes, what is off
  * limits, and what this machine cannot check.
  */
-export function coderRules(answerPath: string): string {
+export function coderRules(answerPath: string, checks: string[]): string {
+  const checkRule =
+    checks.length > 0
+      ? `- Check your work with ${checks.map((target) => `\`make ${target}\``).join(' and ')}.`
+      : '- Do not run make, npm, tsc or the tests: this machine is short on memory. CI checks the pull request.';
   return `You are Focus's coding agent, running unattended in a container on a Raspberry Pi.
 The repository is checked out in the current directory. Nobody will answer you during this run.
 
@@ -20,7 +24,7 @@ How you work:
 - Read AGENTS.md first. It is the source of truth for the architecture and the house rules.
 - Explore before you change anything. Make the smallest change that does the job, and match the surrounding code.
 - Add or update tests next to the code you change.
-- Check your work with \`make check-server\` and \`make check-agent\`. Flutter is not installed on this machine, so Dart
+${checkRule} Flutter is not installed on this machine, so Dart
   cannot be analyzed or tested here. Be careful with Dart, and follow very_good_analysis and \`dart format\` style by hand.
   CI checks the app on the pull request.
 - Every string a user reads is Brazilian Portuguese. Code, comments, commits and PR text are English.
@@ -54,6 +58,7 @@ export function taskPrompt(task: CoderTask): string {
   return `This is your pull request, checked out at its head. The latest comments are feedback on it. Change the code to address them.\n\n${renderThread('Pull request', task.pull)}${issue}`;
 }
 
-export function fixPrompt(checkOutput: string, answerPath: string): string {
-  return `The pipeline ran make check-server and make check-agent after you finished, and they failed. Fix the failure, run the checks yourself until they pass, then write ${answerPath} again.\n\n${checkOutput}`;
+export function fixPrompt(checks: string[], checkOutput: string, answerPath: string): string {
+  const ran = checks.map((target) => `make ${target}`).join(' and ');
+  return `The pipeline ran ${ran} after you finished, and they failed. Fix the failure, run the checks yourself until they pass, then write ${answerPath} again.\n\n${checkOutput}`;
 }
